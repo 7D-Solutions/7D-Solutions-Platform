@@ -1,6 +1,6 @@
 use chrono::{DateTime, TimeZone, Utc};
-use sha2::{Digest, Sha256};
 use serde_json::Value;
+use sha2::{Digest, Sha256};
 use uuid::Uuid;
 
 /// Truncate a timestamp to millisecond precision.
@@ -11,9 +11,7 @@ use uuid::Uuid;
 /// ISO-8601 strings from different providers.
 pub fn truncate_to_millis(ts: DateTime<Utc>) -> DateTime<Utc> {
     let millis = ts.timestamp_millis();
-    Utc.timestamp_millis_opt(millis)
-        .single()
-        .unwrap_or(ts)
+    Utc.timestamp_millis_opt(millis).single().unwrap_or(ts)
 }
 
 /// Compute the observation fingerprint from provider signals.
@@ -112,7 +110,9 @@ mod tests {
     use serde_json::json;
 
     fn ts(millis: i64) -> DateTime<Utc> {
-        Utc.timestamp_millis_opt(millis).single().expect("valid test millis")
+        Utc.timestamp_millis_opt(millis)
+            .single()
+            .expect("valid test millis")
     }
 
     #[test]
@@ -146,7 +146,10 @@ mod tests {
     fn compute_fingerprint_falls_back_to_payload_hash() {
         let payload = json!({"id": 42, "name": "test"});
         let fp = compute_fingerprint(None, None, &payload);
-        assert!(fp.starts_with("ph:"), "must start with 'ph:' prefix, got: {fp}");
+        assert!(
+            fp.starts_with("ph:"),
+            "must start with 'ph:' prefix, got: {fp}"
+        );
         assert_eq!(fp.len(), 3 + 64, "ph: + 64-char hex sha256");
     }
 

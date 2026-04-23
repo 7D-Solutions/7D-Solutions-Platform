@@ -199,10 +199,15 @@ async fn test_result_markers_stored_on_success() {
 
     assert_eq!(done.status, "succeeded");
     assert_eq!(done.result_sync_token.as_deref(), Some("SyncToken-42"));
-    assert_eq!(done.result_projection_hash.as_deref(), Some("ph:abc123hash"));
+    assert_eq!(
+        done.result_projection_hash.as_deref(),
+        Some("ph:abc123hash")
+    );
 
     // Verify ms truncation: stored time must equal timestamp_millis() of raw_ts.
-    let stored = done.result_last_updated_time.expect("result_last_updated_time present");
+    let stored = done
+        .result_last_updated_time
+        .expect("result_last_updated_time present");
     assert_eq!(
         stored.timestamp_millis(),
         raw_ts.timestamp_millis(),
@@ -238,7 +243,9 @@ async fn test_result_markers_can_be_null() {
     .await
     .expect("insert");
 
-    push_attempts::transition_to_inflight(&pool, row.id).await.expect("inflight");
+    push_attempts::transition_to_inflight(&pool, row.id)
+        .await
+        .expect("inflight");
 
     let done = push_attempts::complete_attempt_with_markers(&pool, row.id, None, None, None, None)
         .await
@@ -292,9 +299,15 @@ async fn test_push_failed_event_enqueued_on_auth_failure() {
 
     let resp = app.oneshot(req).await.unwrap();
     // Auth failure is a classified fault → outcome:failed, HTTP 200
-    assert_eq!(resp.status(), StatusCode::OK, "failed outcome must return 200");
+    assert_eq!(
+        resp.status(),
+        StatusCode::OK,
+        "failed outcome must return 200"
+    );
 
-    let resp_bytes = axum::body::to_bytes(resp.into_body(), usize::MAX).await.unwrap();
+    let resp_bytes = axum::body::to_bytes(resp.into_body(), usize::MAX)
+        .await
+        .unwrap();
     let resp_json: serde_json::Value = serde_json::from_slice(&resp_bytes).unwrap();
     assert_eq!(resp_json["outcome"], "failed", "outcome discriminant");
 
@@ -307,7 +320,10 @@ async fn test_push_failed_event_enqueued_on_auth_failure() {
     .await
     .expect("outbox count query");
 
-    assert_eq!(event_count.0, 1, "exactly one sync.push.failed event in outbox");
+    assert_eq!(
+        event_count.0, 1,
+        "exactly one sync.push.failed event in outbox"
+    );
 
     // Validate the event payload matches the contract.
     let event_row: (serde_json::Value,) = sqlx::query_as(
@@ -330,11 +346,16 @@ async fn test_push_failed_event_enqueued_on_auth_failure() {
     // doesn't match the QboInvoicePayload schema; auth_failed if it reaches QBO with
     // dummy tokens).  Either is a valid classified fault — just assert it's non-empty.
     assert!(
-        inner["failure_code"].as_str().map_or(false, |s| !s.is_empty()),
+        inner["failure_code"]
+            .as_str()
+            .map_or(false, |s| !s.is_empty()),
         "failure_code must be a non-empty string, got: {:?}",
         inner["failure_code"]
     );
-    assert!(inner["connector_id"].is_string(), "connector_id must be a UUID string");
+    assert!(
+        inner["connector_id"].is_string(),
+        "connector_id must be a UUID string"
+    );
     assert_eq!(inner["attempt_number"], 1);
     // classified faults that are not rate_limited/token_error are not retryable
     assert_eq!(inner["retryable"], false);
@@ -363,7 +384,9 @@ async fn test_no_push_failed_event_on_success_path() {
     .await
     .expect("insert");
 
-    push_attempts::transition_to_inflight(&pool, row.id).await.expect("inflight");
+    push_attempts::transition_to_inflight(&pool, row.id)
+        .await
+        .expect("inflight");
 
     push_attempts::complete_attempt_with_markers(&pool, row.id, Some("tok-1"), None, None, None)
         .await

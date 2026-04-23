@@ -13,7 +13,9 @@ use tokio::sync::watch;
 use super::client::QboClient;
 use super::repo;
 use super::{QboError, TokenProvider};
-use crate::domain::sync::dedupe::{compute_comparable_hash, compute_fingerprint, truncate_to_millis};
+use crate::domain::sync::dedupe::{
+    compute_comparable_hash, compute_fingerprint, truncate_to_millis,
+};
 use crate::domain::sync::detector;
 use crate::domain::sync::health;
 use crate::domain::sync::observations;
@@ -99,9 +101,10 @@ pub async fn cdc_tick(pool: &PgPool) -> Result<u32, sqlx::Error> {
                         "Full resync completed"
                     );
                     processed += count;
-                    if let Err(e) = health::upsert_job_success(
-                        pool, &conn.app_id, "quickbooks", "cdc_poll",
-                    ).await {
+                    if let Err(e) =
+                        health::upsert_job_success(pool, &conn.app_id, "quickbooks", "cdc_poll")
+                            .await
+                    {
                         tracing::warn!(error = %e, "Failed to record cdc_poll health");
                     }
                 }
@@ -113,8 +116,14 @@ pub async fn cdc_tick(pool: &PgPool) -> Result<u32, sqlx::Error> {
                         "Full resync failed"
                     );
                     if let Err(he) = health::upsert_job_failure(
-                        pool, &conn.app_id, "quickbooks", "cdc_poll", &e.to_string(),
-                    ).await {
+                        pool,
+                        &conn.app_id,
+                        "quickbooks",
+                        "cdc_poll",
+                        &e.to_string(),
+                    )
+                    .await
+                    {
                         tracing::warn!(error = %he, "Failed to record cdc_poll health");
                     }
                 }
@@ -131,9 +140,10 @@ pub async fn cdc_tick(pool: &PgPool) -> Result<u32, sqlx::Error> {
                         );
                     }
                     processed += count;
-                    if let Err(e) = health::upsert_job_success(
-                        pool, &conn.app_id, "quickbooks", "cdc_poll",
-                    ).await {
+                    if let Err(e) =
+                        health::upsert_job_success(pool, &conn.app_id, "quickbooks", "cdc_poll")
+                            .await
+                    {
                         tracing::warn!(error = %e, "Failed to record cdc_poll health");
                     }
                 }
@@ -145,8 +155,14 @@ pub async fn cdc_tick(pool: &PgPool) -> Result<u32, sqlx::Error> {
                         "CDC poll failed"
                     );
                     if let Err(he) = health::upsert_job_failure(
-                        pool, &conn.app_id, "quickbooks", "cdc_poll", &e.to_string(),
-                    ).await {
+                        pool,
+                        &conn.app_id,
+                        "quickbooks",
+                        "cdc_poll",
+                        &e.to_string(),
+                    )
+                    .await
+                    {
                         tracing::warn!(error = %he, "Failed to record cdc_poll health");
                     }
                 }
@@ -248,78 +264,78 @@ pub async fn process_cdc_entities(
             let entity_type_lower = entity_type.to_lowercase();
 
             for entity in entities {
-            let entity_id = entity
-                .get("Id")
-                .and_then(|v| v.as_str())
-                .unwrap_or("unknown");
+                let entity_id = entity
+                    .get("Id")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("unknown");
 
-            let is_tombstone = entity
-                .get("status")
-                .and_then(|v| v.as_str())
-                .map(|s| s.eq_ignore_ascii_case("Deleted"))
-                .unwrap_or(false);
+                let is_tombstone = entity
+                    .get("status")
+                    .and_then(|v| v.as_str())
+                    .map(|s| s.eq_ignore_ascii_case("Deleted"))
+                    .unwrap_or(false);
 
-            let lut = parse_last_updated_time(entity);
-            let lut_truncated = truncate_to_millis(lut);
+                let lut = parse_last_updated_time(entity);
+                let lut_truncated = truncate_to_millis(lut);
 
-            // Track max provider-confirmed timestamp for watermark advance.
-            max_lut = Some(match max_lut {
-                None => lut_truncated,
-                Some(prev) => prev.max(lut_truncated),
-            });
+                // Track max provider-confirmed timestamp for watermark advance.
+                max_lut = Some(match max_lut {
+                    None => lut_truncated,
+                    Some(prev) => prev.max(lut_truncated),
+                });
 
-            let sync_token = entity.get("SyncToken").and_then(|v| v.as_str());
-            let comparable = comparable_fields(entity);
-            let fingerprint = compute_fingerprint(sync_token, Some(lut_truncated), entity);
-            let comparable_hash = compute_comparable_hash(&comparable, lut_truncated);
+                let sync_token = entity.get("SyncToken").and_then(|v| v.as_str());
+                let comparable = comparable_fields(entity);
+                let fingerprint = compute_fingerprint(sync_token, Some(lut_truncated), entity);
+                let comparable_hash = compute_comparable_hash(&comparable, lut_truncated);
 
-            let obs = observations::upsert_observation(
-                pool,
-                app_id,
-                "quickbooks",
-                &entity_type_lower,
-                entity_id,
-                &fingerprint,
-                lut_truncated,
-                &comparable_hash,
-                1,
-                entity,
-                "cdc",
-                is_tombstone,
-            )
-            .await
-            .map_err(|e| {
-                tracing::error!(
-                    app_id, entity_type, entity_id,
-                    error = %e, "Failed to upsert CDC observation"
-                );
-                e
-            })?;
+                let obs = observations::upsert_observation(
+                    pool,
+                    app_id,
+                    "quickbooks",
+                    &entity_type_lower,
+                    entity_id,
+                    &fingerprint,
+                    lut_truncated,
+                    &comparable_hash,
+                    1,
+                    entity,
+                    "cdc",
+                    is_tombstone,
+                )
+                .await
+                .map_err(|e| {
+                    tracing::error!(
+                        app_id, entity_type, entity_id,
+                        error = %e, "Failed to upsert CDC observation"
+                    );
+                    e
+                })?;
 
-            if let Err(e) = detector::run_detector(
-                pool,
-                app_id,
-                "quickbooks",
-                &entity_type_lower,
-                entity_id,
-                &obs.fingerprint,
-                &obs.comparable_hash,
-                None,
-                Some(entity.clone()),
-            )
-            .await
-            {
-                tracing::warn!(
-                    app_id, entity_type = entity_type_lower, entity_id,
-                    error = %e,
-                    "Detector error after CDC observation — conflict may be lost"
-                );
+                if let Err(e) = detector::run_detector(
+                    pool,
+                    app_id,
+                    "quickbooks",
+                    &entity_type_lower,
+                    entity_id,
+                    &obs.fingerprint,
+                    &obs.comparable_hash,
+                    None,
+                    Some(entity.clone()),
+                )
+                .await
+                {
+                    tracing::warn!(
+                        app_id, entity_type = entity_type_lower, entity_id,
+                        error = %e,
+                        "Detector error after CDC observation — conflict may be lost"
+                    );
+                }
+
+                count += 1;
+
+                let _ = realm_id; // realm_id stored in the entity payload itself
             }
-
-            count += 1;
-
-            let _ = realm_id; // realm_id stored in the entity payload itself
-        }
         }
     }
 
@@ -330,12 +346,18 @@ pub async fn process_cdc_entities(
 /// `MetaData.CreateTime` and then the current wall clock.
 pub(crate) fn parse_last_updated_time(entity: &serde_json::Value) -> DateTime<Utc> {
     let meta = entity.get("MetaData");
-    if let Some(ts_str) = meta.and_then(|m| m.get("LastUpdatedTime")).and_then(|v| v.as_str()) {
+    if let Some(ts_str) = meta
+        .and_then(|m| m.get("LastUpdatedTime"))
+        .and_then(|v| v.as_str())
+    {
         if let Ok(ts) = ts_str.parse::<DateTime<Utc>>() {
             return ts;
         }
     }
-    if let Some(ts_str) = meta.and_then(|m| m.get("CreateTime")).and_then(|v| v.as_str()) {
+    if let Some(ts_str) = meta
+        .and_then(|m| m.get("CreateTime"))
+        .and_then(|v| v.as_str())
+    {
         if let Ok(ts) = ts_str.parse::<DateTime<Utc>>() {
             return ts;
         }
@@ -557,12 +579,18 @@ mod tests {
         let active = json!({"Id": "2", "Active": true});
 
         assert!(
-            deleted["status"].as_str().map(|s| s.eq_ignore_ascii_case("Deleted")).unwrap_or(false),
+            deleted["status"]
+                .as_str()
+                .map(|s| s.eq_ignore_ascii_case("Deleted"))
+                .unwrap_or(false),
             "Deleted status must be detected"
         );
         assert!(
-            !active.get("status").and_then(|v| v.as_str())
-                .map(|s| s.eq_ignore_ascii_case("Deleted")).unwrap_or(false),
+            !active
+                .get("status")
+                .and_then(|v| v.as_str())
+                .map(|s| s.eq_ignore_ascii_case("Deleted"))
+                .unwrap_or(false),
             "Active entity must not be a tombstone"
         );
     }

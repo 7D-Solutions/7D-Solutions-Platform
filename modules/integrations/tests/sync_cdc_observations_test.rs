@@ -10,8 +10,8 @@ use std::time::Duration;
 use chrono::Utc;
 use integrations_rs::domain::qbo::cdc;
 use integrations_rs::domain::sync::observations;
-use serial_test::serial;
 use serde_json::json;
+use serial_test::serial;
 use sqlx::postgres::PgPoolOptions;
 use tokio::sync::OnceCell;
 use uuid::Uuid;
@@ -96,8 +96,14 @@ async fn cdc_writes_observation_rows_with_cdc_source_channel() {
         .await
         .expect("process_cdc_entities");
 
-    assert_eq!(count, 1, "one entity in CDC response must produce one observation");
-    assert!(max_lut.is_some(), "max_lut must be set when entities are present");
+    assert_eq!(
+        count, 1,
+        "one entity in CDC response must produce one observation"
+    );
+    assert!(
+        max_lut.is_some(),
+        "max_lut must be set when entities are present"
+    );
 
     let rows = sqlx::query_as::<_, (String, bool, String)>(
         "SELECT source_channel, is_tombstone, entity_id \
@@ -162,8 +168,14 @@ async fn cdc_marks_deleted_entities_as_tombstone() {
     .expect("fetch");
 
     assert_eq!(tombstones.len(), 2);
-    let dead = tombstones.iter().find(|(id, _)| id == "cust-dead").expect("cust-dead");
-    let live = tombstones.iter().find(|(id, _)| id == "cust-live").expect("cust-live");
+    let dead = tombstones
+        .iter()
+        .find(|(id, _)| id == "cust-dead")
+        .expect("cust-dead");
+    let live = tombstones
+        .iter()
+        .find(|(id, _)| id == "cust-live")
+        .expect("cust-live");
 
     assert!(dead.1, "deleted entity must be marked as tombstone");
     assert!(!live.1, "live entity must not be marked as tombstone");
@@ -214,7 +226,10 @@ async fn cdc_watermark_returned_is_max_last_updated_time() {
     // 2024-06-01T12:00:00Z is the latest of the three timestamps
     assert_eq!(
         max.timestamp(),
-        "2024-06-01T12:00:00Z".parse::<chrono::DateTime<Utc>>().unwrap().timestamp(),
+        "2024-06-01T12:00:00Z"
+            .parse::<chrono::DateTime<Utc>>()
+            .unwrap()
+            .timestamp(),
         "watermark must be the maximum LastUpdatedTime across all entities"
     );
 
@@ -233,7 +248,10 @@ async fn cdc_empty_response_returns_zero_and_no_watermark() {
         .expect("process_cdc_entities");
 
     assert_eq!(count, 0);
-    assert!(max_lut.is_none(), "empty response must return None watermark");
+    assert!(
+        max_lut.is_none(),
+        "empty response must return None watermark"
+    );
 }
 
 #[tokio::test]
@@ -260,15 +278,17 @@ async fn cdc_observation_fingerprint_uses_sync_token() {
         .await
         .expect("process_cdc_entities");
 
-    let fp: (String,) = sqlx::query_as(
-        "SELECT fingerprint FROM integrations_sync_observations WHERE app_id = $1",
-    )
-    .bind(&app_id)
-    .fetch_one(&pool)
-    .await
-    .expect("fetch");
+    let fp: (String,) =
+        sqlx::query_as("SELECT fingerprint FROM integrations_sync_observations WHERE app_id = $1")
+            .bind(&app_id)
+            .fetch_one(&pool)
+            .await
+            .expect("fetch");
 
-    assert_eq!(fp.0, "st:st-42", "fingerprint must use SyncToken when present");
+    assert_eq!(
+        fp.0, "st:st-42",
+        "fingerprint must use SyncToken when present"
+    );
 
     cleanup(&pool, &app_id).await;
 }
@@ -304,15 +324,17 @@ async fn cdc_deduplicates_same_sync_token_on_replay() {
     assert_eq!(c1, 1);
     assert_eq!(c2, 1);
 
-    let count: (i64,) = sqlx::query_as(
-        "SELECT COUNT(*) FROM integrations_sync_observations WHERE app_id = $1",
-    )
-    .bind(&app_id)
-    .fetch_one(&pool)
-    .await
-    .expect("count");
+    let count: (i64,) =
+        sqlx::query_as("SELECT COUNT(*) FROM integrations_sync_observations WHERE app_id = $1")
+            .bind(&app_id)
+            .fetch_one(&pool)
+            .await
+            .expect("count");
 
-    assert_eq!(count.0, 1, "replayed CDC observation must not create duplicate rows");
+    assert_eq!(
+        count.0, 1,
+        "replayed CDC observation must not create duplicate rows"
+    );
 
     cleanup(&pool, &app_id).await;
 }
@@ -339,7 +361,10 @@ async fn cdc_multiple_entity_types_all_written_as_observations() {
         .await
         .expect("process_cdc_entities");
 
-    assert_eq!(count, 4, "one entity per type must produce four observation rows");
+    assert_eq!(
+        count, 4,
+        "one entity per type must produce four observation rows"
+    );
 
     let types: Vec<(String,)> = sqlx::query_as(
         "SELECT entity_type FROM integrations_sync_observations \
@@ -350,13 +375,12 @@ async fn cdc_multiple_entity_types_all_written_as_observations() {
     .await
     .expect("fetch");
 
-    let type_set: std::collections::HashSet<&str> =
-        types.iter().map(|(t,)| t.as_str()).collect();
+    let type_set: std::collections::HashSet<&str> = types.iter().map(|(t,)| t.as_str()).collect();
 
     assert!(type_set.contains("customer"), "customer must be present");
-    assert!(type_set.contains("invoice"),  "invoice must be present");
-    assert!(type_set.contains("payment"),  "payment must be present");
-    assert!(type_set.contains("item"),     "item must be present");
+    assert!(type_set.contains("invoice"), "invoice must be present");
+    assert!(type_set.contains("payment"), "payment must be present");
+    assert!(type_set.contains("item"), "item must be present");
 
     cleanup(&pool, &app_id).await;
 }
@@ -387,10 +411,11 @@ async fn cdc_observation_has_millisecond_normalized_last_updated_time() {
         .await
         .expect("process_cdc_entities");
 
-    let row = observations::get_latest_for_entity(&pool, &app_id, "quickbooks", "customer", "cust-ms")
-        .await
-        .expect("get")
-        .expect("must exist");
+    let row =
+        observations::get_latest_for_entity(&pool, &app_id, "quickbooks", "customer", "cust-ms")
+            .await
+            .expect("get")
+            .expect("must exist");
 
     assert_eq!(
         row.last_updated_time.timestamp_subsec_micros() % 1000,
@@ -425,10 +450,11 @@ async fn cdc_observation_source_channel_and_tombstone_fields_present() {
         .await
         .expect("process_cdc_entities");
 
-    let row = observations::get_latest_for_entity(&pool, &app_id, "quickbooks", "payment", "pay-sc")
-        .await
-        .expect("get")
-        .expect("must exist");
+    let row =
+        observations::get_latest_for_entity(&pool, &app_id, "quickbooks", "payment", "pay-sc")
+            .await
+            .expect("get")
+            .expect("must exist");
 
     assert_eq!(row.source_channel, "cdc");
     assert!(!row.is_tombstone);
@@ -464,7 +490,10 @@ async fn cdc_response_multi_qr() {
         .await
         .expect("process_cdc_entities must succeed with multi-element QueryResponse");
 
-    assert_eq!(count, 4, "all four entity types across separate QueryResponse elements must be processed");
+    assert_eq!(
+        count, 4,
+        "all four entity types across separate QueryResponse elements must be processed"
+    );
     assert!(max_lut.is_some(), "max_lut must be set");
 
     let types: Vec<(String,)> = sqlx::query_as(
@@ -476,13 +505,12 @@ async fn cdc_response_multi_qr() {
     .await
     .expect("fetch entity types");
 
-    let type_set: std::collections::HashSet<&str> =
-        types.iter().map(|(t,)| t.as_str()).collect();
+    let type_set: std::collections::HashSet<&str> = types.iter().map(|(t,)| t.as_str()).collect();
 
     assert!(type_set.contains("customer"), "customer must be present");
-    assert!(type_set.contains("invoice"),  "invoice must be present");
-    assert!(type_set.contains("payment"),  "payment must be present");
-    assert!(type_set.contains("item"),     "item must be present");
+    assert!(type_set.contains("invoice"), "invoice must be present");
+    assert!(type_set.contains("payment"), "payment must be present");
+    assert!(type_set.contains("item"), "item must be present");
 
     cleanup(&pool, &app_id).await;
 }

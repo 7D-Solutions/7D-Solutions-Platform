@@ -15,11 +15,7 @@ use axum::{
 };
 use chrono::Utc;
 use event_bus::InMemoryBus;
-use integrations_rs::{
-    http::qbo_settings,
-    metrics::IntegrationsMetrics,
-    AppState,
-};
+use integrations_rs::{http::qbo_settings, metrics::IntegrationsMetrics, AppState};
 use security::{claims::ActorType, VerifiedClaims};
 use serde_json::Value;
 use serial_test::serial;
@@ -58,10 +54,7 @@ fn test_claims(tenant_id: Uuid) -> VerifiedClaims {
         tenant_id,
         app_id: None,
         roles: vec!["admin".into()],
-        perms: vec![
-            "integrations.mutate".into(),
-            "integrations.read".into(),
-        ],
+        perms: vec!["integrations.mutate".into(), "integrations.read".into()],
         actor_type: ActorType::User,
         issued_at: Utc::now(),
         expires_at: Utc::now() + chrono::Duration::minutes(15),
@@ -186,7 +179,11 @@ async fn post_valid_token_returns_204_and_status_shows_configured() {
 
     let app = build_app(pool.clone(), tenant_id);
     let resp = app.oneshot(post_req).await.expect("oneshot");
-    assert_eq!(resp.status(), StatusCode::NO_CONTENT, "POST must return 204");
+    assert_eq!(
+        resp.status(),
+        StatusCode::NO_CONTENT,
+        "POST must return 204"
+    );
 
     // GET — check status
     let get_req = Request::builder()
@@ -203,7 +200,10 @@ async fn post_valid_token_returns_204_and_status_shows_configured() {
     assert_eq!(resp2.status(), StatusCode::OK, "GET must return 200");
 
     let body = response_body(resp2).await;
-    assert_eq!(body["configured"], true, "configured must be true after POST");
+    assert_eq!(
+        body["configured"], true,
+        "configured must be true after POST"
+    );
     assert!(
         body["last_set_at"].is_string(),
         "last_set_at must be a non-null string after POST"

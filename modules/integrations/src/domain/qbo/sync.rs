@@ -15,7 +15,9 @@ use super::cdc::{comparable_fields, parse_last_updated_time, DbTokenProvider, CD
 use super::client::QboClient;
 use super::repo;
 use super::TokenProvider;
-use crate::domain::sync::dedupe::{compute_comparable_hash, compute_fingerprint, truncate_to_millis};
+use crate::domain::sync::dedupe::{
+    compute_comparable_hash, compute_fingerprint, truncate_to_millis,
+};
 use crate::domain::sync::observations;
 
 /// Maximum concurrent QBO API requests per realm during full resync.

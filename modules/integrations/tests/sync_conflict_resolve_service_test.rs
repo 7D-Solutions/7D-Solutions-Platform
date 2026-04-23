@@ -10,7 +10,9 @@
 //!  7.  Event payload contract — fields in outbox row match the resolved conflict row.
 //!  8.  Tenant isolation — cannot resolve another tenant's conflict.
 
-use integrations_rs::domain::sync::conflicts::{ConflictClass, ConflictStatus, CreateConflictRequest};
+use integrations_rs::domain::sync::conflicts::{
+    ConflictClass, ConflictStatus, CreateConflictRequest,
+};
 use integrations_rs::domain::sync::conflicts_repo::{close_conflict, create_conflict};
 use integrations_rs::domain::sync::resolve_service::{
     resolve_conflict_transactional, ResolveConflictError,
@@ -83,7 +85,10 @@ async fn resolve_conflict_happy_path_transitions_status_and_writes_outbox() {
     assert_eq!(resolved.internal_id.as_deref(), Some("inv-internal-001"));
     assert!(resolved.resolved_at.is_some());
     assert_eq!(resolved.resolved_by.as_deref(), Some("operator"));
-    assert_eq!(resolved.resolution_note.as_deref(), Some("merged platform value"));
+    assert_eq!(
+        resolved.resolution_note.as_deref(),
+        Some("merged platform value")
+    );
 
     // Outbox row must exist for the resolved event.
     let outbox_row: Option<(String, String, serde_json::Value)> = sqlx::query_as(
@@ -119,15 +124,9 @@ async fn explicit_dispatch_accepts_all_supported_entity_types() {
             .await
             .expect("create conflict");
 
-        let result = resolve_conflict_transactional(
-            &pool,
-            &tid,
-            conflict.id,
-            "op",
-            "internal-001",
-            None,
-        )
-        .await;
+        let result =
+            resolve_conflict_transactional(&pool, &tid, conflict.id, "op", "internal-001", None)
+                .await;
 
         assert!(
             result.is_ok(),
@@ -150,16 +149,9 @@ async fn guard_empty_internal_id_rejected_before_db() {
         .await
         .expect("create conflict");
 
-    let err = resolve_conflict_transactional(
-        &pool,
-        &tid,
-        conflict.id,
-        "op",
-        "",
-        None,
-    )
-    .await
-    .expect_err("must reject empty internal_id");
+    let err = resolve_conflict_transactional(&pool, &tid, conflict.id, "op", "", None)
+        .await
+        .expect_err("must reject empty internal_id");
 
     assert!(
         matches!(err, ResolveConflictError::MissingInternalId),
@@ -180,20 +172,20 @@ async fn guard_non_pending_conflict_returns_invalid_transition() {
         .expect("create conflict");
 
     // Close it first.
-    close_conflict(&pool, &tid, conflict.id, ConflictStatus::Ignored, "op", None)
-        .await
-        .expect("close conflict");
-
-    let err = resolve_conflict_transactional(
+    close_conflict(
         &pool,
         &tid,
         conflict.id,
+        ConflictStatus::Ignored,
         "op",
-        "internal-001",
         None,
     )
     .await
-    .expect_err("must reject transition from non-pending");
+    .expect("close conflict");
+
+    let err = resolve_conflict_transactional(&pool, &tid, conflict.id, "op", "internal-001", None)
+        .await
+        .expect_err("must reject transition from non-pending");
 
     assert!(
         matches!(err, ResolveConflictError::InvalidTransition(_, _)),
@@ -210,16 +202,10 @@ async fn guard_not_found_conflict_returns_not_found() {
     let pool = setup_db().await;
     let tid = tenant();
 
-    let err = resolve_conflict_transactional(
-        &pool,
-        &tid,
-        Uuid::new_v4(),
-        "op",
-        "internal-001",
-        None,
-    )
-    .await
-    .expect_err("must return NotFound for unknown UUID");
+    let err =
+        resolve_conflict_transactional(&pool, &tid, Uuid::new_v4(), "op", "internal-001", None)
+            .await
+            .expect_err("must return NotFound for unknown UUID");
 
     assert!(
         matches!(err, ResolveConflictError::NotFound(_)),
@@ -261,16 +247,9 @@ async fn guard_unsupported_entity_type_rejected() {
     .await
     .expect("insert vendor conflict");
 
-    let err = resolve_conflict_transactional(
-        &pool,
-        &tid,
-        conflict.id,
-        "op",
-        "internal-001",
-        None,
-    )
-    .await
-    .expect_err("must reject unsupported entity_type");
+    let err = resolve_conflict_transactional(&pool, &tid, conflict.id, "op", "internal-001", None)
+        .await
+        .expect_err("must reject unsupported entity_type");
 
     assert!(
         matches!(err, ResolveConflictError::UnsupportedEntityType(_)),
@@ -319,7 +298,10 @@ async fn event_payload_matches_conflict_row_fields() {
     assert_eq!(payload["payload"]["conflict_class"], "edit");
     assert_eq!(payload["payload"]["resolved_by"], "alice");
     assert_eq!(payload["payload"]["internal_id"], "cust-internal-999");
-    assert_eq!(payload["payload"]["resolution_note"], "resolved via manual review");
+    assert_eq!(
+        payload["payload"]["resolution_note"],
+        "resolved via manual review"
+    );
 }
 
 // ── 8. Tenant isolation ───────────────────────────────────────────────────────
@@ -335,16 +317,10 @@ async fn tenant_isolation_cannot_resolve_other_tenants_conflict() {
         .await
         .expect("create conflict for tenant A");
 
-    let err = resolve_conflict_transactional(
-        &pool,
-        &tid_b,
-        conflict.id,
-        "op",
-        "internal-001",
-        None,
-    )
-    .await
-    .expect_err("tenant B must not resolve tenant A's conflict");
+    let err =
+        resolve_conflict_transactional(&pool, &tid_b, conflict.id, "op", "internal-001", None)
+            .await
+            .expect_err("tenant B must not resolve tenant A's conflict");
 
     assert!(
         matches!(err, ResolveConflictError::NotFound(_)),

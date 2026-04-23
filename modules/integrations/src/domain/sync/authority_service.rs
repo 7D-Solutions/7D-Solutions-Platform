@@ -70,9 +70,7 @@ pub async fn flip_authority(
     // Resolve connector_id from the OAuth connection. Required by the event contract.
     let connection = oauth_repo::get_connection(pool, app_id, provider)
         .await?
-        .ok_or_else(|| {
-            FlipError::ConnectionNotFound(app_id.to_string(), provider.to_string())
-        })?;
+        .ok_or_else(|| FlipError::ConnectionNotFound(app_id.to_string(), provider.to_string()))?;
     let connector_id = connection.id;
 
     let mut tx = pool.begin().await?;

@@ -355,19 +355,30 @@ pub async fn list_attempts(
         "SELECT {SELECT_COLS} FROM integrations_sync_push_attempts \
          WHERE {where_clause} ORDER BY started_at DESC LIMIT ${limit_idx} OFFSET ${offset_idx}"
     );
-    let count_sql = format!(
-        "SELECT COUNT(*) FROM integrations_sync_push_attempts WHERE {where_clause}"
-    );
+    let count_sql =
+        format!("SELECT COUNT(*) FROM integrations_sync_push_attempts WHERE {where_clause}");
 
     macro_rules! bind_filters {
         ($q:expr) => {{
             let mut q = $q.bind(app_id);
-            if let Some(v) = filter.provider { q = q.bind(v); }
-            if let Some(v) = filter.entity_type { q = q.bind(v); }
-            if let Some(v) = filter.status { q = q.bind(v); }
-            if let Some(v) = filter.request_fingerprint { q = q.bind(v); }
-            if let Some(v) = filter.started_after { q = q.bind(v); }
-            if let Some(v) = filter.started_before { q = q.bind(v); }
+            if let Some(v) = filter.provider {
+                q = q.bind(v);
+            }
+            if let Some(v) = filter.entity_type {
+                q = q.bind(v);
+            }
+            if let Some(v) = filter.status {
+                q = q.bind(v);
+            }
+            if let Some(v) = filter.request_fingerprint {
+                q = q.bind(v);
+            }
+            if let Some(v) = filter.started_after {
+                q = q.bind(v);
+            }
+            if let Some(v) = filter.started_before {
+                q = q.bind(v);
+            }
             q
         }};
     }
@@ -647,8 +658,7 @@ pub async fn run_watchdog_task(pool: PgPool) {
     loop {
         interval.tick().await;
 
-        let threshold =
-            Utc::now() - chrono::Duration::minutes(INFLIGHT_TIMEOUT_MINUTES);
+        let threshold = Utc::now() - chrono::Duration::minutes(INFLIGHT_TIMEOUT_MINUTES);
         match timeout_stale_inflight(&pool, threshold).await {
             Ok(0) => {}
             Ok(n) => tracing::info!(

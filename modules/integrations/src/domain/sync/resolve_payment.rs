@@ -12,14 +12,14 @@ use serde_json::Value;
 use sqlx::PgPool;
 use uuid::Uuid;
 
-use crate::domain::qbo::{
-    client::{QboClient, QboPaymentPayload},
-    QboError,
-};
 use super::{
     authority_repo,
     push_attempts::{self, PreCallOutcome, PushAttemptRow},
     resolve_service::ResolveService,
+};
+use crate::domain::qbo::{
+    client::{QboClient, QboPaymentPayload},
+    QboError,
 };
 
 // ── Action ────────────────────────────────────────────────────────────────────
@@ -39,10 +39,7 @@ pub enum PaymentAction {
     },
     /// Delete a QBO payment via POST with `?operation=delete`.
     /// QBO does not support hard-delete via Active=false for payments.
-    Delete {
-        qbo_id: String,
-        sync_token: String,
-    },
+    Delete { qbo_id: String, sync_token: String },
 }
 
 fn operation_name(action: &PaymentAction) -> &'static str {
@@ -123,18 +120,12 @@ pub async fn push_payment(
     .await?;
 
     // 2. Re-read current authority version and check for supersession.
-    let current_auth_version = match authority_repo::get_authority(
-        pool,
-        &req.app_id,
-        "quickbooks",
-        "payment",
-    )
-    .await?
-    {
-        Some(row) => row.authority_version,
-        // No authority record yet — version can't have advanced.
-        None => req.authority_version,
-    };
+    let current_auth_version =
+        match authority_repo::get_authority(pool, &req.app_id, "quickbooks", "payment").await? {
+            Some(row) => row.authority_version,
+            // No authority record yet — version can't have advanced.
+            None => req.authority_version,
+        };
 
     match push_attempts::pre_call_version_check(pool, attempt.id, current_auth_version).await? {
         PreCallOutcome::Superseded(row) => return Ok(PaymentPushOutcome::Superseded(row)),
@@ -152,10 +143,9 @@ pub async fn push_payment(
     // 5. Record outcome.
     match qbo_result {
         Ok(qbo_entity) => {
-            let completed =
-                push_attempts::complete_attempt(pool, attempt.id, "succeeded", None)
-                    .await?
-                    .unwrap_or(attempt);
+            let completed = push_attempts::complete_attempt(pool, attempt.id, "succeeded", None)
+                .await?
+                .unwrap_or(attempt);
             Ok(PaymentPushOutcome::Succeeded {
                 attempt: completed,
                 qbo_entity,

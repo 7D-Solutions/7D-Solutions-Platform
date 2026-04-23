@@ -18,11 +18,7 @@ use axum::{
 };
 use chrono::Utc;
 use event_bus::InMemoryBus;
-use integrations_rs::{
-    http::sync::get_authority_state,
-    metrics::IntegrationsMetrics,
-    AppState,
-};
+use integrations_rs::{http::sync::get_authority_state, metrics::IntegrationsMetrics, AppState};
 use security::{claims::ActorType, VerifiedClaims};
 use serde_json::Value;
 use serial_test::serial;
@@ -87,7 +83,13 @@ fn build_app(pool: sqlx::PgPool, tenant_id: Uuid) -> Router {
         .layer(Extension(test_claims(tenant_id)))
 }
 
-async fn seed_authority(pool: &sqlx::PgPool, app_id: &str, provider: &str, entity_type: &str, side: &str) {
+async fn seed_authority(
+    pool: &sqlx::PgPool,
+    app_id: &str,
+    provider: &str,
+    entity_type: &str,
+    side: &str,
+) {
     sqlx::query(
         r#"
         INSERT INTO integrations_sync_authority
@@ -180,11 +182,26 @@ async fn get_authority_returns_caller_rows_with_correct_fields() {
     // Required fields present
     for item in items {
         assert!(item.get("provider").is_some(), "provider field missing");
-        assert!(item.get("entity_type").is_some(), "entity_type field missing");
-        assert!(item.get("authoritative_side").is_some(), "authoritative_side field missing");
-        assert!(item.get("authority_version").is_some(), "authority_version field missing");
-        assert!(item.get("last_flipped_by").is_some(), "last_flipped_by field missing");
-        assert!(item.get("last_flipped_at").is_some(), "last_flipped_at field missing");
+        assert!(
+            item.get("entity_type").is_some(),
+            "entity_type field missing"
+        );
+        assert!(
+            item.get("authoritative_side").is_some(),
+            "authoritative_side field missing"
+        );
+        assert!(
+            item.get("authority_version").is_some(),
+            "authority_version field missing"
+        );
+        assert!(
+            item.get("last_flipped_by").is_some(),
+            "last_flipped_by field missing"
+        );
+        assert!(
+            item.get("last_flipped_at").is_some(),
+            "last_flipped_at field missing"
+        );
     }
 
     cleanup(&pool, &app_id).await;
@@ -216,8 +233,10 @@ async fn get_authority_does_not_return_other_tenant_rows() {
     let items = body.as_array().expect("body is array");
 
     assert_eq!(items.len(), 1, "tenant A must only see its own row");
-    assert_eq!(items[0]["authoritative_side"], "platform",
-        "must be tenant A's row, not tenant B's external row");
+    assert_eq!(
+        items[0]["authoritative_side"], "platform",
+        "must be tenant A's row, not tenant B's external row"
+    );
 
     cleanup(&pool, &app_id_a).await;
     cleanup(&pool, &app_id_b).await;

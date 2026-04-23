@@ -61,7 +61,9 @@ fn qbo_error(e: QboError) -> ApiError {
         QboError::SyncTokenExhausted(_) => {
             ApiError::conflict("Invoice was modified concurrently — retry the request")
         }
-        QboError::RateLimited { .. } => ApiError::new(429, "rate_limited", "QBO rate limit exceeded"),
+        QboError::RateLimited { .. } => {
+            ApiError::new(429, "rate_limited", "QBO rate limit exceeded")
+        }
         QboError::AuthFailed => ApiError::new(
             502,
             "auth_failed",

@@ -229,46 +229,85 @@ async fn list_attempts_filter_by_status_provider_entity() {
     let pool = setup_db().await;
     let app_id = tid();
 
-    insert_attempt(&pool, &app_id, "qbo", "invoice", "inv-1", "create", 1, "fp-a").await.unwrap();
-    insert_attempt(&pool, &app_id, "qbo", "invoice", "inv-2", "create", 1, "fp-b").await.unwrap();
-    insert_attempt(&pool, &app_id, "stripe", "charge", "chg-1", "update", 1, "fp-c").await.unwrap();
+    insert_attempt(
+        &pool, &app_id, "qbo", "invoice", "inv-1", "create", 1, "fp-a",
+    )
+    .await
+    .unwrap();
+    insert_attempt(
+        &pool, &app_id, "qbo", "invoice", "inv-2", "create", 1, "fp-b",
+    )
+    .await
+    .unwrap();
+    insert_attempt(
+        &pool, &app_id, "stripe", "charge", "chg-1", "update", 1, "fp-c",
+    )
+    .await
+    .unwrap();
 
     // Filter by provider=qbo
     let (rows, total) = list_attempts(
-        &pool, &app_id,
-        &ListAttemptsFilter { provider: Some("qbo"), ..Default::default() },
-        1, 50,
-    ).await.unwrap();
+        &pool,
+        &app_id,
+        &ListAttemptsFilter {
+            provider: Some("qbo"),
+            ..Default::default()
+        },
+        1,
+        50,
+    )
+    .await
+    .unwrap();
     assert_eq!(total, 2, "2 qbo rows");
-    for r in &rows { assert_eq!(r.provider, "qbo"); }
+    for r in &rows {
+        assert_eq!(r.provider, "qbo");
+    }
 
     // Filter by entity_type=charge
     let (rows, total) = list_attempts(
-        &pool, &app_id,
-        &ListAttemptsFilter { entity_type: Some("charge"), ..Default::default() },
-        1, 50,
-    ).await.unwrap();
+        &pool,
+        &app_id,
+        &ListAttemptsFilter {
+            entity_type: Some("charge"),
+            ..Default::default()
+        },
+        1,
+        50,
+    )
+    .await
+    .unwrap();
     assert_eq!(total, 1);
     assert_eq!(rows[0].entity_type, "charge");
 
     // Filter by provider + entity_type
     let (rows, total) = list_attempts(
-        &pool, &app_id,
+        &pool,
+        &app_id,
         &ListAttemptsFilter {
             provider: Some("qbo"),
             entity_type: Some("invoice"),
             ..Default::default()
         },
-        1, 50,
-    ).await.unwrap();
+        1,
+        50,
+    )
+    .await
+    .unwrap();
     assert_eq!(total, 2);
 
     // Filter by request_fingerprint
     let (rows, total) = list_attempts(
-        &pool, &app_id,
-        &ListAttemptsFilter { request_fingerprint: Some("fp-c"), ..Default::default() },
-        1, 50,
-    ).await.unwrap();
+        &pool,
+        &app_id,
+        &ListAttemptsFilter {
+            request_fingerprint: Some("fp-c"),
+            ..Default::default()
+        },
+        1,
+        50,
+    )
+    .await
+    .unwrap();
     assert_eq!(total, 1);
     assert_eq!(rows[0].request_fingerprint, "fp-c");
 }
@@ -284,29 +323,45 @@ async fn list_attempts_time_window() {
     let app_id = tid();
 
     let before = Utc::now();
-    insert_attempt(&pool, &app_id, "qbo", "invoice", "inv-tw", "create", 1, "fp-tw")
-        .await
-        .unwrap();
+    insert_attempt(
+        &pool, &app_id, "qbo", "invoice", "inv-tw", "create", 1, "fp-tw",
+    )
+    .await
+    .unwrap();
     let _after = Utc::now();
 
     // started_after = before the insert → should include the row
     let (_rows, total) = list_attempts(
-        &pool, &app_id,
-        &ListAttemptsFilter { started_after: Some(before - chrono::Duration::seconds(5)), ..Default::default() },
-        1, 50,
-    ).await.unwrap();
+        &pool,
+        &app_id,
+        &ListAttemptsFilter {
+            started_after: Some(before - chrono::Duration::seconds(5)),
+            ..Default::default()
+        },
+        1,
+        50,
+    )
+    .await
+    .unwrap();
     assert!(total >= 1, "row inserted after 'before' must appear");
 
     // started_before = before the insert → should NOT include the row
     let (rows, _) = list_attempts(
-        &pool, &app_id,
+        &pool,
+        &app_id,
         &ListAttemptsFilter {
             started_before: Some(before - chrono::Duration::seconds(5)),
             ..Default::default()
         },
-        1, 50,
-    ).await.unwrap();
-    assert!(!rows.iter().any(|r| r.entity_id == "inv-tw"), "row must be excluded by started_before");
+        1,
+        50,
+    )
+    .await
+    .unwrap();
+    assert!(
+        !rows.iter().any(|r| r.entity_id == "inv-tw"),
+        "row must be excluded by started_before"
+    );
 }
 
 // ============================================================================
@@ -321,17 +376,28 @@ async fn list_attempts_paginates() {
 
     for i in 0..6 {
         insert_attempt(
-            &pool, &app_id, "qbo", "invoice", &format!("inv-pg-{i}"), "create", 1, &format!("fp-pg-{i}"),
+            &pool,
+            &app_id,
+            "qbo",
+            "invoice",
+            &format!("inv-pg-{i}"),
+            "create",
+            1,
+            &format!("fp-pg-{i}"),
         )
         .await
         .unwrap();
     }
 
-    let (p1, total) = list_attempts(&pool, &app_id, &Default::default(), 1, 4).await.unwrap();
+    let (p1, total) = list_attempts(&pool, &app_id, &Default::default(), 1, 4)
+        .await
+        .unwrap();
     assert_eq!(total, 6);
     assert_eq!(p1.len(), 4);
 
-    let (p2, _) = list_attempts(&pool, &app_id, &Default::default(), 2, 4).await.unwrap();
+    let (p2, _) = list_attempts(&pool, &app_id, &Default::default(), 2, 4)
+        .await
+        .unwrap();
     assert_eq!(p2.len(), 2);
 
     let ids1: std::collections::HashSet<_> = p1.iter().map(|r| r.id).collect();
@@ -350,11 +416,23 @@ async fn list_attempts_tenant_isolation() {
     let a = tid();
     let b = tid();
 
-    insert_attempt(&pool, &a, "qbo", "invoice", "inv-a", "create", 1, "fp-iso-a").await.unwrap();
-    insert_attempt(&pool, &b, "qbo", "invoice", "inv-b", "create", 1, "fp-iso-b").await.unwrap();
+    insert_attempt(
+        &pool, &a, "qbo", "invoice", "inv-a", "create", 1, "fp-iso-a",
+    )
+    .await
+    .unwrap();
+    insert_attempt(
+        &pool, &b, "qbo", "invoice", "inv-b", "create", 1, "fp-iso-b",
+    )
+    .await
+    .unwrap();
 
-    let (a_rows, a_total) = list_attempts(&pool, &a, &Default::default(), 1, 50).await.unwrap();
-    let (b_rows, b_total) = list_attempts(&pool, &b, &Default::default(), 1, 50).await.unwrap();
+    let (a_rows, a_total) = list_attempts(&pool, &a, &Default::default(), 1, 50)
+        .await
+        .unwrap();
+    let (b_rows, b_total) = list_attempts(&pool, &b, &Default::default(), 1, 50)
+        .await
+        .unwrap();
 
     assert_eq!(a_total, 1);
     assert_eq!(b_total, 1);

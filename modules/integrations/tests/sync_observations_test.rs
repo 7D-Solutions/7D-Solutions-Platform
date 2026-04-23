@@ -4,8 +4,8 @@ use chrono::{TimeZone, Utc};
 use integrations_rs::domain::sync::{
     compute_comparable_hash, compute_fingerprint, observations, truncate_to_millis,
 };
-use serial_test::serial;
 use serde_json::json;
+use serial_test::serial;
 use sqlx::postgres::PgPoolOptions;
 use tokio::sync::OnceCell;
 use uuid::Uuid;
@@ -107,7 +107,11 @@ fn truncate_to_millis_drops_sub_ms_precision() {
     let precise = Utc.timestamp_nanos(1_700_000_000_123_456_789_i64);
     let trunc = truncate_to_millis(precise);
     assert_eq!(trunc.timestamp_millis(), precise.timestamp_millis());
-    assert_eq!(trunc.timestamp_subsec_micros() % 1000, 0, "sub-ms must be zero");
+    assert_eq!(
+        trunc.timestamp_subsec_micros() % 1000,
+        0,
+        "sub-ms must be zero"
+    );
 }
 
 // ── DB integration tests ──────────────────────────────────────────────────────
@@ -125,8 +129,18 @@ async fn test_upsert_observation_inserts_new_row() {
     let ch = compute_comparable_hash(&payload, ts);
 
     let row = observations::upsert_observation(
-        &pool, &app_id, "quickbooks", "customer", "cust-001",
-        &fp, ts, &ch, 1, &payload, "test", false,
+        &pool,
+        &app_id,
+        "quickbooks",
+        "customer",
+        "cust-001",
+        &fp,
+        ts,
+        &ch,
+        1,
+        &payload,
+        "test",
+        false,
     )
     .await
     .expect("upsert");
@@ -154,16 +168,36 @@ async fn test_upsert_deduplicates_on_unique_key() {
 
     // First insert
     let r1 = observations::upsert_observation(
-        &pool, &app_id, "quickbooks", "customer", "cust-002",
-        &fp, ts, &ch, 1, &payload, "test", false,
+        &pool,
+        &app_id,
+        "quickbooks",
+        "customer",
+        "cust-002",
+        &fp,
+        ts,
+        &ch,
+        1,
+        &payload,
+        "test",
+        false,
     )
     .await
     .expect("first upsert");
 
     // Second upsert with same key — same payload, should return the existing row
     let r2 = observations::upsert_observation(
-        &pool, &app_id, "quickbooks", "customer", "cust-002",
-        &fp, ts, &ch, 1, &payload, "test", false,
+        &pool,
+        &app_id,
+        "quickbooks",
+        "customer",
+        "cust-002",
+        &fp,
+        ts,
+        &ch,
+        1,
+        &payload,
+        "test",
+        false,
     )
     .await
     .expect("second upsert");
@@ -171,13 +205,12 @@ async fn test_upsert_deduplicates_on_unique_key() {
     assert_eq!(r1.id, r2.id, "same fingerprint must return same row");
 
     // Only one row should exist
-    let count: (i64,) = sqlx::query_as(
-        "SELECT COUNT(*) FROM integrations_sync_observations WHERE app_id = $1",
-    )
-    .bind(&app_id)
-    .fetch_one(&pool)
-    .await
-    .expect("count");
+    let count: (i64,) =
+        sqlx::query_as("SELECT COUNT(*) FROM integrations_sync_observations WHERE app_id = $1")
+            .bind(&app_id)
+            .fetch_one(&pool)
+            .await
+            .expect("count");
 
     assert_eq!(count.0, 1, "deduplication must produce exactly one row");
 
@@ -198,28 +231,45 @@ async fn test_different_fingerprints_create_separate_rows() {
 
     // Two observations for the same entity at different timestamps
     observations::upsert_observation(
-        &pool, &app_id, "quickbooks", "customer", "cust-003",
-        &compute_fingerprint(None, Some(ts1), &p1), ts1,
-        &compute_comparable_hash(&p1, ts1), 1, &p1, "test", false,
+        &pool,
+        &app_id,
+        "quickbooks",
+        "customer",
+        "cust-003",
+        &compute_fingerprint(None, Some(ts1), &p1),
+        ts1,
+        &compute_comparable_hash(&p1, ts1),
+        1,
+        &p1,
+        "test",
+        false,
     )
     .await
     .expect("first");
 
     observations::upsert_observation(
-        &pool, &app_id, "quickbooks", "customer", "cust-003",
-        &compute_fingerprint(None, Some(ts2), &p2), ts2,
-        &compute_comparable_hash(&p2, ts2), 1, &p2, "test", false,
+        &pool,
+        &app_id,
+        "quickbooks",
+        "customer",
+        "cust-003",
+        &compute_fingerprint(None, Some(ts2), &p2),
+        ts2,
+        &compute_comparable_hash(&p2, ts2),
+        1,
+        &p2,
+        "test",
+        false,
     )
     .await
     .expect("second");
 
-    let count: (i64,) = sqlx::query_as(
-        "SELECT COUNT(*) FROM integrations_sync_observations WHERE app_id = $1",
-    )
-    .bind(&app_id)
-    .fetch_one(&pool)
-    .await
-    .expect("count");
+    let count: (i64,) =
+        sqlx::query_as("SELECT COUNT(*) FROM integrations_sync_observations WHERE app_id = $1")
+            .bind(&app_id)
+            .fetch_one(&pool)
+            .await
+            .expect("count");
 
     assert_eq!(count.0, 2, "distinct fingerprints must create two rows");
 
@@ -243,8 +293,18 @@ async fn test_last_updated_time_stored_as_millisecond_precision() {
     let ch = compute_comparable_hash(&payload, truncated_ts);
 
     let row = observations::upsert_observation(
-        &pool, &app_id, "quickbooks", "customer", "cust-004",
-        &fp, truncated_ts, &ch, 1, &payload, "test", false,
+        &pool,
+        &app_id,
+        "quickbooks",
+        "customer",
+        "cust-004",
+        &fp,
+        truncated_ts,
+        &ch,
+        1,
+        &payload,
+        "test",
+        false,
     )
     .await
     .expect("upsert");
@@ -277,29 +337,49 @@ async fn test_get_latest_for_entity_returns_highest_timestamp() {
     let p_new = json!({"id": "inv-001", "status": "sent"});
 
     observations::upsert_observation(
-        &pool, &app_id, "quickbooks", "invoice", "inv-001",
-        &compute_fingerprint(None, Some(ts_old), &p_old), ts_old,
-        &compute_comparable_hash(&p_old, ts_old), 1, &p_old, "test", false,
+        &pool,
+        &app_id,
+        "quickbooks",
+        "invoice",
+        "inv-001",
+        &compute_fingerprint(None, Some(ts_old), &p_old),
+        ts_old,
+        &compute_comparable_hash(&p_old, ts_old),
+        1,
+        &p_old,
+        "test",
+        false,
     )
     .await
     .expect("old");
 
     observations::upsert_observation(
-        &pool, &app_id, "quickbooks", "invoice", "inv-001",
-        &compute_fingerprint(None, Some(ts_new), &p_new), ts_new,
-        &compute_comparable_hash(&p_new, ts_new), 1, &p_new, "test", false,
+        &pool,
+        &app_id,
+        "quickbooks",
+        "invoice",
+        "inv-001",
+        &compute_fingerprint(None, Some(ts_new), &p_new),
+        ts_new,
+        &compute_comparable_hash(&p_new, ts_new),
+        1,
+        &p_new,
+        "test",
+        false,
     )
     .await
     .expect("new");
 
-    let latest = observations::get_latest_for_entity(
-        &pool, &app_id, "quickbooks", "invoice", "inv-001",
-    )
-    .await
-    .expect("get latest")
-    .expect("must be Some");
+    let latest =
+        observations::get_latest_for_entity(&pool, &app_id, "quickbooks", "invoice", "inv-001")
+            .await
+            .expect("get latest")
+            .expect("must be Some");
 
-    assert_eq!(latest.last_updated_time, ts_new, "must return the most recent observation");
+    assert_eq!(
+        latest.last_updated_time, ts_new,
+        "must return the most recent observation"
+    );
 
     cleanup(&pool, &app_id).await;
 }
@@ -319,8 +399,18 @@ async fn test_list_since_watermark() {
         let fp = format!("ts:{}", ts.timestamp_millis());
         let ch = compute_comparable_hash(&payload, ts);
         observations::upsert_observation(
-            &pool, &app_id, "quickbooks", "item", &format!("item-{i}"),
-            &fp, ts, &ch, 1, &payload, "test", false,
+            &pool,
+            &app_id,
+            "quickbooks",
+            "item",
+            &format!("item-{i}"),
+            &fp,
+            ts,
+            &ch,
+            1,
+            &payload,
+            "test",
+            false,
         )
         .await
         .expect("upsert");
@@ -328,11 +418,10 @@ async fn test_list_since_watermark() {
 
     // Watermark at i=2 → should return rows for i=2,3,4 (inclusive).
     let watermark = truncate_to_millis(millis_ts(ts_base + 2 * 1_000));
-    let rows = observations::list_since_watermark(
-        &pool, &app_id, "quickbooks", "item", watermark, 10,
-    )
-    .await
-    .expect("list");
+    let rows =
+        observations::list_since_watermark(&pool, &app_id, "quickbooks", "item", watermark, 10)
+            .await
+            .expect("list");
 
     assert_eq!(rows.len(), 3, "rows since watermark should be 3 (i=2,3,4)");
     assert!(
@@ -356,17 +445,25 @@ async fn test_find_by_comparable_hash() {
     let fp = format!("st:hash-lookup-test");
 
     observations::upsert_observation(
-        &pool, &app_id, "quickbooks", "payment", "pay-001",
-        &fp, ts, &ch, 1, &payload, "test", false,
+        &pool,
+        &app_id,
+        "quickbooks",
+        "payment",
+        "pay-001",
+        &fp,
+        ts,
+        &ch,
+        1,
+        &payload,
+        "test",
+        false,
     )
     .await
     .expect("upsert");
 
-    let found = observations::find_by_comparable_hash(
-        &pool, &app_id, "quickbooks", "payment", &ch,
-    )
-    .await
-    .expect("find");
+    let found = observations::find_by_comparable_hash(&pool, &app_id, "quickbooks", "payment", &ch)
+        .await
+        .expect("find");
 
     assert_eq!(found.len(), 1);
     assert_eq!(found[0].comparable_hash, ch);
@@ -389,31 +486,56 @@ async fn test_payload_hash_fingerprint_prevents_key_collapse_on_distinct_payload
 
     let fp1 = compute_fingerprint(None, None, &p1);
     let fp2 = compute_fingerprint(None, None, &p2);
-    assert_ne!(fp1, fp2, "distinct payloads must produce distinct ph: fingerprints");
+    assert_ne!(
+        fp1, fp2,
+        "distinct payloads must produce distinct ph: fingerprints"
+    );
 
     observations::upsert_observation(
-        &pool, &app_id, "quickbooks", "vendor", "v-001",
-        &fp1, ts, &compute_comparable_hash(&p1, ts), 1, &p1, "test", false,
+        &pool,
+        &app_id,
+        "quickbooks",
+        "vendor",
+        "v-001",
+        &fp1,
+        ts,
+        &compute_comparable_hash(&p1, ts),
+        1,
+        &p1,
+        "test",
+        false,
     )
     .await
     .expect("first");
 
     observations::upsert_observation(
-        &pool, &app_id, "quickbooks", "vendor", "v-001",
-        &fp2, ts, &compute_comparable_hash(&p2, ts), 1, &p2, "test", false,
+        &pool,
+        &app_id,
+        "quickbooks",
+        "vendor",
+        "v-001",
+        &fp2,
+        ts,
+        &compute_comparable_hash(&p2, ts),
+        1,
+        &p2,
+        "test",
+        false,
     )
     .await
     .expect("second");
 
-    let count: (i64,) = sqlx::query_as(
-        "SELECT COUNT(*) FROM integrations_sync_observations WHERE app_id = $1",
-    )
-    .bind(&app_id)
-    .fetch_one(&pool)
-    .await
-    .expect("count");
+    let count: (i64,) =
+        sqlx::query_as("SELECT COUNT(*) FROM integrations_sync_observations WHERE app_id = $1")
+            .bind(&app_id)
+            .fetch_one(&pool)
+            .await
+            .expect("count");
 
-    assert_eq!(count.0, 2, "two distinct payload hashes must produce two rows");
+    assert_eq!(
+        count.0, 2,
+        "two distinct payload hashes must produce two rows"
+    );
 
     cleanup(&pool, &app_id).await;
 }

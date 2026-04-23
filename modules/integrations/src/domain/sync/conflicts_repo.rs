@@ -80,8 +80,8 @@ pub async fn resolve_conflict(
         .await?
         .ok_or(ConflictError::NotFound(conflict_id))?;
 
-    let current_status = ConflictStatus::from_str(&current.status)
-        .unwrap_or(ConflictStatus::Pending);
+    let current_status =
+        ConflictStatus::from_str(&current.status).unwrap_or(ConflictStatus::Pending);
 
     if current_status != ConflictStatus::Pending {
         return Err(ConflictError::InvalidTransition(
@@ -129,7 +129,10 @@ pub async fn close_conflict(
     note: Option<&str>,
 ) -> Result<ConflictRow, ConflictError> {
     // Only these two terminal statuses are valid here; resolved goes via resolve_conflict
-    if !matches!(new_status, ConflictStatus::Ignored | ConflictStatus::Unresolvable) {
+    if !matches!(
+        new_status,
+        ConflictStatus::Ignored | ConflictStatus::Unresolvable
+    ) {
         return Err(ConflictError::InvalidTransition(
             "pending".to_string(),
             new_status.as_str().to_string(),
@@ -140,8 +143,8 @@ pub async fn close_conflict(
         .await?
         .ok_or(ConflictError::NotFound(conflict_id))?;
 
-    let current_status = ConflictStatus::from_str(&current.status)
-        .unwrap_or(ConflictStatus::Pending);
+    let current_status =
+        ConflictStatus::from_str(&current.status).unwrap_or(ConflictStatus::Pending);
 
     if current_status != ConflictStatus::Pending {
         return Err(ConflictError::InvalidTransition(
@@ -236,7 +239,10 @@ pub async fn close_conflict_with_key(
     note: Option<&str>,
     idempotency_key: &str,
 ) -> Result<Option<ConflictRow>, ConflictError> {
-    if !matches!(new_status, ConflictStatus::Ignored | ConflictStatus::Unresolvable) {
+    if !matches!(
+        new_status,
+        ConflictStatus::Ignored | ConflictStatus::Unresolvable
+    ) {
         return Err(ConflictError::InvalidTransition(
             "pending".to_string(),
             new_status.as_str().to_string(),

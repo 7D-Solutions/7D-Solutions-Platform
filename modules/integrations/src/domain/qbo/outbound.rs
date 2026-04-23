@@ -414,9 +414,12 @@ pub async fn process_order_ingested(
         currency_ref: None,
     };
 
-    let qbo_invoice = qbo.create_invoice(&invoice_payload, Uuid::new_v4()).await.map_err(|e| {
-        format!("qbo_outbound: QBO create_invoice failed for order {order_id}: {e}")
-    })?;
+    let qbo_invoice = qbo
+        .create_invoice(&invoice_payload, Uuid::new_v4())
+        .await
+        .map_err(|e| {
+            format!("qbo_outbound: QBO create_invoice failed for order {order_id}: {e}")
+        })?;
 
     let qbo_invoice_id = qbo_invoice["Id"]
         .as_str()

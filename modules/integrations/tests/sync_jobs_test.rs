@@ -107,7 +107,11 @@ async fn consecutive_failures_accumulate_streak() {
 
     for i in 1..=4u32 {
         let row = health::upsert_job_failure(
-            &pool, &app_id, "quickbooks", "token_refresh", "connect error",
+            &pool,
+            &app_id,
+            "quickbooks",
+            "token_refresh",
+            "connect error",
         )
         .await
         .expect("upsert failure");
@@ -140,7 +144,10 @@ async fn success_after_failures_resets_streak() {
         .expect("success after failures");
 
     assert_eq!(row.failure_streak, 0, "streak must reset to 0 on success");
-    assert!(row.last_error.is_none(), "last_error must be cleared on success");
+    assert!(
+        row.last_error.is_none(),
+        "last_error must be cleared on success"
+    );
     assert!(row.last_success_at.is_some());
 
     cleanup(&pool, &app_id).await;
@@ -159,17 +166,27 @@ async fn list_jobs_tenant_isolation() {
     cleanup(&pool, &a).await;
     cleanup(&pool, &b).await;
 
-    health::upsert_job_success(&pool, &a, "quickbooks", "cdc_poll").await.unwrap();
-    health::upsert_job_success(&pool, &b, "quickbooks", "cdc_poll").await.unwrap();
-    health::upsert_job_success(&pool, &b, "quickbooks", "token_refresh").await.unwrap();
+    health::upsert_job_success(&pool, &a, "quickbooks", "cdc_poll")
+        .await
+        .unwrap();
+    health::upsert_job_success(&pool, &b, "quickbooks", "cdc_poll")
+        .await
+        .unwrap();
+    health::upsert_job_success(&pool, &b, "quickbooks", "token_refresh")
+        .await
+        .unwrap();
 
     let (a_rows, a_total) = health::list_jobs(&pool, &a, 1, 50).await.unwrap();
     let (b_rows, b_total) = health::list_jobs(&pool, &b, 1, 50).await.unwrap();
 
     assert_eq!(a_total, 1, "tenant A has 1 job");
     assert_eq!(b_total, 2, "tenant B has 2 jobs");
-    for r in &a_rows { assert_eq!(r.app_id, a); }
-    for r in &b_rows { assert_eq!(r.app_id, b); }
+    for r in &a_rows {
+        assert_eq!(r.app_id, a);
+    }
+    for r in &b_rows {
+        assert_eq!(r.app_id, b);
+    }
 
     cleanup(&pool, &a).await;
     cleanup(&pool, &b).await;

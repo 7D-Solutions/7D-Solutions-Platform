@@ -103,8 +103,14 @@ async fn start_guard_server(ship_date_drifted: bool) -> (String, GuardServerStat
         ship_date_drifted,
     };
     let app = axum::Router::new()
-        .route("/v3/company/{realm}/invoice/{id}", axum::routing::get(guard_get))
-        .route("/v3/company/{realm}/invoice", axum::routing::post(guard_post))
+        .route(
+            "/v3/company/{realm}/invoice/{id}",
+            axum::routing::get(guard_get),
+        )
+        .route(
+            "/v3/company/{realm}/invoice",
+            axum::routing::post(guard_post),
+        )
         .with_state(state.clone());
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
     let addr = listener.local_addr().unwrap();
@@ -145,7 +151,11 @@ async fn guard_no_drift_retries_and_succeeds() {
         .update_entity_with_guard("Invoice", body, Some(&baseline), Uuid::new_v4())
         .await;
 
-    assert!(result.is_ok(), "expected success with no drift: {:?}", result);
+    assert!(
+        result.is_ok(),
+        "expected success with no drift: {:?}",
+        result
+    );
     assert_eq!(
         state.post_count.load(Ordering::SeqCst),
         2,
@@ -246,7 +256,11 @@ async fn guard_no_baseline_system_only_fields_retries_safely() {
         .update_entity_with_guard("Invoice", body, None, Uuid::new_v4())
         .await;
 
-    assert!(result.is_ok(), "expected success with no business fields: {:?}", result);
+    assert!(
+        result.is_ok(),
+        "expected success with no business fields: {:?}",
+        result
+    );
     assert_eq!(state.post_count.load(Ordering::SeqCst), 2);
 }
 

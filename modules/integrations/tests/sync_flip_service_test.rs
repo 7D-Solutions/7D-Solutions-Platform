@@ -120,7 +120,10 @@ async fn test_flip_creates_row_and_emits_event() {
     .expect("first flip should succeed");
 
     assert_eq!(result.row.authoritative_side, "external");
-    assert_eq!(result.row.authority_version, 2, "new row starts at 1, flip bumps to 2");
+    assert_eq!(
+        result.row.authority_version, 2,
+        "new row starts at 1, flip bumps to 2"
+    );
     assert_eq!(result.previous_side, "platform");
     assert_eq!(result.row.last_flipped_by.as_deref(), Some("user-1"));
     assert!(result.row.last_flipped_at.is_some());
@@ -133,7 +136,10 @@ async fn test_flip_creates_row_and_emits_event() {
     .fetch_one(&pool)
     .await
     .expect("count events");
-    assert_eq!(event_count.0, 1, "exactly one authority.changed event must be enqueued");
+    assert_eq!(
+        event_count.0, 1,
+        "exactly one authority.changed event must be enqueued"
+    );
 
     cleanup(&pool, &app_id).await;
 }
@@ -159,7 +165,10 @@ async fn test_flip_fails_without_oauth_connection() {
     .expect_err("flip without connection must fail");
 
     assert!(
-        matches!(err, integrations_rs::domain::sync::FlipError::ConnectionNotFound(_, _)),
+        matches!(
+            err,
+            integrations_rs::domain::sync::FlipError::ConnectionNotFound(_, _)
+        ),
         "expected ConnectionNotFound, got {:?}",
         err
     );
@@ -187,7 +196,10 @@ async fn test_flip_rejects_invalid_side() {
     .expect_err("invalid side must fail");
 
     assert!(
-        matches!(err, integrations_rs::domain::sync::FlipError::InvalidSide(_)),
+        matches!(
+            err,
+            integrations_rs::domain::sync::FlipError::InvalidSide(_)
+        ),
         "expected InvalidSide, got {:?}",
         err
     );
@@ -246,9 +258,7 @@ async fn test_flip_quiesces_pending_push_outbox_rows() {
     seed_connection(&pool, &app_id, "quickbooks").await;
 
     // Seed two pending push_attempt outbox rows for entity_type=invoice.
-    let seeded_ids: Vec<Uuid> = (0..2)
-        .map(|_| Uuid::new_v4())
-        .collect();
+    let seeded_ids: Vec<Uuid> = (0..2).map(|_| Uuid::new_v4()).collect();
     for &eid in &seeded_ids {
         sqlx::query(
             r#"
@@ -411,8 +421,7 @@ async fn test_concurrent_flips_serialize_and_version_is_monotonic() {
     .await
     .expect("count events");
     assert_eq!(
-        event_count.0,
-        concurrency as i64,
+        event_count.0, concurrency as i64,
         "must have exactly one authority.changed event per flip"
     );
 

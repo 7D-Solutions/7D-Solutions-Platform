@@ -275,7 +275,10 @@ async fn qbo_smoke_test() {
                     "ShipMethodRef": {"value": "UPS Ground"}
                 });
 
-                match client.update_entity("Invoice", update, Uuid::new_v4()).await {
+                match client
+                    .update_entity("Invoice", update, Uuid::new_v4())
+                    .await
+                {
                     Ok(_) => {
                         eprintln!(
                             "  PASS  Sparse update invoice {} with shipping fields",
@@ -340,7 +343,10 @@ async fn qbo_smoke_test() {
                     "ShipDate": "2026-01-01"
                 });
 
-                match client.update_entity("Invoice", stale_update, Uuid::new_v4()).await {
+                match client
+                    .update_entity("Invoice", stale_update, Uuid::new_v4())
+                    .await
+                {
                     Ok(_) => {
                         // SyncToken retry logic should have recovered
                         eprintln!("  PASS  Stale SyncToken recovered via retry");

@@ -14,23 +14,25 @@ use serde_json::Value;
 use sqlx::PgPool;
 use uuid::Uuid;
 
+use super::authority_repo;
+use super::conflicts::{ConflictError, ConflictStatus};
+use super::conflicts_repo::{
+    close_conflict_with_key, get_conflict, resolve_conflict_tx, resolve_conflict_with_key_tx,
+};
+use super::dedupe::compute_resolve_det_key;
+use super::dedupe::{compute_fingerprint, truncate_to_millis};
+use super::push_attempts::{self, PreCallOutcome, ReconcileOutcome};
 use crate::domain::oauth::repo as oauth_repo;
 use crate::domain::qbo::client::{
     QboClient, QboCustomerPayload, QboInvoicePayload, QboPaymentPayload,
 };
 use crate::domain::qbo::QboError;
 use crate::events::{
-    build_sync_conflict_resolved_envelope, SyncConflictResolvedPayload,
-    EVENT_TYPE_SYNC_CONFLICT_RESOLVED,
-    build_sync_push_failed_envelope, SyncPushFailedPayload, EVENT_TYPE_SYNC_PUSH_FAILED,
+    build_sync_conflict_resolved_envelope, build_sync_push_failed_envelope,
+    SyncConflictResolvedPayload, SyncPushFailedPayload, EVENT_TYPE_SYNC_CONFLICT_RESOLVED,
+    EVENT_TYPE_SYNC_PUSH_FAILED,
 };
 use crate::outbox::enqueue_event_tx;
-use super::authority_repo;
-use super::conflicts::{ConflictError, ConflictStatus};
-use super::conflicts_repo::{close_conflict_with_key, get_conflict, resolve_conflict_tx, resolve_conflict_with_key_tx};
-use super::dedupe::compute_resolve_det_key;
-use super::dedupe::{compute_fingerprint, truncate_to_millis};
-use super::push_attempts::{self, PreCallOutcome, ReconcileOutcome};
 
 // ── Public outcome taxonomy ───────────────────────────────────────────────────
 
@@ -68,10 +70,7 @@ pub enum PushOutcome {
     },
     /// Write completed under stale authority; values were equal, no conflict
     /// was opened.
-    StaleAuthorityAutoClosed {
-        attempt_id: Uuid,
-        entity_id: String,
-    },
+    StaleAuthorityAutoClosed { attempt_id: Uuid, entity_id: String },
     /// Write completed under stale authority; values diverged, a conflict row
     /// was opened for manual resolution.
     StaleAuthorityConflictOpened {
@@ -134,8 +133,8 @@ pub async fn resolve_conflict_transactional(
         .map_err(ResolveConflictError::from)?
         .ok_or(ResolveConflictError::NotFound(conflict_id))?;
 
-    let current_status = ConflictStatus::from_str(&conflict.status)
-        .unwrap_or(ConflictStatus::Pending);
+    let current_status =
+        ConflictStatus::from_str(&conflict.status).unwrap_or(ConflictStatus::Pending);
     if current_status != ConflictStatus::Pending {
         return Err(ResolveConflictError::InvalidTransition(
             conflict.status.clone(),
@@ -146,10 +145,13 @@ pub async fn resolve_conflict_transactional(
     // Explicit (entity_type, conflict_class) dispatch — all arms currently
     // share the same DB path; the match makes routing explicit and extensible
     // per-entity without trait dispatch.
-    match (conflict.entity_type.as_str(), conflict.conflict_class.as_str()) {
+    match (
+        conflict.entity_type.as_str(),
+        conflict.conflict_class.as_str(),
+    ) {
         ("customer", "edit") | ("customer", "creation") | ("customer", "deletion") => {}
-        ("invoice",  "edit") | ("invoice",  "creation") | ("invoice",  "deletion") => {}
-        ("payment",  "edit") | ("payment",  "creation") | ("payment",  "deletion") => {}
+        ("invoice", "edit") | ("invoice", "creation") | ("invoice", "deletion") => {}
+        ("payment", "edit") | ("payment", "creation") | ("payment", "deletion") => {}
         _ => {
             return Err(ResolveConflictError::UnsupportedEntityType(
                 conflict.entity_type.clone(),
@@ -289,17 +291,11 @@ pub enum BulkResolveOutcome {
         entity_type: String,
     },
     /// action string is not one of resolve / ignore / unresolvable.
-    InvalidAction {
-        conflict_id: Uuid,
-        action: String,
-    },
+    InvalidAction { conflict_id: Uuid, action: String },
     /// action = resolve but internal_id is absent or empty.
     MissingInternalId { conflict_id: Uuid },
     /// Unexpected error processing this item.
-    Error {
-        conflict_id: Uuid,
-        message: String,
-    },
+    Error { conflict_id: Uuid, message: String },
 }
 
 /// Top-level error from `bulk_resolve_conflicts` (not per-item).
@@ -324,7 +320,8 @@ pub async fn bulk_resolve_conflicts(
     }
     let mut outcomes = Vec::with_capacity(items.len());
     for item in items {
-        let det_key = compute_resolve_det_key(item.conflict_id, &item.action, item.authority_version);
+        let det_key =
+            compute_resolve_det_key(item.conflict_id, &item.action, item.authority_version);
         outcomes.push(process_bulk_item(pool, app_id, resolved_by, &item, &det_key).await);
     }
     Ok(outcomes)
@@ -341,7 +338,10 @@ async fn process_bulk_item(
 
     // Validate action.
     if !matches!(item.action.as_str(), "resolve" | "ignore" | "unresolvable") {
-        return BulkResolveOutcome::InvalidAction { conflict_id: cid, action: item.action.clone() };
+        return BulkResolveOutcome::InvalidAction {
+            conflict_id: cid,
+            action: item.action.clone(),
+        };
     }
     if item.action == "resolve" && item.internal_id.as_ref().map_or(true, |s| s.is_empty()) {
         return BulkResolveOutcome::MissingInternalId { conflict_id: cid };
@@ -353,20 +353,29 @@ async fn process_bulk_item(
         Ok(None) => return BulkResolveOutcome::NotFound { conflict_id: cid },
         Err(e) => {
             tracing::error!(error = %e, conflict_id = %cid, "bulk_resolve: DB error loading conflict");
-            return BulkResolveOutcome::Error { conflict_id: cid, message: "database error".to_string() };
+            return BulkResolveOutcome::Error {
+                conflict_id: cid,
+                message: "database error".to_string(),
+            };
         }
     };
 
     // Explicit (entity_type, conflict_class) dispatch — same surface as single-item resolve.
-    match (conflict.entity_type.as_str(), conflict.conflict_class.as_str()) {
+    match (
+        conflict.entity_type.as_str(),
+        conflict.conflict_class.as_str(),
+    ) {
         ("customer" | "invoice" | "payment", "edit" | "creation" | "deletion") => {}
-        _ => return BulkResolveOutcome::UnsupportedEntityType {
-            conflict_id: cid,
-            entity_type: conflict.entity_type.clone(),
-        },
+        _ => {
+            return BulkResolveOutcome::UnsupportedEntityType {
+                conflict_id: cid,
+                entity_type: conflict.entity_type.clone(),
+            }
+        }
     }
 
-    let current_status = ConflictStatus::from_str(&conflict.status).unwrap_or(ConflictStatus::Pending);
+    let current_status =
+        ConflictStatus::from_str(&conflict.status).unwrap_or(ConflictStatus::Pending);
 
     // Already terminal: idempotent replay if same det_key; TerminalByOther otherwise.
     if current_status.is_terminal() {
@@ -391,7 +400,10 @@ async fn process_bulk_item(
                 ConflictStatus::Pending => unreachable!(),
             }
         } else {
-            BulkResolveOutcome::TerminalByOther { conflict_id: cid, current_status: conflict.status }
+            BulkResolveOutcome::TerminalByOther {
+                conflict_id: cid,
+                current_status: conflict.status,
+            }
         };
     }
 
@@ -400,20 +412,33 @@ async fn process_bulk_item(
             let internal_id = match item.internal_id.as_deref() {
                 Some(id) => id,
                 None => {
-                    return BulkResolveOutcome::Error { conflict_id: cid, message: "internal_id required for resolve action".to_string() };
+                    return BulkResolveOutcome::Error {
+                        conflict_id: cid,
+                        message: "internal_id required for resolve action".to_string(),
+                    };
                 }
             };
             let mut tx = match pool.begin().await {
                 Ok(t) => t,
                 Err(e) => {
                     tracing::error!(error = %e, conflict_id = %cid, "bulk_resolve: begin tx failed");
-                    return BulkResolveOutcome::Error { conflict_id: cid, message: "database error".to_string() };
+                    return BulkResolveOutcome::Error {
+                        conflict_id: cid,
+                        message: "database error".to_string(),
+                    };
                 }
             };
             let resolved = match resolve_conflict_with_key_tx(
-                &mut tx, app_id, cid, internal_id, resolved_by,
-                item.resolution_note.as_deref(), det_key,
-            ).await {
+                &mut tx,
+                app_id,
+                cid,
+                internal_id,
+                resolved_by,
+                item.resolution_note.as_deref(),
+                det_key,
+            )
+            .await
+            {
                 Ok(Some(r)) => r,
                 Ok(None) => {
                     let _ = tx.rollback().await;
@@ -425,7 +450,10 @@ async fn process_bulk_item(
                 Err(e) => {
                     let _ = tx.rollback().await;
                     tracing::error!(error = %e, conflict_id = %cid, "bulk_resolve: resolve_tx failed");
-                    return BulkResolveOutcome::Error { conflict_id: cid, message: "database error".to_string() };
+                    return BulkResolveOutcome::Error {
+                        conflict_id: cid,
+                        message: "database error".to_string(),
+                    };
                 }
             };
             let event_id = Uuid::new_v4();
@@ -441,19 +469,36 @@ async fn process_bulk_item(
                 resolution_note: item.resolution_note.clone(),
             };
             let envelope = build_sync_conflict_resolved_envelope(
-                event_id, app_id.to_string(), event_id.to_string(), None, payload,
+                event_id,
+                app_id.to_string(),
+                event_id.to_string(),
+                None,
+                payload,
             );
             if let Err(e) = enqueue_event_tx(
-                &mut tx, event_id, EVENT_TYPE_SYNC_CONFLICT_RESOLVED,
-                "sync_conflict", &cid.to_string(), app_id, &envelope,
-            ).await {
+                &mut tx,
+                event_id,
+                EVENT_TYPE_SYNC_CONFLICT_RESOLVED,
+                "sync_conflict",
+                &cid.to_string(),
+                app_id,
+                &envelope,
+            )
+            .await
+            {
                 let _ = tx.rollback().await;
                 tracing::error!(error = %e, conflict_id = %cid, "bulk_resolve: enqueue event failed");
-                return BulkResolveOutcome::Error { conflict_id: cid, message: "database error".to_string() };
+                return BulkResolveOutcome::Error {
+                    conflict_id: cid,
+                    message: "database error".to_string(),
+                };
             }
             if let Err(e) = tx.commit().await {
                 tracing::error!(error = %e, conflict_id = %cid, "bulk_resolve: commit failed");
-                return BulkResolveOutcome::Error { conflict_id: cid, message: "database error".to_string() };
+                return BulkResolveOutcome::Error {
+                    conflict_id: cid,
+                    message: "database error".to_string(),
+                };
             }
             BulkResolveOutcome::Resolved {
                 conflict_id: cid,
@@ -463,9 +508,16 @@ async fn process_bulk_item(
         }
         "ignore" => {
             match close_conflict_with_key(
-                pool, app_id, cid, ConflictStatus::Ignored,
-                resolved_by, item.resolution_note.as_deref(), det_key,
-            ).await {
+                pool,
+                app_id,
+                cid,
+                ConflictStatus::Ignored,
+                resolved_by,
+                item.resolution_note.as_deref(),
+                det_key,
+            )
+            .await
+            {
                 Ok(Some(_)) => BulkResolveOutcome::Ignored {
                     conflict_id: cid,
                     deterministic_key: det_key.to_string(),
@@ -477,15 +529,25 @@ async fn process_bulk_item(
                 },
                 Err(e) => {
                     tracing::error!(error = %e, conflict_id = %cid, "bulk_resolve: close ignore failed");
-                    BulkResolveOutcome::Error { conflict_id: cid, message: "database error".to_string() }
+                    BulkResolveOutcome::Error {
+                        conflict_id: cid,
+                        message: "database error".to_string(),
+                    }
                 }
             }
         }
         "unresolvable" => {
             match close_conflict_with_key(
-                pool, app_id, cid, ConflictStatus::Unresolvable,
-                resolved_by, item.resolution_note.as_deref(), det_key,
-            ).await {
+                pool,
+                app_id,
+                cid,
+                ConflictStatus::Unresolvable,
+                resolved_by,
+                item.resolution_note.as_deref(),
+                det_key,
+            )
+            .await
+            {
                 Ok(Some(_)) => BulkResolveOutcome::MarkedUnresolvable {
                     conflict_id: cid,
                     deterministic_key: det_key.to_string(),
@@ -497,7 +559,10 @@ async fn process_bulk_item(
                 },
                 Err(e) => {
                     tracing::error!(error = %e, conflict_id = %cid, "bulk_resolve: close unresolvable failed");
-                    BulkResolveOutcome::Error { conflict_id: cid, message: "database error".to_string() }
+                    BulkResolveOutcome::Error {
+                        conflict_id: cid,
+                        message: "database error".to_string(),
+                    }
                 }
             }
         }
@@ -552,7 +617,9 @@ fn classify_qbo_error(e: QboError) -> QboCallResult {
             code: "token_error".into(),
             message: msg,
         },
-        QboError::Http(e) => QboCallResult::Unknown { message: e.to_string() },
+        QboError::Http(e) => QboCallResult::Unknown {
+            message: e.to_string(),
+        },
         QboError::Deserialize(msg) => QboCallResult::Unknown { message: msg },
         QboError::ConflictDetected { entity_id, .. } => QboCallResult::Fault {
             code: "concurrent_edit_conflict".into(),
@@ -592,9 +659,10 @@ fn extract_qbo_markers(
     let lut_str = external_value["MetaData"]["LastUpdatedTime"]
         .as_str()
         .or_else(|| {
-            external_value
-                .as_object()
-                .and_then(|m| m.values().find_map(|v| v["MetaData"]["LastUpdatedTime"].as_str()))
+            external_value.as_object().and_then(|m| {
+                m.values()
+                    .find_map(|v| v["MetaData"]["LastUpdatedTime"].as_str())
+            })
         });
 
     let last_updated_time = lut_str.and_then(|s| {
@@ -604,11 +672,8 @@ fn extract_qbo_markers(
     });
 
     // Projection hash: stable fingerprint of the external state for drift correlation.
-    let projection_hash = compute_fingerprint(
-        sync_token.as_deref(),
-        last_updated_time,
-        external_value,
-    );
+    let projection_hash =
+        compute_fingerprint(sync_token.as_deref(), last_updated_time, external_value);
 
     (sync_token, last_updated_time, projection_hash)
 }
@@ -726,7 +791,10 @@ where
 
     // 7. Map QBO result → terminal outcome.
     match qbo_result {
-        QboCallResult::Succeeded { external_value, provider_entity_id } => {
+        QboCallResult::Succeeded {
+            external_value,
+            provider_entity_id,
+        } => {
             if authority_stale {
                 // Authority flipped while inflight: reconcile without a platform
                 // snapshot (HTTP context has no DB entity reader).  Both sides
@@ -813,8 +881,8 @@ where
             );
 
             let mut tx = pool.begin().await.map_err(PushError::Database)?;
-            let _ = push_attempts::fail_attempt_tx(&mut tx, attempt.id, "failed", Some(&message))
-                .await;
+            let _ =
+                push_attempts::fail_attempt_tx(&mut tx, attempt.id, "failed", Some(&message)).await;
             let _ = enqueue_event_tx(
                 &mut tx,
                 event_id,
@@ -933,24 +1001,22 @@ impl ResolveService {
             request_fingerprint,
             move |attempt_id| async move {
                 match op.as_str() {
-                    "create" => {
-                        match serde_json::from_value::<QboCustomerPayload>(payload_owned) {
-                            Ok(p) => match qbo.create_customer(&p, attempt_id).await {
-                                Ok(val) => {
-                                    let pid = val["Id"].as_str().map(String::from);
-                                    QboCallResult::Succeeded {
-                                        external_value: val,
-                                        provider_entity_id: pid,
-                                    }
+                    "create" => match serde_json::from_value::<QboCustomerPayload>(payload_owned) {
+                        Ok(p) => match qbo.create_customer(&p, attempt_id).await {
+                            Ok(val) => {
+                                let pid = val["Id"].as_str().map(String::from);
+                                QboCallResult::Succeeded {
+                                    external_value: val,
+                                    provider_entity_id: pid,
                                 }
-                                Err(e) => classify_qbo_error(e),
-                            },
-                            Err(e) => QboCallResult::Fault {
-                                code: "invalid_payload".into(),
-                                message: e.to_string(),
-                            },
-                        }
-                    }
+                            }
+                            Err(e) => classify_qbo_error(e),
+                        },
+                        Err(e) => QboCallResult::Fault {
+                            code: "invalid_payload".into(),
+                            message: e.to_string(),
+                        },
+                    },
                     "update" => {
                         let eid = payload_owned["Id"].as_str().unwrap_or("").to_string();
                         let baseline = qbo
@@ -1013,24 +1079,22 @@ impl ResolveService {
             request_fingerprint,
             move |attempt_id| async move {
                 match op.as_str() {
-                    "create" => {
-                        match serde_json::from_value::<QboInvoicePayload>(payload_owned) {
-                            Ok(p) => match qbo.create_invoice(&p, attempt_id).await {
-                                Ok(val) => {
-                                    let pid = val["Id"].as_str().map(String::from);
-                                    QboCallResult::Succeeded {
-                                        external_value: val,
-                                        provider_entity_id: pid,
-                                    }
+                    "create" => match serde_json::from_value::<QboInvoicePayload>(payload_owned) {
+                        Ok(p) => match qbo.create_invoice(&p, attempt_id).await {
+                            Ok(val) => {
+                                let pid = val["Id"].as_str().map(String::from);
+                                QboCallResult::Succeeded {
+                                    external_value: val,
+                                    provider_entity_id: pid,
                                 }
-                                Err(e) => classify_qbo_error(e),
-                            },
-                            Err(e) => QboCallResult::Fault {
-                                code: "invalid_payload".into(),
-                                message: e.to_string(),
-                            },
-                        }
-                    }
+                            }
+                            Err(e) => classify_qbo_error(e),
+                        },
+                        Err(e) => QboCallResult::Fault {
+                            code: "invalid_payload".into(),
+                            message: e.to_string(),
+                        },
+                    },
                     "update" => {
                         let eid = payload_owned["Id"].as_str().unwrap_or("").to_string();
                         let baseline = qbo
@@ -1059,8 +1123,10 @@ impl ResolveService {
                     }
                     "void" => {
                         let qbo_id = payload_owned["Id"].as_str().unwrap_or("").to_string();
-                        let sync_token =
-                            payload_owned["SyncToken"].as_str().unwrap_or("0").to_string();
+                        let sync_token = payload_owned["SyncToken"]
+                            .as_str()
+                            .unwrap_or("0")
+                            .to_string();
                         match qbo.void_invoice(&qbo_id, &sync_token, attempt_id).await {
                             Ok(val) => {
                                 let pid = val["Id"].as_str().map(String::from);
@@ -1108,24 +1174,22 @@ impl ResolveService {
             request_fingerprint,
             move |attempt_id| async move {
                 match op.as_str() {
-                    "create" => {
-                        match serde_json::from_value::<QboPaymentPayload>(payload_owned) {
-                            Ok(p) => match qbo.create_payment(&p, attempt_id).await {
-                                Ok(val) => {
-                                    let pid = val["Id"].as_str().map(String::from);
-                                    QboCallResult::Succeeded {
-                                        external_value: val,
-                                        provider_entity_id: pid,
-                                    }
+                    "create" => match serde_json::from_value::<QboPaymentPayload>(payload_owned) {
+                        Ok(p) => match qbo.create_payment(&p, attempt_id).await {
+                            Ok(val) => {
+                                let pid = val["Id"].as_str().map(String::from);
+                                QboCallResult::Succeeded {
+                                    external_value: val,
+                                    provider_entity_id: pid,
                                 }
-                                Err(e) => classify_qbo_error(e),
-                            },
-                            Err(e) => QboCallResult::Fault {
-                                code: "invalid_payload".into(),
-                                message: e.to_string(),
-                            },
-                        }
-                    }
+                            }
+                            Err(e) => classify_qbo_error(e),
+                        },
+                        Err(e) => QboCallResult::Fault {
+                            code: "invalid_payload".into(),
+                            message: e.to_string(),
+                        },
+                    },
                     "update" => {
                         let eid = payload_owned["Id"].as_str().unwrap_or("").to_string();
                         let baseline = qbo
@@ -1154,8 +1218,10 @@ impl ResolveService {
                     }
                     "delete" => {
                         let qbo_id = payload_owned["Id"].as_str().unwrap_or("").to_string();
-                        let sync_token =
-                            payload_owned["SyncToken"].as_str().unwrap_or("").to_string();
+                        let sync_token = payload_owned["SyncToken"]
+                            .as_str()
+                            .unwrap_or("")
+                            .to_string();
                         match qbo.delete_payment(&qbo_id, &sync_token, attempt_id).await {
                             Ok(val) => {
                                 let pid = val["Id"].as_str().map(String::from);

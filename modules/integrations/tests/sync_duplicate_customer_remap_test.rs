@@ -10,15 +10,14 @@
 
 use std::time::Duration;
 
-use integrations_rs::domain::sync::resolve_customer::{
-    normalize_email, normalize_phone, normalize_tax_id,
-    raise_creation_conflict, execute_customer_remap,
-    CustomerCreationConflictRequest, CustomerRemapRequest,
-    CustomerRemapError,
-};
 use integrations_rs::domain::sync::conflicts_repo::get_conflict;
-use serial_test::serial;
+use integrations_rs::domain::sync::resolve_customer::{
+    execute_customer_remap, normalize_email, normalize_phone, normalize_tax_id,
+    raise_creation_conflict, CustomerCreationConflictRequest, CustomerRemapError,
+    CustomerRemapRequest,
+};
 use serde_json::json;
+use serial_test::serial;
 use sqlx::postgres::PgPoolOptions;
 use uuid::Uuid;
 
@@ -136,9 +135,15 @@ async fn raise_creation_conflict_opens_pending_creation_conflict() {
     let old_qbo_id = format!("qbo-{}", Uuid::new_v4().simple());
 
     seed_external_ref(
-        &pool, &app_id, "customer", &entity_id,
-        "quickbooks", &old_qbo_id,
-        Some("alice@example.com"), None, None,
+        &pool,
+        &app_id,
+        "customer",
+        &entity_id,
+        "quickbooks",
+        &old_qbo_id,
+        Some("alice@example.com"),
+        None,
+        None,
     )
     .await;
 
@@ -176,9 +181,15 @@ async fn raise_creation_conflict_includes_candidate_hints_on_email_match() {
 
     let entity_id = format!("cust-{}", Uuid::new_v4().simple());
     seed_external_ref(
-        &pool, &app_id, "customer", &entity_id,
-        "quickbooks", &format!("qbo-{}", Uuid::new_v4().simple()),
-        Some("bob@acme.com"), None, None,
+        &pool,
+        &app_id,
+        "customer",
+        &entity_id,
+        "quickbooks",
+        &format!("qbo-{}", Uuid::new_v4().simple()),
+        Some("bob@acme.com"),
+        None,
+        None,
     )
     .await;
 
@@ -197,13 +208,20 @@ async fn raise_creation_conflict_includes_candidate_hints_on_email_match() {
 
     let outcome = raise_creation_conflict(&pool, &req).await.expect("raise");
 
-    assert!(!outcome.candidates.is_empty(), "must have at least one candidate hint");
+    assert!(
+        !outcome.candidates.is_empty(),
+        "must have at least one candidate hint"
+    );
     let hint = &outcome.candidates[0];
     assert_eq!(hint.entity_id, entity_id);
     assert!(hint.matched_on.contains(&"email".to_string()));
 
     // Verify candidate_hints are embedded in internal_value.
-    let stored_iv = outcome.conflict.internal_value.as_ref().expect("internal_value");
+    let stored_iv = outcome
+        .conflict
+        .internal_value
+        .as_ref()
+        .expect("internal_value");
     assert!(
         stored_iv["candidate_hints"].is_array(),
         "internal_value must have candidate_hints array"
@@ -223,9 +241,15 @@ async fn raise_creation_conflict_no_candidates_when_fields_diverge() {
     let entity_id = format!("cust-{}", Uuid::new_v4().simple());
     // Seed ref with a different email.
     seed_external_ref(
-        &pool, &app_id, "customer", &entity_id,
-        "quickbooks", &format!("qbo-{}", Uuid::new_v4().simple()),
-        Some("other@domain.com"), None, None,
+        &pool,
+        &app_id,
+        "customer",
+        &entity_id,
+        "quickbooks",
+        &format!("qbo-{}", Uuid::new_v4().simple()),
+        Some("other@domain.com"),
+        None,
+        None,
     )
     .await;
 
@@ -263,9 +287,15 @@ async fn raise_creation_conflict_candidate_hint_on_phone_match() {
 
     let entity_id = format!("cust-{}", Uuid::new_v4().simple());
     seed_external_ref(
-        &pool, &app_id, "customer", &entity_id,
-        "quickbooks", &format!("qbo-{}", Uuid::new_v4().simple()),
-        None, Some("15558675309"), None,
+        &pool,
+        &app_id,
+        "customer",
+        &entity_id,
+        "quickbooks",
+        &format!("qbo-{}", Uuid::new_v4().simple()),
+        None,
+        Some("15558675309"),
+        None,
     )
     .await;
 
@@ -284,8 +314,14 @@ async fn raise_creation_conflict_candidate_hint_on_phone_match() {
 
     let outcome = raise_creation_conflict(&pool, &req).await.expect("raise");
 
-    let phone_hint = outcome.candidates.iter().find(|h| h.matched_on.contains(&"phone".to_string()));
-    assert!(phone_hint.is_some(), "phone-matched candidate must be returned");
+    let phone_hint = outcome
+        .candidates
+        .iter()
+        .find(|h| h.matched_on.contains(&"phone".to_string()));
+    assert!(
+        phone_hint.is_some(),
+        "phone-matched candidate must be returned"
+    );
 
     cleanup(&pool, &app_id).await;
 }
@@ -305,9 +341,15 @@ async fn execute_remap_tombstones_old_and_creates_new_ref() {
     let new_qbo_id = format!("qbo-new-{}", Uuid::new_v4().simple());
 
     let old_ref_id = seed_external_ref(
-        &pool, &app_id, "customer", &entity_id,
-        "quickbooks", &old_qbo_id,
-        Some("charlie@example.com"), None, None,
+        &pool,
+        &app_id,
+        "customer",
+        &entity_id,
+        "quickbooks",
+        &old_qbo_id,
+        Some("charlie@example.com"),
+        None,
+        None,
     )
     .await;
 
@@ -404,8 +446,15 @@ async fn execute_remap_resolves_conflict_with_audit_fields() {
     let new_qbo_id = format!("qbo-{}", Uuid::new_v4().simple());
 
     let old_ref_id = seed_external_ref(
-        &pool, &app_id, "customer", &entity_id,
-        "quickbooks", &old_qbo_id, None, None, Some("123456789"),
+        &pool,
+        &app_id,
+        "customer",
+        &entity_id,
+        "quickbooks",
+        &old_qbo_id,
+        None,
+        None,
+        Some("123456789"),
     )
     .await;
 
@@ -490,8 +539,15 @@ async fn execute_remap_blocked_if_conflict_not_creation_class() {
     .expect("create edit conflict");
 
     let old_ref_id = seed_external_ref(
-        &pool, &app_id, "customer", "e1",
-        "quickbooks", "qbo-stale", None, None, None,
+        &pool,
+        &app_id,
+        "customer",
+        "e1",
+        "quickbooks",
+        "qbo-stale",
+        None,
+        None,
+        None,
     )
     .await;
 
@@ -532,8 +588,15 @@ async fn execute_remap_blocked_if_conflict_already_resolved() {
     let new_qbo_id = format!("qbo-{}", Uuid::new_v4().simple());
 
     let old_ref_id = seed_external_ref(
-        &pool, &app_id, "customer", &entity_id,
-        "quickbooks", &old_qbo_id, Some("dave@example.com"), None, None,
+        &pool,
+        &app_id,
+        "customer",
+        &entity_id,
+        "quickbooks",
+        &old_qbo_id,
+        Some("dave@example.com"),
+        None,
+        None,
     )
     .await;
 
@@ -567,14 +630,17 @@ async fn execute_remap_blocked_if_conflict_already_resolved() {
     };
 
     // First remap succeeds.
-    execute_customer_remap(&pool, &remap_req).await.expect("first remap");
+    execute_customer_remap(&pool, &remap_req)
+        .await
+        .expect("first remap");
 
     // Second remap on the same already-resolved conflict must fail.
     let result = execute_customer_remap(&pool, &remap_req).await;
     assert!(
         matches!(
             result,
-            Err(CustomerRemapError::InvalidConflictState(_, _)) | Err(CustomerRemapError::ConflictNotFound)
+            Err(CustomerRemapError::InvalidConflictState(_, _))
+                | Err(CustomerRemapError::ConflictNotFound)
         ),
         "second remap must be rejected; got: {:?}",
         result
@@ -593,9 +659,15 @@ async fn tombstoned_refs_excluded_from_candidate_hints() {
 
     let entity_id = format!("cust-{}", Uuid::new_v4().simple());
     let ref_id = seed_external_ref(
-        &pool, &app_id, "customer", &entity_id,
-        "quickbooks", &format!("qbo-{}", Uuid::new_v4().simple()),
-        Some("eve@example.com"), None, None,
+        &pool,
+        &app_id,
+        "customer",
+        &entity_id,
+        "quickbooks",
+        &format!("qbo-{}", Uuid::new_v4().simple()),
+        Some("eve@example.com"),
+        None,
+        None,
     )
     .await;
 

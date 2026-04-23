@@ -197,9 +197,7 @@ mod tests {
             .await
             .expect("upsert");
 
-        let got = get_token(&pool, app, "realm-abc", &key)
-            .await
-            .expect("get");
+        let got = get_token(&pool, app, "realm-abc", &key).await.expect("get");
         assert_eq!(got, Some("token-abc".to_string()));
     }
 
@@ -217,9 +215,7 @@ mod tests {
             .expect("upsert fallback");
 
         // Request for a realm that has no dedicated row — should return fallback.
-        let got = get_token(&pool, app, "realm-xyz", &key)
-            .await
-            .expect("get");
+        let got = get_token(&pool, app, "realm-xyz", &key).await.expect("get");
         assert_eq!(got, Some("fallback-token".to_string()));
     }
 
@@ -231,9 +227,7 @@ mod tests {
         cleanup(&pool, app).await;
 
         let key = test_key();
-        let got = get_token(&pool, app, "realm-any", &key)
-            .await
-            .expect("get");
+        let got = get_token(&pool, app, "realm-any", &key).await.expect("get");
         assert_eq!(got, None);
     }
 }

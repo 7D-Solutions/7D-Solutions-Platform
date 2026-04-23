@@ -131,11 +131,9 @@ async fn test_superseded_when_authority_advanced() {
         }),
     };
 
-    let outcome = integrations_rs::domain::sync::resolve_customer::push_customer(
-        &pool, &svc, req,
-    )
-    .await
-    .expect("push_customer");
+    let outcome = integrations_rs::domain::sync::resolve_customer::push_customer(&pool, &svc, req)
+        .await
+        .expect("push_customer");
 
     match outcome {
         CustomerPushOutcome::Superseded(row) => {
@@ -143,7 +141,10 @@ async fn test_superseded_when_authority_advanced() {
             assert_eq!(row.entity_type, "customer");
             assert_eq!(row.operation, "create");
             assert_eq!(row.authority_version, 1);
-            assert!(row.completed_at.is_some(), "superseded attempt must have completed_at");
+            assert!(
+                row.completed_at.is_some(),
+                "superseded attempt must have completed_at"
+            );
         }
         CustomerPushOutcome::Succeeded { .. } => {
             panic!("expected Superseded but got Succeeded");
@@ -151,15 +152,9 @@ async fn test_superseded_when_authority_advanced() {
     }
 
     // Verify the DB row matches.
-    let rows = push_attempts::list_attempts(
-        &pool,
-        &app_id,
-        &Default::default(),
-        1,
-        10,
-    )
-    .await
-    .expect("list_attempts");
+    let rows = push_attempts::list_attempts(&pool, &app_id, &Default::default(), 1, 10)
+        .await
+        .expect("list_attempts");
     assert_eq!(rows.0.len(), 1);
     assert_eq!(rows.0[0].status, "superseded");
 
@@ -203,24 +198,16 @@ async fn test_attempt_reaches_inflight_then_fails_on_bad_endpoint() {
         }),
     };
 
-    let result = integrations_rs::domain::sync::resolve_customer::push_customer(
-        &pool, &svc, req,
-    )
-    .await;
+    let result =
+        integrations_rs::domain::sync::resolve_customer::push_customer(&pool, &svc, req).await;
 
     // Must fail with a Qbo error (network error).
     assert!(result.is_err(), "expected error from bad endpoint");
 
     // DB row must be recorded as `failed`.
-    let rows = push_attempts::list_attempts(
-        &pool,
-        &app_id,
-        &Default::default(),
-        1,
-        10,
-    )
-    .await
-    .expect("list_attempts");
+    let rows = push_attempts::list_attempts(&pool, &app_id, &Default::default(), 1, 10)
+        .await
+        .expect("list_attempts");
     assert_eq!(rows.0.len(), 1);
     assert_eq!(rows.0[0].status, "failed");
     assert!(rows.0[0].error_message.is_some());
@@ -284,11 +271,17 @@ async fn test_sandbox_customer_create_update_delete() {
             .expect("create customer");
 
     let (qbo_id, sync_token) = match outcome {
-        CustomerPushOutcome::Succeeded { attempt, qbo_entity } => {
+        CustomerPushOutcome::Succeeded {
+            attempt,
+            qbo_entity,
+        } => {
             assert_eq!(attempt.status, "succeeded");
             assert_eq!(attempt.operation, "create");
             let id = qbo_entity["Id"].as_str().expect("QBO Id").to_string();
-            let st = qbo_entity["SyncToken"].as_str().expect("SyncToken").to_string();
+            let st = qbo_entity["SyncToken"]
+                .as_str()
+                .expect("SyncToken")
+                .to_string();
             eprintln!("Created QBO customer Id={id} DisplayName={display_name}");
             (id, st)
         }
@@ -320,7 +313,10 @@ async fn test_sandbox_customer_create_update_delete() {
             .expect("update customer");
 
     let sync_token_after_update = match outcome {
-        CustomerPushOutcome::Succeeded { attempt, qbo_entity } => {
+        CustomerPushOutcome::Succeeded {
+            attempt,
+            qbo_entity,
+        } => {
             assert_eq!(attempt.status, "succeeded");
             assert_eq!(attempt.operation, "update");
             let returned_name = qbo_entity["DisplayName"].as_str().unwrap_or("");
@@ -329,7 +325,10 @@ async fn test_sandbox_customer_create_update_delete() {
                 "updated DisplayName must be reflected in QBO response"
             );
             eprintln!("Updated QBO customer Id={qbo_id} DisplayName={updated_name}");
-            qbo_entity["SyncToken"].as_str().expect("SyncToken").to_string()
+            qbo_entity["SyncToken"]
+                .as_str()
+                .expect("SyncToken")
+                .to_string()
         }
         CustomerPushOutcome::Superseded(_) => panic!("update should not be superseded"),
     };
@@ -352,7 +351,10 @@ async fn test_sandbox_customer_create_update_delete() {
             .expect("deactivate customer");
 
     match outcome {
-        CustomerPushOutcome::Succeeded { attempt, qbo_entity } => {
+        CustomerPushOutcome::Succeeded {
+            attempt,
+            qbo_entity,
+        } => {
             assert_eq!(attempt.status, "succeeded");
             assert_eq!(attempt.operation, "delete");
             let active = qbo_entity["Active"].as_bool().unwrap_or(true);
@@ -363,15 +365,9 @@ async fn test_sandbox_customer_create_update_delete() {
     }
 
     // Verify all three attempts are in the DB as succeeded.
-    let (rows, total) = push_attempts::list_attempts(
-        &pool,
-        &app_id,
-        &Default::default(),
-        1,
-        10,
-    )
-    .await
-    .expect("list_attempts");
+    let (rows, total) = push_attempts::list_attempts(&pool, &app_id, &Default::default(), 1, 10)
+        .await
+        .expect("list_attempts");
     assert_eq!(total, 3, "three push attempts must be recorded");
     assert!(
         rows.iter().all(|r| r.status == "succeeded"),

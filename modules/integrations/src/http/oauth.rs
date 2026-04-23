@@ -188,7 +188,8 @@ pub async fn callback(
         Some(s) if !s.is_empty() => s.to_string(),
         _ => {
             tracing::warn!("OAuth callback rejected: missing or empty state — possible CSRF");
-            return ApiError::new(400, "invalid_state", "Missing OAuth state parameter").into_response();
+            return ApiError::new(400, "invalid_state", "Missing OAuth state parameter")
+                .into_response();
         }
     };
 

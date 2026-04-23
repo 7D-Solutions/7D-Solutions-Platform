@@ -189,17 +189,21 @@ async fn orphaned_write_recovered_for_failed_attempt_with_matching_sync_token() 
     cleanup(&pool, &app_id).await;
 
     let sync_token = "tok-orphan-7";
-    let attempt_id = seed_attempt_with_markers(
-        &pool, &app_id, &eid,
-        "failed", Some(sync_token), None, None,
-    ).await;
+    let attempt_id =
+        seed_attempt_with_markers(&pool, &app_id, &eid, "failed", Some(sync_token), None, None)
+            .await;
 
     let fingerprint = format!("st:{}", sync_token);
     let comparable_hash = compute_comparable_hash(&serde_json::json!({"id": &eid}), Utc::now());
 
     let outcome = run_detector(
-        &pool, &app_id, "quickbooks", "invoice", &eid,
-        &fingerprint, &comparable_hash,
+        &pool,
+        &app_id,
+        "quickbooks",
+        "invoice",
+        &eid,
+        &fingerprint,
+        &comparable_hash,
         Some(serde_json::json!({"amount": 50})),
         Some(serde_json::json!({"amount": 50})),
     )
@@ -217,11 +221,20 @@ async fn orphaned_write_recovered_for_failed_attempt_with_matching_sync_token() 
         .await
         .expect("get_attempt")
         .expect("attempt must exist");
-    assert_eq!(promoted.status, "succeeded", "orphaned attempt must be promoted to succeeded");
+    assert_eq!(
+        promoted.status, "succeeded",
+        "orphaned attempt must be promoted to succeeded"
+    );
 
     // No conflict row.
-    let all = list_conflicts(&pool, &app_id, None, 100, 0).await.expect("list");
-    assert_eq!(all.len(), 0, "orphaned-write recovery must suppress conflict");
+    let all = list_conflicts(&pool, &app_id, None, 100, 0)
+        .await
+        .expect("list");
+    assert_eq!(
+        all.len(),
+        0,
+        "orphaned-write recovery must suppress conflict"
+    );
 
     cleanup(&pool, &app_id).await;
 }
@@ -238,17 +251,28 @@ async fn orphaned_write_recovered_for_unknown_failure_with_matching_timestamp() 
 
     let lut_ms: i64 = 1_745_000_000_123; // arbitrary epoch millis
     let attempt_id = seed_attempt_with_markers(
-        &pool, &app_id, &eid,
-        "unknown_failure", None, Some(lut_ms), None,
-    ).await;
+        &pool,
+        &app_id,
+        &eid,
+        "unknown_failure",
+        None,
+        Some(lut_ms),
+        None,
+    )
+    .await;
 
     // Fingerprint encodes the millisecond epoch.
     let fingerprint = format!("ts:{}", lut_ms);
     let comparable_hash = compute_comparable_hash(&serde_json::json!({"id": &eid}), Utc::now());
 
     let outcome = run_detector(
-        &pool, &app_id, "quickbooks", "invoice", &eid,
-        &fingerprint, &comparable_hash,
+        &pool,
+        &app_id,
+        "quickbooks",
+        "invoice",
+        &eid,
+        &fingerprint,
+        &comparable_hash,
         Some(serde_json::json!({"amount": 200})),
         Some(serde_json::json!({"amount": 200})),
     )
@@ -261,7 +285,10 @@ async fn orphaned_write_recovered_for_unknown_failure_with_matching_timestamp() 
         outcome
     );
 
-    let promoted = push_attempts::get_attempt(&pool, attempt_id).await.expect("get").expect("row");
+    let promoted = push_attempts::get_attempt(&pool, attempt_id)
+        .await
+        .expect("get")
+        .expect("row");
     assert_eq!(promoted.status, "succeeded");
 
     cleanup(&pool, &app_id).await;
@@ -279,9 +306,15 @@ async fn true_drift_opens_conflict_and_enqueues_event() {
 
     // No push attempt with matching markers for this entity.
     seed_attempt_with_markers(
-        &pool, &app_id, &eid,
-        "succeeded", Some("tok-different"), None, None,
-    ).await;
+        &pool,
+        &app_id,
+        &eid,
+        "succeeded",
+        Some("tok-different"),
+        None,
+        None,
+    )
+    .await;
 
     let internal_val = serde_json::json!({"amount": 100});
     let external_val = serde_json::json!({"amount": 999});
@@ -291,8 +324,13 @@ async fn true_drift_opens_conflict_and_enqueues_event() {
     let comparable_hash = compute_comparable_hash(&serde_json::json!({"id": &eid}), Utc::now());
 
     let outcome = run_detector(
-        &pool, &app_id, "quickbooks", "invoice", &eid,
-        fingerprint, &comparable_hash,
+        &pool,
+        &app_id,
+        "quickbooks",
+        "invoice",
+        &eid,
+        fingerprint,
+        &comparable_hash,
         Some(internal_val.clone()),
         Some(external_val.clone()),
     )
@@ -328,7 +366,10 @@ async fn true_drift_opens_conflict_and_enqueues_event() {
     .fetch_one(&pool)
     .await
     .expect("outbox count");
-    assert_eq!(event_count.0, 1, "exactly one sync.conflict.detected event in outbox");
+    assert_eq!(
+        event_count.0, 1,
+        "exactly one sync.conflict.detected event in outbox"
+    );
 
     // Event payload matches conflict.
     let (payload,): (serde_json::Value,) = sqlx::query_as(
@@ -347,7 +388,10 @@ async fn true_drift_opens_conflict_and_enqueues_event() {
     assert_eq!(inner["conflict_class"], "edit");
     assert_eq!(inner["entity_type"], "invoice");
     assert_eq!(inner["entity_id"].as_str().unwrap(), eid.as_str());
-    assert_eq!(inner["conflict_id"].as_str().unwrap(), conflict_id.to_string().as_str());
+    assert_eq!(
+        inner["conflict_id"].as_str().unwrap(),
+        conflict_id.to_string().as_str()
+    );
     assert_eq!(inner["detected_by"], "detector");
 
     cleanup(&pool, &app_id).await;
@@ -365,10 +409,8 @@ async fn timestamp_normalization_prevents_false_negative_on_sub_millisecond_diff
 
     // Attempt stored with a ms-truncated timestamp.
     let lut_ms: i64 = 1_745_100_000_456; // epoch millis
-    let attempt_id = seed_attempt_with_markers(
-        &pool, &app_id, &eid,
-        "failed", None, Some(lut_ms), None,
-    ).await;
+    let attempt_id =
+        seed_attempt_with_markers(&pool, &app_id, &eid, "failed", None, Some(lut_ms), None).await;
 
     // Fingerprint uses the SAME ms value — should match even though the raw
     // timestamp from QBO might have sub-millisecond fractions that were stripped.
@@ -376,8 +418,13 @@ async fn timestamp_normalization_prevents_false_negative_on_sub_millisecond_diff
     let comparable_hash = compute_comparable_hash(&serde_json::json!({"id": &eid}), Utc::now());
 
     let outcome = run_detector(
-        &pool, &app_id, "quickbooks", "invoice", &eid,
-        &fingerprint, &comparable_hash,
+        &pool,
+        &app_id,
+        "quickbooks",
+        "invoice",
+        &eid,
+        &fingerprint,
+        &comparable_hash,
         Some(serde_json::json!({})),
         Some(serde_json::json!({})),
     )
@@ -390,8 +437,14 @@ async fn timestamp_normalization_prevents_false_negative_on_sub_millisecond_diff
         outcome
     );
 
-    let promoted = push_attempts::get_attempt(&pool, attempt_id).await.expect("get").expect("row");
-    assert_eq!(promoted.status, "succeeded", "promoted after timestamp-based marker match");
+    let promoted = push_attempts::get_attempt(&pool, attempt_id)
+        .await
+        .expect("get")
+        .expect("row");
+    assert_eq!(
+        promoted.status, "succeeded",
+        "promoted after timestamp-based marker match"
+    );
 
     cleanup(&pool, &app_id).await;
 }
@@ -407,8 +460,13 @@ async fn conflict_class_deletion_when_no_values_provided() {
     cleanup(&pool, &app_id).await;
 
     let outcome = run_detector(
-        &pool, &app_id, "quickbooks", "invoice", &eid,
-        "ph:deadbeef", "cmphash-xyz",
+        &pool,
+        &app_id,
+        "quickbooks",
+        "invoice",
+        &eid,
+        "ph:deadbeef",
+        "cmphash-xyz",
         None, // internal_value — entity deleted on platform
         None, // external_value — entity deleted on provider
     )
@@ -436,8 +494,13 @@ async fn conflict_class_deletion_when_only_external_value_present() {
     // Only external_value present → platform entity is absent → Deletion class.
     // (Creation class requires both value snapshots per schema constraint.)
     let outcome = run_detector(
-        &pool, &app_id, "quickbooks", "invoice", &eid,
-        "ph:cafebabe", "cmphash-abc",
+        &pool,
+        &app_id,
+        "quickbooks",
+        "invoice",
+        &eid,
+        "ph:cafebabe",
+        "cmphash-abc",
         None,
         Some(serde_json::json!({"amount": 500})),
     )
@@ -470,9 +533,15 @@ async fn detector_does_not_cross_app_id_boundaries() {
 
     // Tenant A has a succeeded attempt with this token.
     seed_attempt_with_markers(
-        &pool, &app_a, &eid,
-        "succeeded", Some(sync_token), None, None,
-    ).await;
+        &pool,
+        &app_a,
+        &eid,
+        "succeeded",
+        Some(sync_token),
+        None,
+        None,
+    )
+    .await;
 
     let fingerprint = format!("st:{}", sync_token);
     let comparable_hash = compute_comparable_hash(&serde_json::json!({"id": &eid}), Utc::now());
@@ -480,8 +549,13 @@ async fn detector_does_not_cross_app_id_boundaries() {
     // Tenant B runs the detector with the same entity + markers.
     // Must NOT pick up Tenant A's attempt → must open a conflict.
     let outcome = run_detector(
-        &pool, &app_b, "quickbooks", "invoice", &eid,
-        &fingerprint, &comparable_hash,
+        &pool,
+        &app_b,
+        "quickbooks",
+        "invoice",
+        &eid,
+        &fingerprint,
+        &comparable_hash,
         Some(serde_json::json!({"amount": 1})),
         Some(serde_json::json!({"amount": 2})),
     )
@@ -509,8 +583,13 @@ async fn value_too_large_rejected_before_db() {
 
     let big = "x".repeat(integrations_rs::domain::sync::MAX_VALUE_BYTES + 1);
     let err = run_detector(
-        &pool, &app_id, "quickbooks", "invoice", &eid,
-        "ph:abc", "cmphash",
+        &pool,
+        &app_id,
+        "quickbooks",
+        "invoice",
+        &eid,
+        "ph:abc",
+        "cmphash",
         Some(serde_json::json!(big)),
         Some(serde_json::json!({"amount": 1})),
     )
@@ -582,14 +661,15 @@ async fn self_echo_create_suppressed_via_provider_entity_id() {
 
     // The CDC observation arrives using the QBO-assigned entity id, not the platform id.
     let fingerprint = format!("st:{}", sync_token);
-    let comparable_hash = compute_comparable_hash(&serde_json::json!({"Id": &provider_eid}), Utc::now());
+    let comparable_hash =
+        compute_comparable_hash(&serde_json::json!({"Id": &provider_eid}), Utc::now());
 
     let outcome = run_detector(
         &pool,
         &app_id,
         "quickbooks",
         "customer",
-        &provider_eid,  // observation uses QBO id
+        &provider_eid, // observation uses QBO id
         &fingerprint,
         &comparable_hash,
         Some(serde_json::json!({"Id": &provider_eid, "DisplayName": "Acme"})),
@@ -626,15 +706,26 @@ async fn orphaned_write_recovered_via_projection_hash() {
     // Observation has ph: fingerprint; use comparable_hash as the projection key.
     let comparable_hash = "ph:test-comparable-hash-abc123";
     let attempt_id = seed_attempt_with_markers(
-        &pool, &app_id, &eid,
-        "failed", None, None, Some(comparable_hash),
-    ).await;
+        &pool,
+        &app_id,
+        &eid,
+        "failed",
+        None,
+        None,
+        Some(comparable_hash),
+    )
+    .await;
 
     // ph: fingerprint → no sync_token or timestamp extracted.
     // comparable_hash matches result_projection_hash on the attempt.
     let outcome = run_detector(
-        &pool, &app_id, "quickbooks", "invoice", &eid,
-        "ph:test-comparable-hash-abc123", comparable_hash,
+        &pool,
+        &app_id,
+        "quickbooks",
+        "invoice",
+        &eid,
+        "ph:test-comparable-hash-abc123",
+        comparable_hash,
         Some(serde_json::json!({"amount": 77})),
         Some(serde_json::json!({"amount": 77})),
     )
@@ -647,7 +738,10 @@ async fn orphaned_write_recovered_via_projection_hash() {
         outcome
     );
 
-    let promoted = push_attempts::get_attempt(&pool, attempt_id).await.expect("get").expect("row");
+    let promoted = push_attempts::get_attempt(&pool, attempt_id)
+        .await
+        .expect("get")
+        .expect("row");
     assert_eq!(promoted.status, "succeeded");
 
     cleanup(&pool, &app_id).await;

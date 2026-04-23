@@ -23,7 +23,9 @@ use crate::domain::qbo::cdc::{
 };
 use crate::domain::qbo::client::QboClient;
 use crate::domain::qbo::TokenProvider;
-use crate::domain::sync::dedupe::{compute_comparable_hash, compute_fingerprint, truncate_to_millis};
+use crate::domain::sync::dedupe::{
+    compute_comparable_hash, compute_fingerprint, truncate_to_millis,
+};
 use crate::domain::sync::detector;
 use crate::domain::sync::observations;
 use crate::events::{
@@ -329,11 +331,11 @@ impl QboNormalizer {
         app_id: &str,
         realm_id: &str,
     ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-        let (qbo_entity_type, obs_entity_type, is_delete) =
-            match qbo_entity_info(&event.event_type) {
-                Some(v) => v,
-                None => return Ok(()),
-            };
+        let (qbo_entity_type, obs_entity_type, is_delete) = match qbo_entity_info(&event.event_type)
+        {
+            Some(v) => v,
+            None => return Ok(()),
+        };
 
         let entity_id = match &event.intuit_entity_id {
             Some(id) if !id.is_empty() => id.clone(),

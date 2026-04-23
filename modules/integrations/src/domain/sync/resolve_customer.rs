@@ -25,23 +25,23 @@ use serde_json::{json, Value};
 use sqlx::PgPool;
 use uuid::Uuid;
 
-use crate::domain::qbo::{
-    client::{QboClient, QboCustomerPayload},
-    QboError,
-};
-use crate::domain::external_refs::repo as ext_repo;
-use crate::events::{
-    build_sync_conflict_detected_envelope, build_sync_conflict_resolved_envelope,
-    SyncConflictDetectedPayload, SyncConflictResolvedPayload,
-    EVENT_TYPE_SYNC_CONFLICT_DETECTED, EVENT_TYPE_SYNC_CONFLICT_RESOLVED,
-};
-use crate::outbox::enqueue_event_tx;
 use super::{
     authority_repo,
     conflicts::{ConflictClass, ConflictRow, ConflictStatus},
     push_attempts::{self, PreCallOutcome, PushAttemptRow},
     resolve_service::ResolveService,
 };
+use crate::domain::external_refs::repo as ext_repo;
+use crate::domain::qbo::{
+    client::{QboClient, QboCustomerPayload},
+    QboError,
+};
+use crate::events::{
+    build_sync_conflict_detected_envelope, build_sync_conflict_resolved_envelope,
+    SyncConflictDetectedPayload, SyncConflictResolvedPayload, EVENT_TYPE_SYNC_CONFLICT_DETECTED,
+    EVENT_TYPE_SYNC_CONFLICT_RESOLVED,
+};
+use crate::outbox::enqueue_event_tx;
 
 // ── Action ────────────────────────────────────────────────────────────────────
 
@@ -59,10 +59,7 @@ pub enum CustomerAction {
     },
     /// Deactivate a QBO customer (QBO does not support hard delete; setting
     /// `Active: false` is the canonical approach).
-    Delete {
-        qbo_id: String,
-        sync_token: String,
-    },
+    Delete { qbo_id: String, sync_token: String },
 }
 
 fn operation_name(action: &CustomerAction) -> &'static str {
@@ -148,18 +145,12 @@ pub async fn push_customer(
     .await?;
 
     // 2. Re-read current authority version and check for supersession.
-    let current_auth_version = match authority_repo::get_authority(
-        pool,
-        &req.app_id,
-        "quickbooks",
-        "customer",
-    )
-    .await?
-    {
-        Some(row) => row.authority_version,
-        // No authority record yet — version can't have advanced.
-        None => req.authority_version,
-    };
+    let current_auth_version =
+        match authority_repo::get_authority(pool, &req.app_id, "quickbooks", "customer").await? {
+            Some(row) => row.authority_version,
+            // No authority record yet — version can't have advanced.
+            None => req.authority_version,
+        };
 
     match push_attempts::pre_call_version_check(pool, attempt.id, current_auth_version).await? {
         PreCallOutcome::Superseded(row) => return Ok(CustomerPushOutcome::Superseded(row)),
@@ -177,10 +168,9 @@ pub async fn push_customer(
     // 5. Record outcome.
     match qbo_result {
         Ok(qbo_entity) => {
-            let completed =
-                push_attempts::complete_attempt(pool, attempt.id, "succeeded", None)
-                    .await?
-                    .unwrap_or(attempt);
+            let completed = push_attempts::complete_attempt(pool, attempt.id, "succeeded", None)
+                .await?
+                .unwrap_or(attempt);
             Ok(CustomerPushOutcome::Succeeded {
                 attempt: completed,
                 qbo_entity,
@@ -412,7 +402,10 @@ pub async fn raise_creation_conflict(
     }
 
     let event_id = Uuid::new_v4();
-    let mut tx = pool.begin().await.map_err(CustomerCreationConflictError::Database)?;
+    let mut tx = pool
+        .begin()
+        .await
+        .map_err(CustomerCreationConflictError::Database)?;
 
     let conflict = sqlx::query_as::<_, ConflictRow>(
         r#"
@@ -467,9 +460,14 @@ pub async fn raise_creation_conflict(
     )
     .await;
 
-    tx.commit().await.map_err(CustomerCreationConflictError::Database)?;
+    tx.commit()
+        .await
+        .map_err(CustomerCreationConflictError::Database)?;
 
-    Ok(CreationConflictOutcome { conflict, candidates })
+    Ok(CreationConflictOutcome {
+        conflict,
+        candidates,
+    })
 }
 
 // ── Remap request / outcome ───────────────────────────────────────────────────

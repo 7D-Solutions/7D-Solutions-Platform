@@ -4,6 +4,9 @@
 > **Standard:** See `docs/VERSIONING.md` for the rules governing this file.
 
 
+## 2.35.1
+- fix: QBO_CLIENT_ID empty-string check — is_ok() returned true for the docker-compose default QBO_CLIENT_ID='' causing validate_qbo_env to panic at startup ([bd-1ngjq])
+
 ## 2.35.0
 - feat: per-tenant QBO webhook verifier token system — encrypted storage in `integrations_qbo_webhook_secrets` (AES-256-GCM), write-only admin API (`POST /api/integrations/qbo/webhook-token`, `GET .../status`), webhook verifier updated to DB-first lookup with env-var fallback ([bd-mmnbp, bd-24qxb, bd-c6z0t])
 

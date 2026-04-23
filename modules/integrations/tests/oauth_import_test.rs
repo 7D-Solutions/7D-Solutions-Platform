@@ -69,8 +69,14 @@ async fn test_import_tokens_encrypted_at_rest() {
     let rt = format!("import-rt-{}", Uuid::new_v4());
 
     service::import_connection(
-        &pool, &tenant, "quickbooks", &realm,
-        &at, &rt, 3600, 8726400,
+        &pool,
+        &tenant,
+        "quickbooks",
+        &realm,
+        &at,
+        &rt,
+        3600,
+        8726400,
         "com.intuit.quickbooks.accounting",
     )
     .await
@@ -124,7 +130,10 @@ async fn test_import_encryption_identical_to_create() {
 
     // create_connection path
     service::create_connection(
-        &pool, &tenant_a, "quickbooks", &realm_a,
+        &pool,
+        &tenant_a,
+        "quickbooks",
+        &realm_a,
         "com.intuit.quickbooks.accounting",
         &integrations_rs::domain::oauth::TokenResponse {
             access_token: token_val.clone(),
@@ -138,8 +147,14 @@ async fn test_import_encryption_identical_to_create() {
 
     // import_connection path
     service::import_connection(
-        &pool, &tenant_b, "quickbooks", &realm_b,
-        &token_val, "rt-import", 3600, 8726400,
+        &pool,
+        &tenant_b,
+        "quickbooks",
+        &realm_b,
+        &token_val,
+        "rt-import",
+        3600,
+        8726400,
         "com.intuit.quickbooks.accounting",
     )
     .await
@@ -171,16 +186,28 @@ async fn test_import_upserts_existing_connection() {
     let realm = unique_realm();
 
     let first = service::import_connection(
-        &pool, &tenant, "quickbooks", &realm,
-        "at-first", "rt-first", 3600, 8726400,
+        &pool,
+        &tenant,
+        "quickbooks",
+        &realm,
+        "at-first",
+        "rt-first",
+        3600,
+        8726400,
         "com.intuit.quickbooks.accounting",
     )
     .await
     .expect("first import failed");
 
     let second = service::import_connection(
-        &pool, &tenant, "quickbooks", &realm,
-        "at-second", "rt-second", 7200, 8726400,
+        &pool,
+        &tenant,
+        "quickbooks",
+        &realm,
+        "at-second",
+        "rt-second",
+        7200,
+        8726400,
         "com.intuit.quickbooks.accounting",
     )
     .await
@@ -208,7 +235,10 @@ fn test_gate_open_when_flag_set() {
     let result = is_import_enabled();
     std::env::remove_var("OAUTH_IMPORT_ENABLED");
     std::env::remove_var("ENV");
-    assert!(result, "gate must be open when OAUTH_IMPORT_ENABLED=1 even in production");
+    assert!(
+        result,
+        "gate must be open when OAUTH_IMPORT_ENABLED=1 even in production"
+    );
 }
 
 #[test]
@@ -228,7 +258,10 @@ fn test_gate_closed_in_production_without_flag() {
     std::env::set_var("ENV", "production");
     let result = is_import_enabled();
     std::env::remove_var("ENV");
-    assert!(!result, "gate must be closed in production without OAUTH_IMPORT_ENABLED=1");
+    assert!(
+        !result,
+        "gate must be closed in production without OAUTH_IMPORT_ENABLED=1"
+    );
 }
 
 #[test]
@@ -239,7 +272,10 @@ fn test_gate_closed_when_flag_is_zero() {
     let result = is_import_enabled();
     std::env::remove_var("OAUTH_IMPORT_ENABLED");
     std::env::remove_var("ENV");
-    assert!(!result, "OAUTH_IMPORT_ENABLED=0 must keep the gate closed in production");
+    assert!(
+        !result,
+        "OAUTH_IMPORT_ENABLED=0 must keep the gate closed in production"
+    );
 }
 
 // ============================================================================
@@ -300,7 +336,12 @@ async fn test_import_without_jwt_returns_401() {
 
     let metrics = Arc::new(IntegrationsMetrics::new().expect("metrics init failed"));
     let bus: Arc<dyn event_bus::EventBus> = Arc::new(InMemoryBus::new());
-    let state = Arc::new(AppState { pool, metrics, bus, webhooks_key: [0u8; 32] });
+    let state = Arc::new(AppState {
+        pool,
+        metrics,
+        bus,
+        webhooks_key: [0u8; 32],
+    });
     let app = integrations_rs::http::router(state);
 
     let req = Request::builder()
@@ -341,8 +382,15 @@ async fn test_imported_connection_visible_in_status() {
     assert!(none.is_none());
 
     service::import_connection(
-        &pool, &tenant, "quickbooks", &realm,
-        "at-visible", "rt-visible", 3600, 8726400, scopes,
+        &pool,
+        &tenant,
+        "quickbooks",
+        &realm,
+        "at-visible",
+        "rt-visible",
+        3600,
+        8726400,
+        scopes,
     )
     .await
     .expect("import failed");

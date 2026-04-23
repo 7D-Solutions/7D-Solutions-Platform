@@ -12,8 +12,8 @@
 //! Run: ./scripts/cargo-slot.sh test -p integrations-rs --test sync_cdc_trigger_test -- --nocapture
 
 use integrations_rs::domain::qbo::cdc;
-use serial_test::serial;
 use serde_json::json;
+use serial_test::serial;
 use sqlx::postgres::PgPoolOptions;
 use std::time::Duration;
 use tokio::sync::OnceCell;
@@ -160,7 +160,10 @@ async fn cdc_tick_for_tenant_uses_process_cdc_entities_code_path() {
     .await
     .expect("count observations");
 
-    assert_eq!(obs_count.0, 1, "observation row written via process_cdc_entities (same path as cdc_tick_for_tenant)");
+    assert_eq!(
+        obs_count.0, 1,
+        "observation row written via process_cdc_entities (same path as cdc_tick_for_tenant)"
+    );
 
     cleanup(&pool, &app_id).await;
 }
@@ -229,7 +232,8 @@ fn trigger_cdc_profile_guard_blocks_non_dev_profiles() {
         std::env::set_var("APP_PROFILE", profile);
         let p = std::env::var("APP_PROFILE").unwrap_or_default();
         assert_ne!(
-            p.as_str(), "dev-local",
+            p.as_str(),
+            "dev-local",
             "profile '{}' must not be dev-local — guard would pass when it should block",
             profile
         );

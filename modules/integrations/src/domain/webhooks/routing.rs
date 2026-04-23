@@ -52,9 +52,7 @@ pub fn map_to_domain_event(system: &str, source_event_type: Option<&str>) -> Opt
             Some("payments.payment.deleted".to_string())
         }
         ("quickbooks", Some("qbo.item.updated.v1")) => Some("inventory.item.synced".to_string()),
-        ("quickbooks", Some("qbo.item.deleted.v1")) => {
-            Some("inventory.item.deleted".to_string())
-        }
+        ("quickbooks", Some("qbo.item.deleted.v1")) => Some("inventory.item.deleted".to_string()),
         // Shopify marketplace order events
         ("shopify", Some("orders/create")) => Some("integrations.order.ingested".to_string()),
         ("shopify", Some("orders/updated")) => Some("integrations.order.ingested".to_string()),
@@ -121,13 +119,9 @@ pub fn qbo_entity_info(event_type: &str) -> Option<(&'static str, &'static str, 
             Some(("Customer", "customer", false))
         }
         "qbo.customer.deleted.v1" => Some(("Customer", "customer", true)),
-        "qbo.invoice.created.v1" | "qbo.invoice.updated.v1" => {
-            Some(("Invoice", "invoice", false))
-        }
+        "qbo.invoice.created.v1" | "qbo.invoice.updated.v1" => Some(("Invoice", "invoice", false)),
         "qbo.invoice.deleted.v1" => Some(("Invoice", "invoice", true)),
-        "qbo.payment.created.v1" | "qbo.payment.updated.v1" => {
-            Some(("Payment", "payment", false))
-        }
+        "qbo.payment.created.v1" | "qbo.payment.updated.v1" => Some(("Payment", "payment", false)),
         "qbo.payment.deleted.v1" => Some(("Payment", "payment", true)),
         "qbo.item.created.v1" | "qbo.item.updated.v1" => Some(("Item", "item", false)),
         "qbo.item.deleted.v1" => Some(("Item", "item", true)),

@@ -42,14 +42,16 @@ async fn cleanup(pool: &sqlx::PgPool, app_id: &str) {
         .ok();
 }
 
-async fn insert_inflight(
-    pool: &sqlx::PgPool,
-    app_id: &str,
-    entity_id: &str,
-    fp: &str,
-) -> Uuid {
+async fn insert_inflight(pool: &sqlx::PgPool, app_id: &str, entity_id: &str, fp: &str) -> Uuid {
     let row = push_attempts::insert_attempt(
-        pool, app_id, "quickbooks", "invoice", entity_id, "create", 1, fp,
+        pool,
+        app_id,
+        "quickbooks",
+        "invoice",
+        entity_id,
+        "create",
+        1,
+        fp,
     )
     .await
     .expect("insert");
@@ -88,7 +90,10 @@ async fn test_watchdog_times_out_stale_inflight() {
         .await
         .expect("timeout_stale_inflight");
 
-    assert_eq!(timed_out, 1, "exactly one stale row should have been timed out");
+    assert_eq!(
+        timed_out, 1,
+        "exactly one stale row should have been timed out"
+    );
 
     // Stale row should now be 'failed' with error_message = 'inflight_timeout'
     let stale = push_attempts::get_attempt(&pool, stale_id)
@@ -104,7 +109,10 @@ async fn test_watchdog_times_out_stale_inflight() {
         .await
         .expect("get fresh")
         .expect("fresh row exists");
-    assert_eq!(fresh.status, "inflight", "fresh inflight row must not be timed out");
+    assert_eq!(
+        fresh.status, "inflight",
+        "fresh inflight row must not be timed out"
+    );
     assert!(fresh.error_message.is_none());
 
     cleanup(&pool, &app_id).await;
@@ -154,7 +162,14 @@ async fn test_watchdog_timed_out_rows_allow_fresh_retry() {
 
     // After timing out (status = 'failed'), a fresh attempt with the same fingerprint is allowed
     let retry = push_attempts::insert_attempt(
-        &pool, &app_id, "quickbooks", "invoice", "inv-timed-out", "create", 1, "fp-timeout-retry",
+        &pool,
+        &app_id,
+        "quickbooks",
+        "invoice",
+        "inv-timed-out",
+        "create",
+        1,
+        "fp-timeout-retry",
     )
     .await
     .expect("fresh retry must succeed after timed-out row");

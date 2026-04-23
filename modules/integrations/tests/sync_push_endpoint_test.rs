@@ -32,10 +32,7 @@ use integrations_rs::{
     metrics::IntegrationsMetrics,
     AppState,
 };
-use security::{
-    claims::ActorType,
-    VerifiedClaims,
-};
+use security::{claims::ActorType, VerifiedClaims};
 use serde_json::Value;
 use serial_test::serial;
 use sqlx::postgres::PgPoolOptions;
@@ -102,12 +99,7 @@ fn build_test_app(pool: sqlx::PgPool, tenant_id: Uuid) -> Router {
         .layer(Extension(test_claims(tenant_id)))
 }
 
-async fn seed_oauth_connection(
-    pool: &sqlx::PgPool,
-    app_id: &str,
-    realm_id: &str,
-    status: &str,
-) {
+async fn seed_oauth_connection(pool: &sqlx::PgPool, app_id: &str, realm_id: &str, status: &str) {
     sqlx::query(
         r#"
         INSERT INTO integrations_oauth_connections (
@@ -160,12 +152,10 @@ async fn cleanup(pool: &sqlx::PgPool, app_id: &str) {
         .bind(app_id)
         .execute(pool)
         .await;
-    let _ = sqlx::query(
-        "DELETE FROM integrations_oauth_connections WHERE app_id = $1",
-    )
-    .bind(app_id)
-    .execute(pool)
-    .await;
+    let _ = sqlx::query("DELETE FROM integrations_oauth_connections WHERE app_id = $1")
+        .bind(app_id)
+        .execute(pool)
+        .await;
 }
 
 fn push_request(
@@ -208,14 +198,7 @@ async fn test_invalid_entity_type_returns_422() {
     let tenant_id = Uuid::new_v4();
     let app = build_test_app(pool.clone(), tenant_id);
 
-    let req = push_request(
-        "widget",
-        "e-1",
-        "create",
-        1,
-        "fp-1",
-        serde_json::json!({}),
-    );
+    let req = push_request("widget", "e-1", "create", 1, "fp-1", serde_json::json!({}));
     let resp = app.oneshot(req).await.unwrap();
     assert_eq!(resp.status(), StatusCode::UNPROCESSABLE_ENTITY);
 
@@ -290,8 +273,13 @@ async fn test_superseded_returns_correct_json() {
     cleanup(&pool, &app_id).await;
 
     // Seed OAuth so the handler gets past the connection check.
-    seed_oauth_connection(&pool, &app_id, &format!("realm-{}", tenant_id.simple()), "connected")
-        .await;
+    seed_oauth_connection(
+        &pool,
+        &app_id,
+        &format!("realm-{}", tenant_id.simple()),
+        "connected",
+    )
+    .await;
     // Authority is at version 5; push is stamped with version 1 → superseded.
     seed_authority(&pool, &app_id, "invoice", 5).await;
 
@@ -385,12 +373,25 @@ async fn test_invoice_void_returns_200_not_422() {
     let app_id = tenant_id.to_string();
     cleanup(&pool, &app_id).await;
 
-    seed_oauth_connection(&pool, &app_id, &format!("realm-void-{}", tenant_id.simple()), "connected").await;
+    seed_oauth_connection(
+        &pool,
+        &app_id,
+        &format!("realm-void-{}", tenant_id.simple()),
+        "connected",
+    )
+    .await;
     // Authority at 5; request at 1 → superseded before any QBO call.
     seed_authority(&pool, &app_id, "invoice", 5).await;
 
     let app = build_test_app(pool.clone(), tenant_id);
-    let req = push_request("invoice", "inv-void-1", "void", 1, "fp-void-inv", serde_json::json!({}));
+    let req = push_request(
+        "invoice",
+        "inv-void-1",
+        "void",
+        1,
+        "fp-void-inv",
+        serde_json::json!({}),
+    );
     let resp = app.oneshot(req).await.unwrap();
     assert_eq!(
         resp.status(),
@@ -399,7 +400,10 @@ async fn test_invoice_void_returns_200_not_422() {
     );
 
     let body = response_json(resp).await;
-    assert_ne!(body["error"], "invalid_operation", "void must not be rejected as invalid_operation for invoice");
+    assert_ne!(
+        body["error"], "invalid_operation",
+        "void must not be rejected as invalid_operation for invoice"
+    );
     assert_eq!(body["outcome"], "superseded");
 
     cleanup(&pool, &app_id).await;
@@ -413,7 +417,14 @@ async fn test_customer_void_returns_422() {
     let tenant_id = Uuid::new_v4();
     let app = build_test_app(pool.clone(), tenant_id);
 
-    let req = push_request("customer", "cust-1", "void", 1, "fp-void-cust", serde_json::json!({}));
+    let req = push_request(
+        "customer",
+        "cust-1",
+        "void",
+        1,
+        "fp-void-cust",
+        serde_json::json!({}),
+    );
     let resp = app.oneshot(req).await.unwrap();
     assert_eq!(resp.status(), StatusCode::UNPROCESSABLE_ENTITY);
 
@@ -473,10 +484,7 @@ mod sandbox {
 
         async fn refresh_token(&self) -> Result<String, QboError> {
             let refresh = self.refresh_tok.read().await.clone();
-            let params = [
-                ("grant_type", "refresh_token"),
-                ("refresh_token", &refresh),
-            ];
+            let params = [("grant_type", "refresh_token"), ("refresh_token", &refresh)];
             let resp = self
                 .http
                 .post("https://oauth.platform.intuit.com/oauth2/v1/tokens/bearer")
@@ -486,10 +494,7 @@ mod sandbox {
                 .await
                 .map_err(|e| QboError::Http(e))?;
 
-            let j: Value = resp
-                .json()
-                .await
-                .map_err(|e| QboError::Http(e))?;
+            let j: Value = resp.json().await.map_err(|e| QboError::Http(e))?;
 
             let new_access = j["access_token"]
                 .as_str()
@@ -503,10 +508,8 @@ mod sandbox {
             *self.access_token.write().await = new_access.clone();
             *self.refresh_tok.write().await = new_refresh.clone();
 
-            let mut data: Value = serde_json::from_str(
-                &std::fs::read_to_string(&self.tokens_path).unwrap(),
-            )
-            .unwrap();
+            let mut data: Value =
+                serde_json::from_str(&std::fs::read_to_string(&self.tokens_path).unwrap()).unwrap();
             data["access_token"] = Value::String(new_access.clone());
             data["refresh_token"] = Value::String(new_refresh);
             std::fs::write(
@@ -577,7 +580,11 @@ mod sandbox {
             .expect("push_customer");
 
         match result {
-            PushOutcome::Succeeded { entity_id, provider_entity_id, .. } => {
+            PushOutcome::Succeeded {
+                entity_id,
+                provider_entity_id,
+                ..
+            } => {
                 assert_eq!(entity_id, "ep-test-entity");
                 assert!(
                     provider_entity_id.is_some(),
@@ -649,9 +656,16 @@ async fn rate_limit_fixture_returns_rate_limited_outcome() {
     std::env::remove_var("QBO_FORCE_RATE_LIMIT");
     std::env::remove_var("APP_PROFILE");
 
-    assert_eq!(status, StatusCode::OK, "fixture must return 200 (PushOutcome envelope)");
+    assert_eq!(
+        status,
+        StatusCode::OK,
+        "fixture must return 200 (PushOutcome envelope)"
+    );
     assert_eq!(body["outcome"], "failed", "outcome must be 'failed'");
-    assert_eq!(body["error_code"], "rate_limited", "error_code must be 'rate_limited'");
+    assert_eq!(
+        body["error_code"], "rate_limited",
+        "error_code must be 'rate_limited'"
+    );
 
     cleanup(&pool, &app_id).await;
 }
@@ -675,14 +689,20 @@ fn rate_limit_fixture_inactive_without_env_var() {
     std::env::remove_var("QBO_FORCE_RATE_LIMIT");
     let profile2 = std::env::var("APP_PROFILE").unwrap_or_default();
     let flag2 = std::env::var("QBO_FORCE_RATE_LIMIT").unwrap_or_default();
-    assert!(!(profile2 == "dev-local" && flag2 == "1"), "fixture must be inactive without flag");
+    assert!(
+        !(profile2 == "dev-local" && flag2 == "1"),
+        "fixture must be inactive without flag"
+    );
 
     // Flag set but non-dev-local profile — still off.
     std::env::set_var("APP_PROFILE", "staging");
     std::env::set_var("QBO_FORCE_RATE_LIMIT", "1");
     let profile3 = std::env::var("APP_PROFILE").unwrap_or_default();
     let flag3 = std::env::var("QBO_FORCE_RATE_LIMIT").unwrap_or_default();
-    assert!(!(profile3 == "dev-local" && flag3 == "1"), "fixture must be inactive in staging");
+    assert!(
+        !(profile3 == "dev-local" && flag3 == "1"),
+        "fixture must be inactive in staging"
+    );
 
     std::env::remove_var("APP_PROFILE");
     std::env::remove_var("QBO_FORCE_RATE_LIMIT");

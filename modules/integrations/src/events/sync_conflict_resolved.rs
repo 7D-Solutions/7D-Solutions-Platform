@@ -73,7 +73,10 @@ mod tests {
         assert_eq!(env.event_type, EVENT_TYPE_SYNC_CONFLICT_RESOLVED);
         assert_eq!(env.source_module, "integrations");
         assert_eq!(env.schema_version, INTEGRATIONS_EVENT_SCHEMA_VERSION);
-        assert_eq!(env.mutation_class.as_deref(), Some(MUTATION_CLASS_DATA_MUTATION));
+        assert_eq!(
+            env.mutation_class.as_deref(),
+            Some(MUTATION_CLASS_DATA_MUTATION)
+        );
     }
 
     #[test]

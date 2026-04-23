@@ -70,6 +70,9 @@ mod tests {
         assert_eq!(env.source_module, "integrations");
         assert_eq!(env.schema_version, INTEGRATIONS_EVENT_SCHEMA_VERSION);
         assert!(env.replay_safe);
-        assert_eq!(env.mutation_class.as_deref(), Some(MUTATION_CLASS_LIFECYCLE));
+        assert_eq!(
+            env.mutation_class.as_deref(),
+            Some(MUTATION_CLASS_LIFECYCLE)
+        );
     }
 }

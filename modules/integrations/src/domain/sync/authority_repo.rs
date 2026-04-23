@@ -55,10 +55,7 @@ pub async fn ensure_authority(
 }
 
 /// List all authority rows for a tenant, ordered by provider + entity_type.
-pub async fn list_authority(
-    pool: &PgPool,
-    app_id: &str,
-) -> Result<Vec<AuthorityRow>, sqlx::Error> {
+pub async fn list_authority(pool: &PgPool, app_id: &str) -> Result<Vec<AuthorityRow>, sqlx::Error> {
     sqlx::query_as::<_, AuthorityRow>(
         r#"
         SELECT id, app_id, provider, entity_type, authoritative_side,

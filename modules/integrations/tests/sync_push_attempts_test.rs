@@ -81,7 +81,14 @@ async fn test_transition_accepted_to_inflight() {
     cleanup(&pool, &app_id).await;
 
     let row = push_attempts::insert_attempt(
-        &pool, &app_id, "quickbooks", "invoice", "inv-002", "update", 1, "fp-def456",
+        &pool,
+        &app_id,
+        "quickbooks",
+        "invoice",
+        "inv-002",
+        "update",
+        1,
+        "fp-def456",
     )
     .await
     .expect("insert");
@@ -106,7 +113,14 @@ async fn test_complete_attempt_to_succeeded() {
     cleanup(&pool, &app_id).await;
 
     let row = push_attempts::insert_attempt(
-        &pool, &app_id, "quickbooks", "bill", "bill-001", "create", 2, "fp-ghi789",
+        &pool,
+        &app_id,
+        "quickbooks",
+        "bill",
+        "bill-001",
+        "create",
+        2,
+        "fp-ghi789",
     )
     .await
     .expect("insert");
@@ -136,7 +150,14 @@ async fn test_complete_attempt_to_failed_with_error_message() {
     cleanup(&pool, &app_id).await;
 
     let row = push_attempts::insert_attempt(
-        &pool, &app_id, "quickbooks", "payment", "pay-001", "delete", 3, "fp-jkl012",
+        &pool,
+        &app_id,
+        "quickbooks",
+        "payment",
+        "pay-001",
+        "delete",
+        3,
+        "fp-jkl012",
     )
     .await
     .expect("insert");
@@ -145,13 +166,17 @@ async fn test_complete_attempt_to_failed_with_error_message() {
         .await
         .expect("inflight");
 
-    let done = push_attempts::complete_attempt(&pool, row.id, "failed", Some("provider rejected: 400"))
-        .await
-        .expect("complete")
-        .expect("row");
+    let done =
+        push_attempts::complete_attempt(&pool, row.id, "failed", Some("provider rejected: 400"))
+            .await
+            .expect("complete")
+            .expect("row");
 
     assert_eq!(done.status, "failed");
-    assert_eq!(done.error_message.as_deref(), Some("provider rejected: 400"));
+    assert_eq!(
+        done.error_message.as_deref(),
+        Some("provider rejected: 400")
+    );
 
     cleanup(&pool, &app_id).await;
 }
@@ -165,7 +190,14 @@ async fn test_complete_attempt_to_unknown_failure() {
     cleanup(&pool, &app_id).await;
 
     let row = push_attempts::insert_attempt(
-        &pool, &app_id, "quickbooks", "vendor", "vendor-001", "update", 1, "fp-mno345",
+        &pool,
+        &app_id,
+        "quickbooks",
+        "vendor",
+        "vendor-001",
+        "update",
+        1,
+        "fp-mno345",
     )
     .await
     .expect("insert");
@@ -194,14 +226,28 @@ async fn test_partial_unique_blocks_duplicate_accepted_intent() {
     cleanup(&pool, &app_id).await;
 
     push_attempts::insert_attempt(
-        &pool, &app_id, "quickbooks", "invoice", "inv-dup", "create", 1, "fp-same",
+        &pool,
+        &app_id,
+        "quickbooks",
+        "invoice",
+        "inv-dup",
+        "create",
+        1,
+        "fp-same",
     )
     .await
     .expect("first insert");
 
     // Second identical intent while first is 'accepted' must fail
     let err = push_attempts::insert_attempt(
-        &pool, &app_id, "quickbooks", "invoice", "inv-dup", "create", 1, "fp-same",
+        &pool,
+        &app_id,
+        "quickbooks",
+        "invoice",
+        "inv-dup",
+        "create",
+        1,
+        "fp-same",
     )
     .await
     .expect_err("duplicate must fail");
@@ -224,7 +270,14 @@ async fn test_partial_unique_allows_retry_after_failed() {
     cleanup(&pool, &app_id).await;
 
     let row = push_attempts::insert_attempt(
-        &pool, &app_id, "quickbooks", "invoice", "inv-retry", "create", 1, "fp-retry",
+        &pool,
+        &app_id,
+        "quickbooks",
+        "invoice",
+        "inv-retry",
+        "create",
+        1,
+        "fp-retry",
     )
     .await
     .expect("first insert");
@@ -239,7 +292,14 @@ async fn test_partial_unique_allows_retry_after_failed() {
 
     // After 'failed', a fresh attempt with same fingerprint is allowed
     let retry = push_attempts::insert_attempt(
-        &pool, &app_id, "quickbooks", "invoice", "inv-retry", "create", 1, "fp-retry",
+        &pool,
+        &app_id,
+        "quickbooks",
+        "invoice",
+        "inv-retry",
+        "create",
+        1,
+        "fp-retry",
     )
     .await
     .expect("retry insert must succeed");
@@ -259,7 +319,14 @@ async fn test_list_stale_inflight_returns_old_attempts() {
     cleanup(&pool, &app_id).await;
 
     let row = push_attempts::insert_attempt(
-        &pool, &app_id, "quickbooks", "customer", "cust-stale", "update", 1, "fp-stale",
+        &pool,
+        &app_id,
+        "quickbooks",
+        "customer",
+        "cust-stale",
+        "update",
+        1,
+        "fp-stale",
     )
     .await
     .expect("insert");

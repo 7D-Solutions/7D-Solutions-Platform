@@ -1034,7 +1034,10 @@ async fn qbo_legacy_consumers_flag_on_when_set_to_1() {
     std::env::set_var("QBO_LEGACY_CONSUMERS_ENABLED", "1");
     let enabled = legacy_consumers_enabled();
     std::env::remove_var("QBO_LEGACY_CONSUMERS_ENABLED");
-    assert!(enabled, "legacy consumers must be ON when QBO_LEGACY_CONSUMERS_ENABLED=1");
+    assert!(
+        enabled,
+        "legacy consumers must be ON when QBO_LEGACY_CONSUMERS_ENABLED=1"
+    );
 }
 
 #[tokio::test]

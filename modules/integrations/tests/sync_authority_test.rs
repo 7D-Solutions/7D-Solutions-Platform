@@ -51,9 +51,10 @@ async fn test_ensure_authority_creates_row_at_version_one() {
     cleanup(&pool, &app_id).await;
 
     let mut tx = pool.begin().await.expect("begin tx");
-    let row = authority_repo::ensure_authority(&mut tx, &app_id, "quickbooks", "invoice", "platform")
-        .await
-        .expect("ensure_authority");
+    let row =
+        authority_repo::ensure_authority(&mut tx, &app_id, "quickbooks", "invoice", "platform")
+            .await
+            .expect("ensure_authority");
     tx.commit().await.expect("commit");
 
     assert_eq!(row.app_id, app_id);
@@ -101,9 +102,10 @@ async fn test_ensure_authority_is_idempotent() {
     cleanup(&pool, &app_id).await;
 
     let mut tx = pool.begin().await.expect("begin first");
-    let first = authority_repo::ensure_authority(&mut tx, &app_id, "quickbooks", "bill", "platform")
-        .await
-        .expect("first ensure");
+    let first =
+        authority_repo::ensure_authority(&mut tx, &app_id, "quickbooks", "bill", "platform")
+            .await
+            .expect("first ensure");
     tx.commit().await.expect("commit first");
 
     let mut tx2 = pool.begin().await.expect("begin second");
@@ -114,7 +116,10 @@ async fn test_ensure_authority_is_idempotent() {
     tx2.commit().await.expect("commit second");
 
     assert_eq!(first.id, second.id, "same row on second ensure");
-    assert_eq!(second.authority_version, 1, "version must not change on no-op ensure");
+    assert_eq!(
+        second.authority_version, 1,
+        "version must not change on no-op ensure"
+    );
 
     cleanup(&pool, &app_id).await;
 }
@@ -142,7 +147,10 @@ async fn test_bump_version_increments_and_switches_side() {
         .expect("bump_version");
     tx2.commit().await.expect("commit bump");
 
-    assert_eq!(flipped.authority_version, 2, "version must increment to 2 after flip");
+    assert_eq!(
+        flipped.authority_version, 2,
+        "version must increment to 2 after flip"
+    );
     assert_eq!(flipped.authoritative_side, "external");
     assert_eq!(flipped.last_flipped_by.as_deref(), Some("test-agent"));
     assert!(flipped.last_flipped_at.is_some());
@@ -209,10 +217,9 @@ async fn test_authority_version_monotonic_across_multiple_flips() {
     for i in 0..3 {
         let new_side = if i % 2 == 0 { "external" } else { "platform" };
         let mut tx = pool.begin().await.expect("begin flip");
-        let flipped =
-            authority_repo::bump_version(&mut tx, current_id, new_side, "loop-test")
-                .await
-                .expect("bump");
+        let flipped = authority_repo::bump_version(&mut tx, current_id, new_side, "loop-test")
+            .await
+            .expect("bump");
         tx.commit().await.expect("commit flip");
 
         assert_eq!(
@@ -224,7 +231,10 @@ async fn test_authority_version_monotonic_across_multiple_flips() {
         current_version = flipped.authority_version;
     }
 
-    assert_eq!(current_version, 4, "after 3 flips from v1, version must be 4");
+    assert_eq!(
+        current_version, 4,
+        "after 3 flips from v1, version must be 4"
+    );
 
     cleanup(&pool, &app_id).await;
 }

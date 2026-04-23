@@ -22,8 +22,8 @@ use axum::routing::get;
 use axum::Router;
 use integrations_rs::domain::sync::observations;
 use integrations_rs::domain::webhooks::QboNormalizer;
-use serial_test::serial;
 use serde_json::json;
+use serial_test::serial;
 use sqlx::postgres::PgPoolOptions;
 use tokio::sync::OnceCell;
 use uuid::Uuid;
@@ -201,12 +201,7 @@ async fn start_mock_qbo(
 
 // ── CloudEvent factory ────────────────────────────────────────────────────────
 
-fn cloud_event(
-    id: &str,
-    event_type: &str,
-    entity_id: &str,
-    realm_id: &str,
-) -> serde_json::Value {
+fn cloud_event(id: &str, event_type: &str, entity_id: &str, realm_id: &str) -> serde_json::Value {
     json!({
         "id": id,
         "type": event_type,
@@ -246,7 +241,12 @@ async fn webhook_non_delete_writes_observation_with_webhook_channel() {
     let (base_url, _srv) = start_mock_qbo(responses).await;
     let normalizer = QboNormalizer::new_with_base_url(pool.clone(), base_url);
 
-    let events = json!([cloud_event("ev-1", "qbo.customer.created.v1", entity_id, &realm_id)]);
+    let events = json!([cloud_event(
+        "ev-1",
+        "qbo.customer.created.v1",
+        entity_id,
+        &realm_id
+    )]);
     let body = serde_json::to_vec(&events).expect("serialize");
     normalizer
         .normalize(&body, &events, &HashMap::new())
@@ -256,12 +256,16 @@ async fn webhook_non_delete_writes_observation_with_webhook_channel() {
     // Allow the async fetch task to write the observation.
     tokio::time::sleep(Duration::from_millis(200)).await;
 
-    let obs = observations::get_latest_for_entity(&pool, &app_id, "quickbooks", "customer", entity_id)
-        .await
-        .expect("query observation")
-        .expect("observation must exist");
+    let obs =
+        observations::get_latest_for_entity(&pool, &app_id, "quickbooks", "customer", entity_id)
+            .await
+            .expect("query observation")
+            .expect("observation must exist");
 
-    assert_eq!(obs.source_channel, "webhook", "source_channel must be 'webhook'");
+    assert_eq!(
+        obs.source_channel, "webhook",
+        "source_channel must be 'webhook'"
+    );
     assert!(!obs.is_tombstone, "must not be a tombstone");
     assert_eq!(obs.entity_id, entity_id);
     assert_eq!(obs.provider, "quickbooks");
@@ -284,7 +288,12 @@ async fn webhook_delete_writes_tombstone_without_fetch() {
     let (base_url, _srv) = start_mock_qbo(HashMap::new()).await;
     let normalizer = QboNormalizer::new_with_base_url(pool.clone(), base_url);
 
-    let events = json!([cloud_event("ev-del-1", "qbo.invoice.deleted.v1", entity_id, &realm_id)]);
+    let events = json!([cloud_event(
+        "ev-del-1",
+        "qbo.invoice.deleted.v1",
+        entity_id,
+        &realm_id
+    )]);
     let body = serde_json::to_vec(&events).expect("serialize");
     normalizer
         .normalize(&body, &events, &HashMap::new())
@@ -293,10 +302,11 @@ async fn webhook_delete_writes_tombstone_without_fetch() {
 
     tokio::time::sleep(Duration::from_millis(200)).await;
 
-    let obs = observations::get_latest_for_entity(&pool, &app_id, "quickbooks", "invoice", entity_id)
-        .await
-        .expect("query observation")
-        .expect("tombstone observation must exist");
+    let obs =
+        observations::get_latest_for_entity(&pool, &app_id, "quickbooks", "invoice", entity_id)
+            .await
+            .expect("query observation")
+            .expect("tombstone observation must exist");
 
     assert!(obs.is_tombstone, "must be a tombstone");
     assert_eq!(obs.source_channel, "webhook");
@@ -335,7 +345,12 @@ async fn duplicate_webhook_delivery_collapses_to_one_observation() {
     let (base_url, _srv) = start_mock_qbo(responses).await;
 
     // First delivery.
-    let events = json!([cloud_event("ev-pay-a", "qbo.payment.created.v1", entity_id, &realm_id)]);
+    let events = json!([cloud_event(
+        "ev-pay-a",
+        "qbo.payment.created.v1",
+        entity_id,
+        &realm_id
+    )]);
     let body = serde_json::to_vec(&events).expect("serialize");
     QboNormalizer::new_with_base_url(pool.clone(), base_url.clone())
         .normalize(&body, &events, &HashMap::new())
@@ -343,7 +358,12 @@ async fn duplicate_webhook_delivery_collapses_to_one_observation() {
         .expect("normalize first");
 
     // Second delivery — different event id (would be different Intuit POST) but same entity state.
-    let events2 = json!([cloud_event("ev-pay-b", "qbo.payment.created.v1", entity_id, &realm_id)]);
+    let events2 = json!([cloud_event(
+        "ev-pay-b",
+        "qbo.payment.created.v1",
+        entity_id,
+        &realm_id
+    )]);
     let body2 = serde_json::to_vec(&events2).expect("serialize");
     QboNormalizer::new_with_base_url(pool.clone(), base_url.clone())
         .normalize(&body2, &events2, &HashMap::new())
@@ -366,7 +386,10 @@ async fn duplicate_webhook_delivery_collapses_to_one_observation() {
     .await
     .expect("count observations");
 
-    assert_eq!(count.0, 1, "duplicate webhook deliveries must collapse to one observation row");
+    assert_eq!(
+        count.0, 1,
+        "duplicate webhook deliveries must collapse to one observation row"
+    );
 
     cleanup(&pool, &app_id, &realm_id).await;
 }
@@ -399,8 +422,7 @@ async fn webhook_and_cdc_same_state_collapse_via_upsert() {
 
     // Write via CDC path using comparable fields (Id + Name only; strip MetaData/SyncToken).
     {
-        let lut: chrono::DateTime<chrono::Utc> =
-            lut_str.parse().expect("parse lut");
+        let lut: chrono::DateTime<chrono::Utc> = lut_str.parse().expect("parse lut");
         let lut_ms = truncate_to_millis(lut);
         let fingerprint = compute_fingerprint(Some(sync_token), Some(lut_ms), &entity);
         let comparable = json!({ "Id": entity_id, "Name": "Widget" });
@@ -426,13 +448,15 @@ async fn webhook_and_cdc_same_state_collapse_via_upsert() {
 
     // Process a webhook for the same entity and state — same SyncToken, same LUT.
     let mut responses = HashMap::new();
-    responses.insert(
-        ("item".to_string(), entity_id.to_string()),
-        entity.clone(),
-    );
+    responses.insert(("item".to_string(), entity_id.to_string()), entity.clone());
     let (base_url, _srv) = start_mock_qbo(responses).await;
 
-    let events = json!([cloud_event("ev-item-1", "qbo.item.updated.v1", entity_id, &realm_id)]);
+    let events = json!([cloud_event(
+        "ev-item-1",
+        "qbo.item.updated.v1",
+        entity_id,
+        &realm_id
+    )]);
     let body = serde_json::to_vec(&events).expect("serialize");
     QboNormalizer::new_with_base_url(pool.clone(), base_url)
         .normalize(&body, &events, &HashMap::new())
@@ -453,7 +477,10 @@ async fn webhook_and_cdc_same_state_collapse_via_upsert() {
     .await
     .expect("count");
 
-    assert_eq!(count.0, 1, "CDC + webhook for same state must be one row after upsert");
+    assert_eq!(
+        count.0, 1,
+        "CDC + webhook for same state must be one row after upsert"
+    );
 
     // Source channel is refreshed to 'webhook' by the upsert.
     let obs = observations::get_latest_for_entity(&pool, &app_id, "quickbooks", "item", entity_id)
@@ -496,18 +523,20 @@ async fn webhook_missing_entity_id_skips_observe_gracefully() {
         .await
         .expect("normalize must succeed");
 
-    assert_eq!(result.events_processed, 1, "event was processed (ingest + outbox)");
+    assert_eq!(
+        result.events_processed, 1,
+        "event was processed (ingest + outbox)"
+    );
 
     tokio::time::sleep(Duration::from_millis(100)).await;
 
     // No observation row written for this app.
-    let count: (i64,) = sqlx::query_as(
-        "SELECT COUNT(*) FROM integrations_sync_observations WHERE app_id = $1",
-    )
-    .bind(&app_id)
-    .fetch_one(&pool)
-    .await
-    .expect("count");
+    let count: (i64,) =
+        sqlx::query_as("SELECT COUNT(*) FROM integrations_sync_observations WHERE app_id = $1")
+            .bind(&app_id)
+            .fetch_one(&pool)
+            .await
+            .expect("count");
 
     assert_eq!(count.0, 0, "no observation for event without entity id");
 
@@ -548,17 +577,21 @@ async fn all_delete_event_types_write_tombstones() {
     tokio::time::sleep(Duration::from_millis(300)).await;
 
     for (_event_type, obs_entity_type, entity_id) in &cases {
-        let obs =
-            observations::get_latest_for_entity(&pool, &app_id, "quickbooks", obs_entity_type, entity_id)
-                .await
-                .unwrap_or_else(|e| panic!("query failed for {}: {}", obs_entity_type, e))
-                .unwrap_or_else(|| panic!("tombstone missing for {}/{}", obs_entity_type, entity_id));
+        let obs = observations::get_latest_for_entity(
+            &pool,
+            &app_id,
+            "quickbooks",
+            obs_entity_type,
+            entity_id,
+        )
+        .await
+        .unwrap_or_else(|e| panic!("query failed for {}: {}", obs_entity_type, e))
+        .unwrap_or_else(|| panic!("tombstone missing for {}/{}", obs_entity_type, entity_id));
 
         assert!(
             obs.is_tombstone,
             "{}/{} must be a tombstone",
-            obs_entity_type,
-            entity_id
+            obs_entity_type, entity_id
         );
         assert_eq!(obs.source_channel, "webhook");
     }
@@ -623,7 +656,12 @@ async fn webhook_observation_auto_opens_conflict_when_no_marker_match() {
     let (base_url, _srv) = start_mock_qbo(responses).await;
     let normalizer = QboNormalizer::new_with_base_url(pool.clone(), base_url);
 
-    let events = json!([cloud_event("ev-det-auto", "qbo.customer.updated.v1", entity_id, &realm_id)]);
+    let events = json!([cloud_event(
+        "ev-det-auto",
+        "qbo.customer.updated.v1",
+        entity_id,
+        &realm_id
+    )]);
     let body = serde_json::to_vec(&events).expect("serialize");
     normalizer
         .normalize(&body, &events, &HashMap::new())
@@ -704,7 +742,12 @@ async fn webhook_observation_suppresses_self_echo_when_marker_matches() {
     let (base_url, _srv) = start_mock_qbo(responses).await;
     let normalizer = QboNormalizer::new_with_base_url(pool.clone(), base_url);
 
-    let events = json!([cloud_event("ev-echo-match", "qbo.customer.updated.v1", entity_id, &realm_id)]);
+    let events = json!([cloud_event(
+        "ev-echo-match",
+        "qbo.customer.updated.v1",
+        entity_id,
+        &realm_id
+    )]);
     let body = serde_json::to_vec(&events).expect("serialize");
     normalizer
         .normalize(&body, &events, &HashMap::new())

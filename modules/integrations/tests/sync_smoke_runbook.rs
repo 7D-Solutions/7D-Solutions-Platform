@@ -82,7 +82,10 @@ async fn make_bus() -> Arc<dyn event_bus::EventBus> {
                 return Arc::new(NatsBus::new(client));
             }
             Err(e) => {
-                eprintln!("  [WARN] NATS_URL set but connection failed: {} — using InMemoryBus", e);
+                eprintln!(
+                    "  [WARN] NATS_URL set but connection failed: {} — using InMemoryBus",
+                    e
+                );
             }
         }
     } else {
@@ -160,10 +163,16 @@ impl SandboxTokenProvider {
 
         Self {
             access_token: RwLock::new(
-                tokens["access_token"].as_str().expect("access_token").into(),
+                tokens["access_token"]
+                    .as_str()
+                    .expect("access_token")
+                    .into(),
             ),
             refresh_tok: RwLock::new(
-                tokens["refresh_token"].as_str().expect("refresh_token").into(),
+                tokens["refresh_token"]
+                    .as_str()
+                    .expect("refresh_token")
+                    .into(),
             ),
             client_id,
             client_secret,
@@ -201,7 +210,10 @@ impl TokenProvider for SandboxTokenProvider {
             return Err(QboError::TokenError(format!("refresh failed: {body}")));
         }
 
-        let tr: Value = resp.json().await.map_err(|e| QboError::TokenError(e.to_string()))?;
+        let tr: Value = resp
+            .json()
+            .await
+            .map_err(|e| QboError::TokenError(e.to_string()))?;
         let new_at = tr["access_token"]
             .as_str()
             .ok_or_else(|| QboError::TokenError("no access_token in refresh".into()))?
@@ -250,9 +262,15 @@ async fn sync_smoke_runbook() {
     eprintln!("║  SYNC STACK BACKEND SMOKE RUNBOOK                        ║");
     eprintln!("╠══════════════════════════════════════════════════════════╣");
     eprintln!("║  tenant:  {}  ║", &app_id);
-    eprintln!("║  QBO sandbox: {}   NATS: {}               ║",
+    eprintln!(
+        "║  QBO sandbox: {}   NATS: {}               ║",
         if sandbox_enabled { "ON " } else { "OFF" },
-        if std::env::var("NATS_URL").is_ok() { "ON " } else { "OFF" });
+        if std::env::var("NATS_URL").is_ok() {
+            "ON "
+        } else {
+            "OFF"
+        }
+    );
     eprintln!("╚══════════════════════════════════════════════════════════╝\n");
 
     // ── Phase 1: Authority flip ───────────────────────────────────────────────
@@ -272,7 +290,10 @@ async fn sync_smoke_runbook() {
 
     match &flip1 {
         Ok(r) => {
-            assert_eq!(r.row.authoritative_side, "external", "expected external after flip");
+            assert_eq!(
+                r.row.authoritative_side, "external",
+                "expected external after flip"
+            );
             assert!(r.row.authority_version >= 1, "version must be >= 1");
             eprintln!(
                 "  PASS  flip platform→external: version={}",
@@ -346,10 +367,20 @@ async fn sync_smoke_runbook() {
         let fp = format!("smoke-fp-{}", Uuid::new_v4().simple());
 
         match svc
-            .push_customer(&pool, &app_id, &entity_id, "create", current_authority_version, &fp, &payload)
+            .push_customer(
+                &pool,
+                &app_id,
+                &entity_id,
+                "create",
+                current_authority_version,
+                &fp,
+                &payload,
+            )
             .await
         {
-            Ok(PushOutcome::Succeeded { provider_entity_id, .. }) => {
+            Ok(PushOutcome::Succeeded {
+                provider_entity_id, ..
+            }) => {
                 eprintln!(
                     "  PASS  push customer create: QBO entity_id={:?}",
                     provider_entity_id
@@ -404,7 +435,9 @@ async fn sync_smoke_runbook() {
             Some(row.id)
         }
         Ok(DetectorOutcome::SelfEchoSuppressed { attempt_id }) => {
-            failures.push(format!("Phase 3 detector: unexpected SelfEcho on attempt {attempt_id}"));
+            failures.push(format!(
+                "Phase 3 detector: unexpected SelfEcho on attempt {attempt_id}"
+            ));
             eprintln!("  FAIL  unexpected SelfEchoSuppressed");
             None
         }
@@ -443,7 +476,11 @@ async fn sync_smoke_runbook() {
                 failures.push("Phase 4: conflict from Phase 3 not found in listing".into());
                 eprintln!("  FAIL  Phase 3 conflict missing from list");
             } else {
-                eprintln!("  PASS  list conflicts: {} rows, total={}", rows.len(), total);
+                eprintln!(
+                    "  PASS  list conflicts: {} rows, total={}",
+                    rows.len(),
+                    total
+                );
             }
 
             // Isolation: another tenant must see 0 rows.
@@ -547,7 +584,10 @@ async fn sync_smoke_runbook() {
                             "Phase 5 unexpected outcome for {}: {:?}",
                             item.conflict_id, other
                         ));
-                        eprintln!("  FAIL  conflict {} unexpected: {:?}", item.conflict_id, other);
+                        eprintln!(
+                            "  FAIL  conflict {} unexpected: {:?}",
+                            item.conflict_id, other
+                        );
                         pass = false;
                     }
                 }
@@ -566,9 +606,14 @@ async fn sync_smoke_runbook() {
                             )
                         });
                         if all_terminal {
-                            eprintln!("  PASS  bulk resolve idempotency: retry returns terminal outcomes");
+                            eprintln!(
+                                "  PASS  bulk resolve idempotency: retry returns terminal outcomes"
+                            );
                         } else {
-                            failures.push("Phase 5 idempotency: retry did not return terminal outcomes".into());
+                            failures.push(
+                                "Phase 5 idempotency: retry did not return terminal outcomes"
+                                    .into(),
+                            );
                             eprintln!("  FAIL  bulk resolve idempotency violated");
                         }
                     }
@@ -609,7 +654,11 @@ async fn sync_smoke_runbook() {
         Ok((rows, total)) => {
             let found = rows.iter().any(|r| r.event_id == dlq_event_id);
             if found {
-                eprintln!("  PASS  DLQ needs_reauth filter: {} row(s), total={}", rows.len(), total);
+                eprintln!(
+                    "  PASS  DLQ needs_reauth filter: {} row(s), total={}",
+                    rows.len(),
+                    total
+                );
             } else {
                 failures.push("Phase 6: seeded DLQ row not returned by list_failed".into());
                 eprintln!("  FAIL  seeded DLQ row not found");
@@ -651,7 +700,8 @@ async fn sync_smoke_runbook() {
             eprintln!(
                 "  PASS  upsert_job_success: failure_streak={}, last_success_at={}",
                 row.failure_streak,
-                row.last_success_at.map_or("none".into(), |t| t.to_rfc3339())
+                row.last_success_at
+                    .map_or("none".into(), |t| t.to_rfc3339())
             );
         }
         Err(e) => {

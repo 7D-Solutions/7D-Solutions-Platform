@@ -143,7 +143,10 @@ async fn test_superseded_when_authority_advanced() {
             assert_eq!(row.entity_type, "payment");
             assert_eq!(row.operation, "create");
             assert_eq!(row.authority_version, 1);
-            assert!(row.completed_at.is_some(), "superseded attempt must have completed_at");
+            assert!(
+                row.completed_at.is_some(),
+                "superseded attempt must have completed_at"
+            );
         }
         PaymentPushOutcome::Succeeded { .. } => {
             panic!("expected Superseded but got Succeeded");
@@ -243,8 +246,7 @@ async fn test_sandbox_payment_create_update_delete() {
     seed_authority(&pool, &app_id, 1).await;
 
     // Resolve a customer ref from the sandbox (use env var or fall back to "1").
-    let customer_ref =
-        std::env::var("QBO_SANDBOX_CUSTOMER_ID").unwrap_or_else(|_| "1".to_string());
+    let customer_ref = std::env::var("QBO_SANDBOX_CUSTOMER_ID").unwrap_or_else(|_| "1".to_string());
 
     // ── Create ────────────────────────────────────────────────────────────────
     let create_req = PaymentPushRequest {
@@ -269,11 +271,17 @@ async fn test_sandbox_payment_create_update_delete() {
             .expect("create payment");
 
     let (qbo_id, sync_token) = match outcome {
-        PaymentPushOutcome::Succeeded { attempt, qbo_entity } => {
+        PaymentPushOutcome::Succeeded {
+            attempt,
+            qbo_entity,
+        } => {
             assert_eq!(attempt.status, "succeeded");
             assert_eq!(attempt.operation, "create");
             let id = qbo_entity["Id"].as_str().expect("QBO Id").to_string();
-            let st = qbo_entity["SyncToken"].as_str().expect("SyncToken").to_string();
+            let st = qbo_entity["SyncToken"]
+                .as_str()
+                .expect("SyncToken")
+                .to_string();
             eprintln!("Created QBO payment Id={id}");
             (id, st)
         }
@@ -307,13 +315,22 @@ async fn test_sandbox_payment_create_update_delete() {
             .expect("update payment");
 
     let sync_token_after_update = match outcome {
-        PaymentPushOutcome::Succeeded { attempt, qbo_entity } => {
+        PaymentPushOutcome::Succeeded {
+            attempt,
+            qbo_entity,
+        } => {
             assert_eq!(attempt.status, "succeeded");
             assert_eq!(attempt.operation, "update");
             let amt = qbo_entity["TotalAmt"].as_f64().unwrap_or(0.0);
-            assert_eq!(amt, 150.00, "updated TotalAmt must be reflected in QBO response");
+            assert_eq!(
+                amt, 150.00,
+                "updated TotalAmt must be reflected in QBO response"
+            );
             eprintln!("Updated QBO payment Id={qbo_id} TotalAmt={amt}");
-            qbo_entity["SyncToken"].as_str().expect("SyncToken").to_string()
+            qbo_entity["SyncToken"]
+                .as_str()
+                .expect("SyncToken")
+                .to_string()
         }
         PaymentPushOutcome::Superseded(_) => panic!("update should not be superseded"),
     };
@@ -336,12 +353,18 @@ async fn test_sandbox_payment_create_update_delete() {
             .expect("delete payment");
 
     match outcome {
-        PaymentPushOutcome::Succeeded { attempt, qbo_entity } => {
+        PaymentPushOutcome::Succeeded {
+            attempt,
+            qbo_entity,
+        } => {
             assert_eq!(attempt.status, "succeeded");
             assert_eq!(attempt.operation, "delete");
             // QBO returns the deleted entity with status="Deleted".
             let status = qbo_entity["status"].as_str().unwrap_or("");
-            assert_eq!(status, "Deleted", "deleted payment must have status=Deleted");
+            assert_eq!(
+                status, "Deleted",
+                "deleted payment must have status=Deleted"
+            );
             eprintln!("Deleted QBO payment Id={qbo_id}");
         }
         PaymentPushOutcome::Superseded(_) => panic!("delete should not be superseded"),
@@ -373,8 +396,14 @@ fn test_payment_payload_with_line_applications_roundtrips() {
         payment_method_ref: None,
         deposit_to_account_ref: None,
         line_applications: vec![
-            PaymentLineApplication { invoice_id: "INV-1".into(), amount: 100.00 },
-            PaymentLineApplication { invoice_id: "INV-2".into(), amount: 150.00 },
+            PaymentLineApplication {
+                invoice_id: "INV-1".into(),
+                amount: 100.00,
+            },
+            PaymentLineApplication {
+                invoice_id: "INV-2".into(),
+                amount: 150.00,
+            },
         ],
     };
     let json = serde_json::to_value(&payload).expect("serialize");
@@ -400,7 +429,10 @@ fn test_payment_payload_empty_line_applications_roundtrips() {
     };
     let json = serde_json::to_value(&payload).expect("serialize");
     let back: QboPaymentPayload = serde_json::from_value(json).expect("deserialize");
-    assert!(back.line_applications.is_empty(), "empty line_applications must round-trip");
+    assert!(
+        back.line_applications.is_empty(),
+        "empty line_applications must round-trip"
+    );
 }
 
 // ── Token provider helpers ────────────────────────────────────────────────────

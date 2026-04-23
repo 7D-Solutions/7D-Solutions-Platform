@@ -30,13 +30,13 @@ use crate::domain::oauth::service as oauth_service;
 use crate::domain::qbo::{cdc as qbo_cdc, client::QboClient, QboError, TokenProvider};
 use crate::domain::sync::authority_repo::list_authority;
 use crate::domain::sync::conflicts_repo::list_conflicts_paged;
+use crate::domain::sync::health::{list_jobs as repo_list_jobs, SyncJobRow};
+use crate::domain::sync::push_attempts::{list_attempts, ListAttemptsFilter, PushAttemptRow};
 use crate::domain::sync::resolve_service::{
     bulk_resolve_conflicts, resolve_conflict_transactional, BulkResolveError, BulkResolveItem,
     BulkResolveOutcome, PushError, ResolveConflictError, ResolveService,
 };
 use crate::domain::sync::{flip_authority as svc_flip_authority, FlipError};
-use crate::domain::sync::health::{list_jobs as repo_list_jobs, SyncJobRow};
-use crate::domain::sync::push_attempts::{list_attempts, ListAttemptsFilter, PushAttemptRow};
 use crate::outbox::list_failed;
 use crate::AppState;
 use platform_sdk::extract_tenant;
@@ -58,7 +58,10 @@ fn flip_error(e: FlipError) -> ApiError {
         FlipError::InvalidSide(s) => ApiError::new(
             422,
             "invalid_authority_side",
-            format!("Invalid authority side '{}': must be 'platform' or 'external'", s),
+            format!(
+                "Invalid authority side '{}': must be 'platform' or 'external'",
+                s
+            ),
         ),
         FlipError::ConnectionNotFound(app_id, provider) => ApiError::not_found(format!(
             "No OAuth connection found for provider '{}' on tenant '{}'",
@@ -362,7 +365,10 @@ pub async fn resolve_conflict(
         Err(ResolveConflictError::UnsupportedEntityType(et)) => ApiError::new(
             422,
             "unsupported_entity_type",
-            format!("entity_type '{}' is not supported for conflict resolution", et),
+            format!(
+                "entity_type '{}' is not supported for conflict resolution",
+                et
+            ),
         )
         .into_response(),
         Err(e) => {
@@ -416,7 +422,10 @@ pub async fn bulk_resolve_conflicts_handler(
         return ApiError::new(
             422,
             "items_exceed_cap",
-            format!("bulk-resolve accepts at most 100 items; got {}", body.items.len()),
+            format!(
+                "bulk-resolve accepts at most 100 items; got {}",
+                body.items.len()
+            ),
         )
         .into_response();
     }
@@ -446,7 +455,14 @@ pub async fn bulk_resolve_conflicts_handler(
     match bulk_resolve_conflicts(&state.pool, &app_id, &resolved_by, items).await {
         Ok(outcomes) => {
             let processed = outcomes.len();
-            (StatusCode::OK, Json(BulkResolveResponse { processed, outcomes })).into_response()
+            (
+                StatusCode::OK,
+                Json(BulkResolveResponse {
+                    processed,
+                    outcomes,
+                }),
+            )
+                .into_response()
         }
         Err(BulkResolveError::ExceedsCapacity(n)) => ApiError::new(
             422,
@@ -770,10 +786,7 @@ pub async fn list_push_attempts(
             return ApiError::new(
                 422,
                 "invalid_status",
-                format!(
-                    "status must be one of: {}",
-                    PUSH_VALID_STATUSES.join(", ")
-                ),
+                format!("status must be one of: {}", PUSH_VALID_STATUSES.join(", ")),
             )
             .into_response();
         }
@@ -803,8 +816,12 @@ pub async fn list_push_attempts(
     }
 }
 
-fn default_page() -> i64 { 1 }
-fn default_page_size() -> i64 { 50 }
+fn default_page() -> i64 {
+    1
+}
+fn default_page_size() -> i64 {
+    50
+}
 
 // ============================================================================
 // list_jobs
@@ -901,30 +918,27 @@ pub async fn trigger_cdc(
     let app_id = claims.tenant_id.to_string();
 
     // Snapshot conflict count before the tick so we can report new conflicts opened.
-    let before: (i64,) = sqlx::query_as(
-        "SELECT COUNT(*) FROM integrations_sync_conflicts WHERE app_id = $1",
-    )
-    .bind(&app_id)
-    .fetch_one(&state.pool)
-    .await
-    .unwrap_or((0,));
+    let before: (i64,) =
+        sqlx::query_as("SELECT COUNT(*) FROM integrations_sync_conflicts WHERE app_id = $1")
+            .bind(&app_id)
+            .fetch_one(&state.pool)
+            .await
+            .unwrap_or((0,));
 
-    let obs_count =
-        match qbo_cdc::cdc_tick_for_tenant(&state.pool, &app_id).await {
-            Ok(n) => n,
-            Err(e) => {
-                tracing::error!(app_id = %app_id, error = %e, "CDC trigger failed");
-                return ApiError::internal("CDC tick failed").into_response();
-            }
-        };
+    let obs_count = match qbo_cdc::cdc_tick_for_tenant(&state.pool, &app_id).await {
+        Ok(n) => n,
+        Err(e) => {
+            tracing::error!(app_id = %app_id, error = %e, "CDC trigger failed");
+            return ApiError::internal("CDC tick failed").into_response();
+        }
+    };
 
-    let after: (i64,) = sqlx::query_as(
-        "SELECT COUNT(*) FROM integrations_sync_conflicts WHERE app_id = $1",
-    )
-    .bind(&app_id)
-    .fetch_one(&state.pool)
-    .await
-    .unwrap_or((0,));
+    let after: (i64,) =
+        sqlx::query_as("SELECT COUNT(*) FROM integrations_sync_conflicts WHERE app_id = $1")
+            .bind(&app_id)
+            .fetch_one(&state.pool)
+            .await
+            .unwrap_or((0,));
 
     let conflicts_opened = (after.0 - before.0).max(0) as u32;
 

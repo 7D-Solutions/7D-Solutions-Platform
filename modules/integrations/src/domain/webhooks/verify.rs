@@ -261,7 +261,11 @@ mod tests {
         let body = make_body(realm_id);
         let sig = intuit_sig(token, &body);
         let result = verify_qbo_signature(&pool, &intuit_headers(&sig), &body, &TEST_KEY).await;
-        assert!(result.is_ok(), "correct HMAC with DB token must pass: {:?}", result);
+        assert!(
+            result.is_ok(),
+            "correct HMAC with DB token must pass: {:?}",
+            result
+        );
 
         cleanup_secrets(&pool, app_id).await;
         cleanup_connection(&pool, realm_id).await;
@@ -314,7 +318,11 @@ mod tests {
         let result = verify_qbo_signature(&pool, &intuit_headers(&sig), &body, &TEST_KEY).await;
         std::env::remove_var("INTUIT_WEBHOOK_VERIFIER_TOKEN");
 
-        assert!(result.is_ok(), "env var fallback with correct HMAC must pass: {:?}", result);
+        assert!(
+            result.is_ok(),
+            "env var fallback with correct HMAC must pass: {:?}",
+            result
+        );
 
         cleanup_connection(&pool, realm_id).await;
     }

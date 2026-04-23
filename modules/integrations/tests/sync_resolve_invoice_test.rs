@@ -137,10 +137,9 @@ async fn test_superseded_when_authority_advanced() {
         action: InvoiceAction::Create(minimal_payload("1")),
     };
 
-    let outcome =
-        integrations_rs::domain::sync::resolve_invoice::push_invoice(&pool, &svc, req)
-            .await
-            .expect("push_invoice");
+    let outcome = integrations_rs::domain::sync::resolve_invoice::push_invoice(&pool, &svc, req)
+        .await
+        .expect("push_invoice");
 
     match outcome {
         InvoicePushOutcome::Superseded(row) => {
@@ -153,15 +152,9 @@ async fn test_superseded_when_authority_advanced() {
         InvoicePushOutcome::Succeeded { .. } => panic!("expected Superseded but got Succeeded"),
     }
 
-    let (rows, _) = push_attempts::list_attempts(
-        &pool,
-        &app_id,
-        &Default::default(),
-        1,
-        10,
-    )
-    .await
-    .expect("list_attempts");
+    let (rows, _) = push_attempts::list_attempts(&pool, &app_id, &Default::default(), 1, 10)
+        .await
+        .expect("list_attempts");
     assert_eq!(rows.len(), 1);
     assert_eq!(rows[0].status, "superseded");
 
@@ -199,15 +192,9 @@ async fn test_attempt_reaches_inflight_then_fails_on_bad_endpoint() {
 
     assert!(result.is_err(), "expected error from bad endpoint");
 
-    let (rows, _) = push_attempts::list_attempts(
-        &pool,
-        &app_id,
-        &Default::default(),
-        1,
-        10,
-    )
-    .await
-    .expect("list_attempts");
+    let (rows, _) = push_attempts::list_attempts(&pool, &app_id, &Default::default(), 1, 10)
+        .await
+        .expect("list_attempts");
     assert_eq!(rows.len(), 1);
     assert_eq!(rows[0].status, "failed");
     assert!(rows[0].error_message.is_some());
@@ -274,18 +261,23 @@ async fn test_sandbox_invoice_create_update_void() {
         action: InvoiceAction::Create(payload),
     };
 
-    let outcome = integrations_rs::domain::sync::resolve_invoice::push_invoice(
-        &pool, &svc, create_req,
-    )
-    .await
-    .expect("create invoice");
+    let outcome =
+        integrations_rs::domain::sync::resolve_invoice::push_invoice(&pool, &svc, create_req)
+            .await
+            .expect("create invoice");
 
     let (qbo_id, sync_token) = match outcome {
-        InvoicePushOutcome::Succeeded { attempt, qbo_entity } => {
+        InvoicePushOutcome::Succeeded {
+            attempt,
+            qbo_entity,
+        } => {
             assert_eq!(attempt.status, "succeeded");
             assert_eq!(attempt.operation, "create");
             let id = qbo_entity["Id"].as_str().expect("QBO Id").to_string();
-            let st = qbo_entity["SyncToken"].as_str().expect("SyncToken").to_string();
+            let st = qbo_entity["SyncToken"]
+                .as_str()
+                .expect("SyncToken")
+                .to_string();
             eprintln!("Created QBO invoice Id={id} DocNumber={doc_number}");
             (id, st)
         }
@@ -318,18 +310,23 @@ async fn test_sandbox_invoice_create_update_void() {
         },
     };
 
-    let outcome = integrations_rs::domain::sync::resolve_invoice::push_invoice(
-        &pool, &svc, update_req,
-    )
-    .await
-    .expect("update invoice");
+    let outcome =
+        integrations_rs::domain::sync::resolve_invoice::push_invoice(&pool, &svc, update_req)
+            .await
+            .expect("update invoice");
 
     let sync_token_after_update = match outcome {
-        InvoicePushOutcome::Succeeded { attempt, qbo_entity } => {
+        InvoicePushOutcome::Succeeded {
+            attempt,
+            qbo_entity,
+        } => {
             assert_eq!(attempt.status, "succeeded");
             assert_eq!(attempt.operation, "update");
             eprintln!("Updated QBO invoice Id={qbo_id}");
-            qbo_entity["SyncToken"].as_str().expect("SyncToken").to_string()
+            qbo_entity["SyncToken"]
+                .as_str()
+                .expect("SyncToken")
+                .to_string()
         }
         InvoicePushOutcome::Superseded(_) => panic!("update should not be superseded"),
     };
@@ -346,14 +343,16 @@ async fn test_sandbox_invoice_create_update_void() {
         },
     };
 
-    let outcome = integrations_rs::domain::sync::resolve_invoice::push_invoice(
-        &pool, &svc, void_req,
-    )
-    .await
-    .expect("void invoice");
+    let outcome =
+        integrations_rs::domain::sync::resolve_invoice::push_invoice(&pool, &svc, void_req)
+            .await
+            .expect("void invoice");
 
     match outcome {
-        InvoicePushOutcome::Succeeded { attempt, qbo_entity } => {
+        InvoicePushOutcome::Succeeded {
+            attempt,
+            qbo_entity,
+        } => {
             assert_eq!(attempt.status, "succeeded");
             assert_eq!(attempt.operation, "void");
             // Voided invoices have Balance=0.
@@ -365,15 +364,9 @@ async fn test_sandbox_invoice_create_update_void() {
     }
 
     // Verify all three attempts are in the DB as succeeded.
-    let (rows, total) = push_attempts::list_attempts(
-        &pool,
-        &app_id,
-        &Default::default(),
-        1,
-        10,
-    )
-    .await
-    .expect("list_attempts");
+    let (rows, total) = push_attempts::list_attempts(&pool, &app_id, &Default::default(), 1, 10)
+        .await
+        .expect("list_attempts");
     assert_eq!(total, 3, "three push attempts must be recorded");
     assert!(
         rows.iter().all(|r| r.status == "succeeded"),

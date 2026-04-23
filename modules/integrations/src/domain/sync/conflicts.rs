@@ -61,7 +61,10 @@ impl ConflictStatus {
 
     /// Returns true when no further transitions are permitted.
     pub fn is_terminal(&self) -> bool {
-        matches!(self, ConflictStatus::Resolved | ConflictStatus::Ignored | ConflictStatus::Unresolvable)
+        matches!(
+            self,
+            ConflictStatus::Resolved | ConflictStatus::Ignored | ConflictStatus::Unresolvable
+        )
     }
 }
 

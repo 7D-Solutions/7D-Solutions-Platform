@@ -90,7 +90,12 @@ mod tests {
         let metrics =
             Arc::new(crate::metrics::IntegrationsMetrics::new().expect("metrics init failed"));
         let bus: Arc<dyn event_bus::EventBus> = Arc::new(InMemoryBus::new());
-        let state = Arc::new(AppState { pool, metrics, bus, webhooks_key: [0u8; 32] });
+        let state = Arc::new(AppState {
+            pool,
+            metrics,
+            bus,
+            webhooks_key: [0u8; 32],
+        });
 
         Router::new()
             .route(

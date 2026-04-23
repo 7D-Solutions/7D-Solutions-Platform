@@ -565,7 +565,10 @@ async fn test_cross_tenant_reconnect_after_disconnect() {
         &test_tokens(),
     )
     .await;
-    assert!(blocked.is_err(), "B must not steal a connected realm from A");
+    assert!(
+        blocked.is_err(),
+        "B must not steal a connected realm from A"
+    );
 
     // Tenant A disconnects
     service::disconnect(&pool, &tenant_a, "quickbooks")
@@ -633,7 +636,10 @@ async fn test_same_tenant_reconnect_preserves_row_id() {
     .await
     .expect("reconnect must succeed");
 
-    assert_eq!(original.id, reconnected.id, "row UUID must be preserved on reconnect");
+    assert_eq!(
+        original.id, reconnected.id,
+        "row UUID must be preserved on reconnect"
+    );
     assert_eq!(reconnected.connection_status, "connected");
     assert_eq!(reconnected.realm_id, realm);
 }

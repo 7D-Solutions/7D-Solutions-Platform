@@ -185,10 +185,7 @@ pub fn router(state: Arc<AppState>) -> Router {
 
     // OAuth admin — token import (dev/CI seeding; admin permission + env gate)
     let oauth_admin = Router::new()
-        .route(
-            "/api/integrations/oauth/import",
-            post(oauth::import_tokens),
-        )
+        .route("/api/integrations/oauth/import", post(oauth::import_tokens))
         .route_layer(RequirePermissionsLayer::new(&[
             permissions::INTEGRATIONS_OAUTH_ADMIN,
         ]))

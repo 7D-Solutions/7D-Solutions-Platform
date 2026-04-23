@@ -164,10 +164,7 @@ fn validate_qbo_env() {
 
     let missing: Vec<&str> = REQUIRED
         .iter()
-        .filter(|var| {
-            std::env::var(var)
-                .map_or(true, |v| v.is_empty())
-        })
+        .filter(|var| std::env::var(var).map_or(true, |v| v.is_empty()))
         .copied()
         .collect();
 
@@ -221,7 +218,7 @@ async fn main() {
             let bus = ctx.bus_arc().expect("Integrations requires event bus");
 
             // Spawn conditional background workers
-            if std::env::var("QBO_CLIENT_ID").is_ok() {
+            if std::env::var("QBO_CLIENT_ID").map_or(false, |v| !v.is_empty()) {
                 validate_qbo_env();
                 let refresher: Arc<dyn refresh::TokenRefresher> =
                     Arc::new(refresh::HttpTokenRefresher {
@@ -288,9 +285,9 @@ async fn main() {
             );
             tracing::info!("Integrations: eBay fulfillment consumer started");
 
-            tokio::spawn(integrations_rs::domain::sync::push_attempts::run_watchdog_task(
-                ctx.pool().clone(),
-            ));
+            tokio::spawn(
+                integrations_rs::domain::sync::push_attempts::run_watchdog_task(ctx.pool().clone()),
+            );
             tracing::info!("Integrations: push-attempt watchdog started (60s poll, 10min timeout)");
 
             let integrations_metrics = Arc::new(
@@ -400,10 +397,7 @@ mod startup_guard_tests {
     #[serial]
     fn no_profile_without_token_no_longer_panics() {
         with_env(
-            &[
-                ("APP_PROFILE", ""),
-                ("INTUIT_WEBHOOK_VERIFIER_TOKEN", ""),
-            ],
+            &[("APP_PROFILE", ""), ("INTUIT_WEBHOOK_VERIFIER_TOKEN", "")],
             || validate_webhook_env(),
         );
     }

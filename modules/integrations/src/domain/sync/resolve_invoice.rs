@@ -14,14 +14,14 @@ use serde_json::Value;
 use sqlx::PgPool;
 use uuid::Uuid;
 
-use crate::domain::qbo::{
-    client::{QboClient, QboInvoicePayload},
-    QboError,
-};
 use super::{
     authority_repo,
     push_attempts::{self, PreCallOutcome, PushAttemptRow},
     resolve_service::ResolveService,
+};
+use crate::domain::qbo::{
+    client::{QboClient, QboInvoicePayload},
+    QboError,
 };
 
 // ── Action ────────────────────────────────────────────────────────────────────
@@ -40,10 +40,7 @@ pub enum InvoiceAction {
     },
     /// Void a QBO invoice. QBO does not support hard-deleting invoices; voiding
     /// sets Balance=0 and locks the invoice for further edits.
-    Void {
-        qbo_id: String,
-        sync_token: String,
-    },
+    Void { qbo_id: String, sync_token: String },
 }
 
 fn operation_name(action: &InvoiceAction) -> &'static str {
@@ -131,18 +128,12 @@ pub async fn push_invoice(
     .await?;
 
     // 2. Re-read current authority version and check for supersession.
-    let current_auth_version = match authority_repo::get_authority(
-        pool,
-        &req.app_id,
-        "quickbooks",
-        "invoice",
-    )
-    .await?
-    {
-        Some(row) => row.authority_version,
-        // No authority record yet — version can't have advanced.
-        None => req.authority_version,
-    };
+    let current_auth_version =
+        match authority_repo::get_authority(pool, &req.app_id, "quickbooks", "invoice").await? {
+            Some(row) => row.authority_version,
+            // No authority record yet — version can't have advanced.
+            None => req.authority_version,
+        };
 
     match push_attempts::pre_call_version_check(pool, attempt.id, current_auth_version).await? {
         PreCallOutcome::Superseded(row) => return Ok(InvoicePushOutcome::Superseded(row)),
@@ -160,10 +151,9 @@ pub async fn push_invoice(
     // 5. Record outcome.
     match qbo_result {
         Ok(qbo_entity) => {
-            let completed =
-                push_attempts::complete_attempt(pool, attempt.id, "succeeded", None)
-                    .await?
-                    .unwrap_or(attempt);
+            let completed = push_attempts::complete_attempt(pool, attempt.id, "succeeded", None)
+                .await?
+                .unwrap_or(attempt);
             Ok(InvoicePushOutcome::Succeeded {
                 attempt: completed,
                 qbo_entity,
@@ -172,13 +162,8 @@ pub async fn push_invoice(
         Err(ref e) => {
             if is_closed_period(e) {
                 let qbo_id = qbo_id_from_action(&req.action);
-                push_attempts::complete_attempt(
-                    pool,
-                    attempt.id,
-                    "failed",
-                    Some("closed_period"),
-                )
-                .await?;
+                push_attempts::complete_attempt(pool, attempt.id, "failed", Some("closed_period"))
+                    .await?;
                 return Err(InvoicePushError::ClosedPeriod { qbo_id });
             }
             let msg = e.to_string();
@@ -228,9 +213,7 @@ async fn dispatch_to_qbo(
 fn qbo_id_from_action(action: &InvoiceAction) -> String {
     match action {
         InvoiceAction::Create(_) => String::new(),
-        InvoiceAction::Update { qbo_id, .. } | InvoiceAction::Void { qbo_id, .. } => {
-            qbo_id.clone()
-        }
+        InvoiceAction::Update { qbo_id, .. } | InvoiceAction::Void { qbo_id, .. } => qbo_id.clone(),
     }
 }
 
@@ -258,7 +241,10 @@ mod tests {
 
     #[test]
     fn is_closed_period_matches_code_6140() {
-        assert!(is_closed_period(&make_fault("6140", "Transaction in closed period")));
+        assert!(is_closed_period(&make_fault(
+            "6140",
+            "Transaction in closed period"
+        )));
     }
 
     #[test]
@@ -272,7 +258,10 @@ mod tests {
     #[test]
     fn is_closed_period_false_for_other_codes() {
         assert!(!is_closed_period(&make_fault("5010", "SyncToken mismatch")));
-        assert!(!is_closed_period(&make_fault("6240", "Duplicate DisplayName")));
+        assert!(!is_closed_period(&make_fault(
+            "6240",
+            "Duplicate DisplayName"
+        )));
     }
 
     #[test]

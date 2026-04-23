@@ -110,7 +110,10 @@ async fn pre_call_supersedes_when_authority_version_advanced() {
         PreCallOutcome::Superseded(row) => {
             assert_eq!(row.id, attempt_id);
             assert_eq!(row.status, "superseded");
-            assert!(row.completed_at.is_some(), "superseded attempt must have completed_at set");
+            assert!(
+                row.completed_at.is_some(),
+                "superseded attempt must have completed_at set"
+            );
         }
         PreCallOutcome::ReadyForInflight => panic!("expected Superseded, got ReadyForInflight"),
     }
@@ -238,7 +241,10 @@ async fn post_call_reconcile_auto_closes_when_values_equal() {
             .fetch_one(&pool)
             .await
             .expect("count conflicts");
-    assert_eq!(conflict_count.0, 0, "no conflict should be created for auto-close");
+    assert_eq!(
+        conflict_count.0, 0,
+        "no conflict should be created for auto-close"
+    );
 
     cleanup(&pool, &app_id).await;
 }
@@ -375,7 +381,10 @@ async fn post_call_reconcile_opens_conflict_when_one_side_is_none() {
 fn push_status_new_variants_round_trip() {
     for (status, expected) in [
         (PushStatus::Superseded, "superseded"),
-        (PushStatus::CompletedUnderStaleAuthority, "completed_under_stale_authority"),
+        (
+            PushStatus::CompletedUnderStaleAuthority,
+            "completed_under_stale_authority",
+        ),
     ] {
         let s = status.as_str();
         assert_eq!(s, expected);

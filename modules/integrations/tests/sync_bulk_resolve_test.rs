@@ -20,8 +20,7 @@ use integrations_rs::domain::sync::conflicts::{ConflictClass, CreateConflictRequ
 use integrations_rs::domain::sync::conflicts_repo::{create_conflict, get_conflict};
 use integrations_rs::domain::sync::dedupe::compute_resolve_det_key;
 use integrations_rs::domain::sync::resolve_service::{
-    bulk_resolve_conflicts, BulkResolveError, BulkResolveItem, BulkResolveOutcome,
-    BULK_RESOLVE_CAP,
+    bulk_resolve_conflicts, BulkResolveError, BulkResolveItem, BulkResolveOutcome, BULK_RESOLVE_CAP,
 };
 use integrations_rs::events::EVENT_TYPE_SYNC_CONFLICT_RESOLVED;
 use serial_test::serial;
@@ -101,18 +100,14 @@ fn unresolvable_item(conflict_id: Uuid, authority_version: i64) -> BulkResolveIt
 }
 
 async fn cleanup(pool: &sqlx::PgPool, app_id: &str) {
-    let _ = sqlx::query(
-        "DELETE FROM integrations_outbox WHERE app_id = $1",
-    )
-    .bind(app_id)
-    .execute(pool)
-    .await;
-    let _ = sqlx::query(
-        "DELETE FROM integrations_sync_conflicts WHERE app_id = $1",
-    )
-    .bind(app_id)
-    .execute(pool)
-    .await;
+    let _ = sqlx::query("DELETE FROM integrations_outbox WHERE app_id = $1")
+        .bind(app_id)
+        .execute(pool)
+        .await;
+    let _ = sqlx::query("DELETE FROM integrations_sync_conflicts WHERE app_id = $1")
+        .bind(app_id)
+        .execute(pool)
+        .await;
 }
 
 // ── 1. Happy path: resolve / ignore / unresolvable ────────────────────────────
@@ -126,14 +121,10 @@ async fn bulk_resolve_resolve_action_transitions_to_resolved() {
         .await
         .expect("create conflict");
 
-    let outcomes = bulk_resolve_conflicts(
-        &pool,
-        &tid,
-        "operator",
-        vec![resolve_item(conflict.id, 1)],
-    )
-    .await
-    .expect("bulk resolve");
+    let outcomes =
+        bulk_resolve_conflicts(&pool, &tid, "operator", vec![resolve_item(conflict.id, 1)])
+            .await
+            .expect("bulk resolve");
 
     assert_eq!(outcomes.len(), 1);
     let det_key = compute_resolve_det_key(conflict.id, "resolve", 1);
@@ -144,9 +135,15 @@ async fn bulk_resolve_resolve_action_transitions_to_resolved() {
         outcomes[0]
     );
 
-    let row = get_conflict(&pool, &tid, conflict.id).await.unwrap().unwrap();
+    let row = get_conflict(&pool, &tid, conflict.id)
+        .await
+        .unwrap()
+        .unwrap();
     assert_eq!(row.status, "resolved");
-    assert_eq!(row.resolution_idempotency_key.as_deref(), Some(det_key.as_str()));
+    assert_eq!(
+        row.resolution_idempotency_key.as_deref(),
+        Some(det_key.as_str())
+    );
 
     cleanup(&pool, &tid).await;
 }
@@ -160,15 +157,20 @@ async fn bulk_resolve_ignore_action_transitions_to_ignored() {
         .await
         .expect("create");
 
-    let outcomes = bulk_resolve_conflicts(&pool, &tid, "operator", vec![ignore_item(conflict.id, 2)])
-        .await
-        .expect("bulk resolve");
+    let outcomes =
+        bulk_resolve_conflicts(&pool, &tid, "operator", vec![ignore_item(conflict.id, 2)])
+            .await
+            .expect("bulk resolve");
 
     assert!(
         matches!(&outcomes[0], BulkResolveOutcome::Ignored { conflict_id, .. } if *conflict_id == conflict.id),
-        "{:?}", outcomes[0]
+        "{:?}",
+        outcomes[0]
     );
-    let row = get_conflict(&pool, &tid, conflict.id).await.unwrap().unwrap();
+    let row = get_conflict(&pool, &tid, conflict.id)
+        .await
+        .unwrap()
+        .unwrap();
     assert_eq!(row.status, "ignored");
 
     cleanup(&pool, &tid).await;
@@ -184,16 +186,23 @@ async fn bulk_resolve_unresolvable_action_marks_unresolvable() {
         .expect("create");
 
     let outcomes = bulk_resolve_conflicts(
-        &pool, &tid, "operator", vec![unresolvable_item(conflict.id, 3)],
+        &pool,
+        &tid,
+        "operator",
+        vec![unresolvable_item(conflict.id, 3)],
     )
     .await
     .expect("bulk resolve");
 
     assert!(
         matches!(&outcomes[0], BulkResolveOutcome::MarkedUnresolvable { conflict_id, .. } if *conflict_id == conflict.id),
-        "{:?}", outcomes[0]
+        "{:?}",
+        outcomes[0]
     );
-    let row = get_conflict(&pool, &tid, conflict.id).await.unwrap().unwrap();
+    let row = get_conflict(&pool, &tid, conflict.id)
+        .await
+        .unwrap()
+        .unwrap();
     assert_eq!(row.status, "unresolvable");
 
     cleanup(&pool, &tid).await;
@@ -207,8 +216,12 @@ async fn bulk_resolve_mixed_success_batch_processes_all_items() {
     let pool = setup_db().await;
     let tid = tenant();
 
-    let c1 = create_conflict(&pool, &edit_conflict(&tid, "invoice")).await.unwrap();
-    let c2 = create_conflict(&pool, &edit_conflict(&tid, "customer")).await.unwrap();
+    let c1 = create_conflict(&pool, &edit_conflict(&tid, "invoice"))
+        .await
+        .unwrap();
+    let c2 = create_conflict(&pool, &edit_conflict(&tid, "customer"))
+        .await
+        .unwrap();
     let phantom_id = Uuid::new_v4(); // doesn't exist
 
     let outcomes = bulk_resolve_conflicts(
@@ -232,9 +245,21 @@ async fn bulk_resolve_mixed_success_batch_processes_all_items() {
     .expect("bulk resolve");
 
     assert_eq!(outcomes.len(), 3);
-    assert!(matches!(&outcomes[0], BulkResolveOutcome::Resolved { .. }), "{:?}", outcomes[0]);
-    assert!(matches!(&outcomes[1], BulkResolveOutcome::NotFound { .. }), "{:?}", outcomes[1]);
-    assert!(matches!(&outcomes[2], BulkResolveOutcome::Ignored { .. }), "{:?}", outcomes[2]);
+    assert!(
+        matches!(&outcomes[0], BulkResolveOutcome::Resolved { .. }),
+        "{:?}",
+        outcomes[0]
+    );
+    assert!(
+        matches!(&outcomes[1], BulkResolveOutcome::NotFound { .. }),
+        "{:?}",
+        outcomes[1]
+    );
+    assert!(
+        matches!(&outcomes[2], BulkResolveOutcome::Ignored { .. }),
+        "{:?}",
+        outcomes[2]
+    );
 
     cleanup(&pool, &tid).await;
 }
@@ -246,7 +271,9 @@ async fn bulk_resolve_mixed_success_batch_processes_all_items() {
 async fn bulk_resolve_idempotent_retry_returns_already_resolved() {
     let pool = setup_db().await;
     let tid = tenant();
-    let conflict = create_conflict(&pool, &edit_conflict(&tid, "invoice")).await.unwrap();
+    let conflict = create_conflict(&pool, &edit_conflict(&tid, "invoice"))
+        .await
+        .unwrap();
 
     // First call
     bulk_resolve_conflicts(&pool, &tid, "op", vec![resolve_item(conflict.id, 5)])
@@ -260,7 +287,8 @@ async fn bulk_resolve_idempotent_retry_returns_already_resolved() {
 
     assert!(
         matches!(&outcomes[0], BulkResolveOutcome::AlreadyResolved { .. }),
-        "expected AlreadyResolved on retry, got {:?}", outcomes[0]
+        "expected AlreadyResolved on retry, got {:?}",
+        outcomes[0]
     );
 
     cleanup(&pool, &tid).await;
@@ -271,7 +299,9 @@ async fn bulk_resolve_idempotent_retry_returns_already_resolved() {
 async fn bulk_resolve_idempotent_retry_returns_already_ignored() {
     let pool = setup_db().await;
     let tid = tenant();
-    let conflict = create_conflict(&pool, &edit_conflict(&tid, "customer")).await.unwrap();
+    let conflict = create_conflict(&pool, &edit_conflict(&tid, "customer"))
+        .await
+        .unwrap();
 
     bulk_resolve_conflicts(&pool, &tid, "op", vec![ignore_item(conflict.id, 2)])
         .await
@@ -283,7 +313,8 @@ async fn bulk_resolve_idempotent_retry_returns_already_ignored() {
 
     assert!(
         matches!(&outcomes[0], BulkResolveOutcome::AlreadyIgnored { .. }),
-        "{:?}", outcomes[0]
+        "{:?}",
+        outcomes[0]
     );
 
     cleanup(&pool, &tid).await;
@@ -294,7 +325,9 @@ async fn bulk_resolve_idempotent_retry_returns_already_ignored() {
 async fn bulk_resolve_idempotent_retry_preserves_det_key() {
     let pool = setup_db().await;
     let tid = tenant();
-    let conflict = create_conflict(&pool, &edit_conflict(&tid, "payment")).await.unwrap();
+    let conflict = create_conflict(&pool, &edit_conflict(&tid, "payment"))
+        .await
+        .unwrap();
 
     bulk_resolve_conflicts(&pool, &tid, "op", vec![resolve_item(conflict.id, 7)])
         .await
@@ -308,7 +341,8 @@ async fn bulk_resolve_idempotent_retry_preserves_det_key() {
     assert!(
         matches!(&outcomes[0], BulkResolveOutcome::AlreadyResolved { deterministic_key, .. }
             if *deterministic_key == expected_key),
-        "{:?}", outcomes[0]
+        "{:?}",
+        outcomes[0]
     );
 
     cleanup(&pool, &tid).await;
@@ -321,7 +355,9 @@ async fn bulk_resolve_idempotent_retry_preserves_det_key() {
 async fn bulk_resolve_caller_key_is_alias_only() {
     let pool = setup_db().await;
     let tid = tenant();
-    let c = create_conflict(&pool, &edit_conflict(&tid, "invoice")).await.unwrap();
+    let c = create_conflict(&pool, &edit_conflict(&tid, "invoice"))
+        .await
+        .unwrap();
 
     let mut item = resolve_item(c.id, 1);
     item.caller_idempotency_key = Some("caller-provided-key-abc".to_string());
@@ -333,8 +369,15 @@ async fn bulk_resolve_caller_key_is_alias_only() {
     // Outcome must include the server deterministic key, not the caller key
     let expected_det = compute_resolve_det_key(c.id, "resolve", 1);
     match &outcomes[0] {
-        BulkResolveOutcome::Resolved { deterministic_key, caller_idempotency_key, .. } => {
-            assert_eq!(deterministic_key, &expected_det, "server det key must be sha256-based");
+        BulkResolveOutcome::Resolved {
+            deterministic_key,
+            caller_idempotency_key,
+            ..
+        } => {
+            assert_eq!(
+                deterministic_key, &expected_det,
+                "server det key must be sha256-based"
+            );
             assert_eq!(
                 caller_idempotency_key.as_deref(),
                 Some("caller-provided-key-abc"),
@@ -354,8 +397,12 @@ async fn bulk_resolve_caller_key_is_alias_only() {
         .unwrap();
 
     assert!(
-        matches!(&retry_outcomes[0], BulkResolveOutcome::AlreadyResolved { .. }),
-        "different caller key, same server key → must be idempotent: {:?}", retry_outcomes[0]
+        matches!(
+            &retry_outcomes[0],
+            BulkResolveOutcome::AlreadyResolved { .. }
+        ),
+        "different caller key, same server key → must be idempotent: {:?}",
+        retry_outcomes[0]
     );
 
     cleanup(&pool, &tid).await;
@@ -368,7 +415,9 @@ async fn bulk_resolve_caller_key_is_alias_only() {
 async fn bulk_resolve_terminal_by_other_when_authority_version_differs() {
     let pool = setup_db().await;
     let tid = tenant();
-    let c = create_conflict(&pool, &edit_conflict(&tid, "customer")).await.unwrap();
+    let c = create_conflict(&pool, &edit_conflict(&tid, "customer"))
+        .await
+        .unwrap();
 
     // Resolve under authority_version=1 → stored det_key = sha256(id:resolve:1)
     bulk_resolve_conflicts(&pool, &tid, "op", vec![resolve_item(c.id, 1)])
@@ -383,7 +432,8 @@ async fn bulk_resolve_terminal_by_other_when_authority_version_differs() {
     assert!(
         matches!(&outcomes[0], BulkResolveOutcome::TerminalByOther { current_status, .. }
             if current_status == "resolved"),
-        "{:?}", outcomes[0]
+        "{:?}",
+        outcomes[0]
     );
 
     cleanup(&pool, &tid).await;
@@ -422,7 +472,9 @@ async fn bulk_resolve_exceeds_capacity_returns_error() {
 async fn bulk_resolve_invalid_action_returns_per_item_error() {
     let pool = setup_db().await;
     let tid = tenant();
-    let c = create_conflict(&pool, &edit_conflict(&tid, "invoice")).await.unwrap();
+    let c = create_conflict(&pool, &edit_conflict(&tid, "invoice"))
+        .await
+        .unwrap();
 
     let outcomes = bulk_resolve_conflicts(
         &pool,
@@ -442,7 +494,8 @@ async fn bulk_resolve_invalid_action_returns_per_item_error() {
 
     assert!(
         matches!(&outcomes[0], BulkResolveOutcome::InvalidAction { action, .. } if action == "delete"),
-        "{:?}", outcomes[0]
+        "{:?}",
+        outcomes[0]
     );
 
     cleanup(&pool, &tid).await;
@@ -453,7 +506,9 @@ async fn bulk_resolve_invalid_action_returns_per_item_error() {
 async fn bulk_resolve_missing_internal_id_returns_per_item_error() {
     let pool = setup_db().await;
     let tid = tenant();
-    let c = create_conflict(&pool, &edit_conflict(&tid, "invoice")).await.unwrap();
+    let c = create_conflict(&pool, &edit_conflict(&tid, "invoice"))
+        .await
+        .unwrap();
 
     let outcomes = bulk_resolve_conflicts(
         &pool,
@@ -474,7 +529,8 @@ async fn bulk_resolve_missing_internal_id_returns_per_item_error() {
     assert!(
         matches!(&outcomes[0], BulkResolveOutcome::MissingInternalId { conflict_id }
             if *conflict_id == c.id),
-        "{:?}", outcomes[0]
+        "{:?}",
+        outcomes[0]
     );
 
     cleanup(&pool, &tid).await;
@@ -493,7 +549,8 @@ async fn bulk_resolve_not_found_returns_per_item_not_found() {
 
     assert!(
         matches!(&outcomes[0], BulkResolveOutcome::NotFound { conflict_id } if *conflict_id == phantom),
-        "{:?}", outcomes[0]
+        "{:?}",
+        outcomes[0]
     );
 }
 
@@ -522,12 +579,19 @@ async fn bulk_resolve_cannot_resolve_other_tenants_conflict() {
 
     assert!(
         matches!(&outcomes[0], BulkResolveOutcome::NotFound { .. }),
-        "cross-tenant access must return NotFound: {:?}", outcomes[0]
+        "cross-tenant access must return NotFound: {:?}",
+        outcomes[0]
     );
 
     // Verify owner's conflict is still pending
-    let row = get_conflict(&pool, &owner, conflict.id).await.unwrap().unwrap();
-    assert_eq!(row.status, "pending", "owner's conflict must remain pending");
+    let row = get_conflict(&pool, &owner, conflict.id)
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(
+        row.status, "pending",
+        "owner's conflict must remain pending"
+    );
 
     cleanup(&pool, &owner).await;
 }
@@ -539,7 +603,9 @@ async fn bulk_resolve_cannot_resolve_other_tenants_conflict() {
 async fn bulk_resolve_resolve_action_writes_outbox_event() {
     let pool = setup_db().await;
     let tid = tenant();
-    let conflict = create_conflict(&pool, &edit_conflict(&tid, "invoice")).await.unwrap();
+    let conflict = create_conflict(&pool, &edit_conflict(&tid, "invoice"))
+        .await
+        .unwrap();
 
     bulk_resolve_conflicts(&pool, &tid, "op", vec![resolve_item(conflict.id, 1)])
         .await
@@ -568,7 +634,9 @@ async fn bulk_resolve_resolve_action_writes_outbox_event() {
 async fn bulk_resolve_ignore_action_does_not_write_outbox_event() {
     let pool = setup_db().await;
     let tid = tenant();
-    let conflict = create_conflict(&pool, &edit_conflict(&tid, "invoice")).await.unwrap();
+    let conflict = create_conflict(&pool, &edit_conflict(&tid, "invoice"))
+        .await
+        .unwrap();
 
     bulk_resolve_conflicts(&pool, &tid, "op", vec![ignore_item(conflict.id, 1)])
         .await
@@ -600,12 +668,12 @@ async fn bulk_resolve_supports_all_entity_and_class_combinations() {
         ("customer", ConflictClass::Edit),
         ("customer", ConflictClass::Creation),
         ("customer", ConflictClass::Deletion),
-        ("invoice",  ConflictClass::Edit),
-        ("invoice",  ConflictClass::Creation),
-        ("invoice",  ConflictClass::Deletion),
-        ("payment",  ConflictClass::Edit),
-        ("payment",  ConflictClass::Creation),
-        ("payment",  ConflictClass::Deletion),
+        ("invoice", ConflictClass::Edit),
+        ("invoice", ConflictClass::Creation),
+        ("invoice", ConflictClass::Deletion),
+        ("payment", ConflictClass::Edit),
+        ("payment", ConflictClass::Creation),
+        ("payment", ConflictClass::Deletion),
     ];
 
     for (entity_type, conflict_class) in pairs {
@@ -628,18 +696,17 @@ async fn bulk_resolve_supports_all_entity_and_class_combinations() {
             },
         };
         let conflict = create_conflict(&pool, &req).await.unwrap();
-        let outcomes = bulk_resolve_conflicts(
-            &pool,
-            &tid,
-            "op",
-            vec![resolve_item(conflict.id, 1)],
-        )
-        .await
-        .unwrap();
+        let outcomes =
+            bulk_resolve_conflicts(&pool, &tid, "op", vec![resolve_item(conflict.id, 1)])
+                .await
+                .unwrap();
 
         assert!(
             matches!(&outcomes[0], BulkResolveOutcome::Resolved { .. }),
-            "({}, {:?}) should be accepted: {:?}", entity_type, conflict_class, outcomes[0]
+            "({}, {:?}) should be accepted: {:?}",
+            entity_type,
+            conflict_class,
+            outcomes[0]
         );
     }
 

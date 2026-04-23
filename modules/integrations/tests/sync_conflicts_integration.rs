@@ -122,11 +122,23 @@ async fn schema_conflicts_table_exists_with_correct_structure() {
 
     // Required columns
     for col in &[
-        "id", "app_id", "provider", "entity_type", "entity_id",
-        "conflict_class", "status", "detected_by", "detected_at",
-        "internal_value", "external_value", "internal_id",
-        "resolved_by", "resolved_at", "resolution_note",
-        "created_at", "updated_at",
+        "id",
+        "app_id",
+        "provider",
+        "entity_type",
+        "entity_id",
+        "conflict_class",
+        "status",
+        "detected_by",
+        "detected_at",
+        "internal_value",
+        "external_value",
+        "internal_id",
+        "resolved_by",
+        "resolved_at",
+        "resolution_note",
+        "created_at",
+        "updated_at",
     ] {
         let c: (i64,) = sqlx::query_as(
             "SELECT COUNT(*) FROM information_schema.columns
@@ -408,7 +420,9 @@ async fn list_pending_returns_only_pending() {
 
     // Create 3 pending
     for _ in 0..3 {
-        create_conflict(&pool, &edit_req(&tid)).await.expect("create");
+        create_conflict(&pool, &edit_req(&tid))
+            .await
+            .expect("create");
     }
 
     // Create 1 and resolve it
@@ -507,10 +521,7 @@ async fn tenant_isolation_cross_tenant_read_returns_nothing() {
     let found = get_conflict(&pool, &tid_b, row.id)
         .await
         .expect("get from tenant B");
-    assert!(
-        found.is_none(),
-        "tenant B must not see tenant A's conflict"
-    );
+    assert!(found.is_none(), "tenant B must not see tenant A's conflict");
 
     let list = list_conflicts(&pool, &tid_b, None, 100, 0)
         .await
@@ -543,7 +554,9 @@ async fn concurrent_create_produces_distinct_ids() {
             external_value: Some(serde_json::json!({"v": 2})),
         };
         handles.push(tokio::spawn(async move {
-            create_conflict(&pool, &req).await.expect("concurrent create")
+            create_conflict(&pool, &req)
+                .await
+                .expect("concurrent create")
         }));
     }
 
@@ -554,5 +567,9 @@ async fn concurrent_create_produces_distinct_ids() {
         .collect();
 
     let ids: std::collections::HashSet<_> = rows.iter().map(|r| r.id).collect();
-    assert_eq!(ids.len(), 10, "all 10 concurrent creates must produce distinct UUIDs");
+    assert_eq!(
+        ids.len(),
+        10,
+        "all 10 concurrent creates must produce distinct UUIDs"
+    );
 }

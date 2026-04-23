@@ -42,8 +42,18 @@ impl SandboxTokenProvider {
         let content = std::fs::read_to_string(&tokens_path).expect(".qbo-tokens.json");
         let tokens: Value = serde_json::from_str(&content).expect("parse tokens");
         Self {
-            access_token: RwLock::new(tokens["access_token"].as_str().expect("access_token").into()),
-            refresh_tok: RwLock::new(tokens["refresh_token"].as_str().expect("refresh_token").into()),
+            access_token: RwLock::new(
+                tokens["access_token"]
+                    .as_str()
+                    .expect("access_token")
+                    .into(),
+            ),
+            refresh_tok: RwLock::new(
+                tokens["refresh_token"]
+                    .as_str()
+                    .expect("refresh_token")
+                    .into(),
+            ),
             client_id,
             client_secret,
             http: reqwest::Client::new(),
@@ -80,9 +90,18 @@ impl TokenProvider for SandboxTokenProvider {
             return Err(QboError::TokenError(format!("Refresh failed: {}", body)));
         }
 
-        let tr: Value = resp.json().await.map_err(|e| QboError::TokenError(e.to_string()))?;
-        let new_at = tr["access_token"].as_str().ok_or_else(|| QboError::TokenError("no access_token".into()))?.to_string();
-        let new_rt = tr["refresh_token"].as_str().ok_or_else(|| QboError::TokenError("no refresh_token".into()))?.to_string();
+        let tr: Value = resp
+            .json()
+            .await
+            .map_err(|e| QboError::TokenError(e.to_string()))?;
+        let new_at = tr["access_token"]
+            .as_str()
+            .ok_or_else(|| QboError::TokenError("no access_token".into()))?
+            .to_string();
+        let new_rt = tr["refresh_token"]
+            .as_str()
+            .ok_or_else(|| QboError::TokenError("no refresh_token".into()))?
+            .to_string();
 
         *self.access_token.write().await = new_at.clone();
         *self.refresh_tok.write().await = new_rt.clone();
@@ -91,7 +110,10 @@ impl TokenProvider for SandboxTokenProvider {
             if let Ok(mut existing) = serde_json::from_str::<Value>(&content) {
                 existing["access_token"] = Value::String(new_at.clone());
                 existing["refresh_token"] = Value::String(new_rt);
-                let _ = std::fs::write(&self.tokens_path, serde_json::to_string_pretty(&existing).unwrap());
+                let _ = std::fs::write(
+                    &self.tokens_path,
+                    serde_json::to_string_pretty(&existing).unwrap(),
+                );
             }
         }
         Ok(new_at)
@@ -125,7 +147,10 @@ async fn create_invoice_same_requestid_is_idempotent() {
     }
 
     let (client, provider) = make_client();
-    provider.refresh_token().await.expect("token refresh failed");
+    provider
+        .refresh_token()
+        .await
+        .expect("token refresh failed");
 
     // Find a customer to attach the invoice to
     let cust_resp = client
@@ -183,7 +208,10 @@ async fn create_customer_returns_real_id() {
     }
 
     let (client, provider) = make_client();
-    provider.refresh_token().await.expect("token refresh failed");
+    provider
+        .refresh_token()
+        .await
+        .expect("token refresh failed");
 
     let ts = chrono::Utc::now().timestamp();
     let payload = QboCustomerPayload {
@@ -220,7 +248,10 @@ async fn create_payment_returns_real_id() {
     }
 
     let (client, provider) = make_client();
-    provider.refresh_token().await.expect("token refresh failed");
+    provider
+        .refresh_token()
+        .await
+        .expect("token refresh failed");
 
     // Get a customer with an open invoice balance to apply payment against
     let cust_resp = client

@@ -930,7 +930,11 @@ mod tests {
         let url = c.write_url("invoice", id);
         assert!(url.contains("minorversion=75"), "missing minorversion");
         let rid = url.split("requestid=").nth(1).expect("requestid param");
-        assert_eq!(rid, id.to_string().as_str(), "requestid must equal caller-provided UUID");
+        assert_eq!(
+            rid,
+            id.to_string().as_str(),
+            "requestid must equal caller-provided UUID"
+        );
     }
 
     #[test]
@@ -983,7 +987,10 @@ mod tests {
 
     #[test]
     fn extract_retry_after_missing_returns_none() {
-        assert_eq!(extract_retry_after(&reqwest::header::HeaderMap::new()), None);
+        assert_eq!(
+            extract_retry_after(&reqwest::header::HeaderMap::new()),
+            None
+        );
     }
 
     #[test]
@@ -996,7 +1003,10 @@ mod tests {
         };
         let j = p.to_qbo_json();
         assert_eq!(j["DisplayName"].as_str(), Some("Acme Corp"));
-        assert_eq!(j["PrimaryEmailAddr"]["Address"].as_str(), Some("billing@acme.com"));
+        assert_eq!(
+            j["PrimaryEmailAddr"]["Address"].as_str(),
+            Some("billing@acme.com")
+        );
         assert_eq!(j["CompanyName"].as_str(), Some("Acme Corporation"));
         assert_eq!(j["CurrencyRef"]["value"].as_str(), Some("USD"));
     }
@@ -1147,7 +1157,10 @@ mod tests {
         if let Some(query) = uri.query() {
             for part in query.split('&') {
                 if let Some(id) = part.strip_prefix("requestid=") {
-                    s.recorded_ids.lock().expect("test mutex").push(id.to_string());
+                    s.recorded_ids
+                        .lock()
+                        .expect("test mutex")
+                        .push(id.to_string());
                     break;
                 }
             }
@@ -1183,7 +1196,9 @@ mod tests {
             )
             .with_state(state.clone());
 
-        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.expect("bind test server");
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
+            .await
+            .expect("bind test server");
         let addr = listener.local_addr().expect("test local addr");
         tokio::spawn(async move { axum::serve(listener, app).await.expect("test server") });
 
@@ -1281,7 +1296,9 @@ mod tests {
                 }
             }),
         );
-        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.expect("bind test server");
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
+            .await
+            .expect("bind test server");
         let addr = listener.local_addr().expect("test local addr");
         tokio::spawn(async move { axum::serve(listener, app).await.expect("test server") });
 
@@ -1317,7 +1334,9 @@ mod tests {
                 }
             }),
         );
-        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.expect("bind test server");
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
+            .await
+            .expect("bind test server");
         let addr = listener.local_addr().expect("test local addr");
         tokio::spawn(async move { axum::serve(listener, app).await.expect("test server") });
 
@@ -1356,7 +1375,10 @@ mod tests {
         assert_eq!(json["CustomerRef"]["value"].as_str(), Some("5"));
         assert_eq!(json["DueDate"].as_str(), Some("2026-06-15"));
         assert_eq!(json["DocNumber"].as_str(), Some("DOC-999"));
-        assert!(json.get("CurrencyRef").is_none(), "absent currency_ref must not emit field");
+        assert!(
+            json.get("CurrencyRef").is_none(),
+            "absent currency_ref must not emit field"
+        );
         let lines = json["Line"].as_array().expect("Line must be array");
         assert_eq!(lines.len(), 1);
         assert_eq!(lines[0]["Amount"].as_f64(), Some(500.00));
@@ -1390,7 +1412,10 @@ mod tests {
                 async move {
                     c.fetch_add(1, Ordering::SeqCst);
                     let q = uri.query().unwrap_or("");
-                    assert!(q.contains("operation=void"), "missing operation=void in {q}");
+                    assert!(
+                        q.contains("operation=void"),
+                        "missing operation=void in {q}"
+                    );
                     assert!(q.contains("minorversion=75"), "missing minorversion in {q}");
                     (
                         axum::http::StatusCode::OK,
@@ -1399,12 +1424,17 @@ mod tests {
                 }
             }),
         );
-        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.expect("bind");
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
+            .await
+            .expect("bind");
         let addr = listener.local_addr().expect("addr");
         tokio::spawn(async move { axum::serve(listener, app).await.expect("server") });
 
         let client = test_client(&format!("http://{}/v3", addr));
-        let result = client.void_invoice("10", "0", Uuid::new_v4()).await.expect("void_invoice");
+        let result = client
+            .void_invoice("10", "0", Uuid::new_v4())
+            .await
+            .expect("void_invoice");
         assert_eq!(result["Id"].as_str(), Some("10"));
         assert_eq!(result["Balance"].as_f64(), Some(0.0));
         assert_eq!(call_count.load(Ordering::SeqCst), 1);
@@ -1420,8 +1450,7 @@ mod tests {
 
     #[test]
     fn has_business_fields_with_ship_date_is_true() {
-        let body =
-            serde_json::json!({"Id": "1", "SyncToken": "5", "sparse": true, "ShipDate": "2026-04-20"});
+        let body = serde_json::json!({"Id": "1", "SyncToken": "5", "sparse": true, "ShipDate": "2026-04-20"});
         assert!(has_business_fields(&body));
     }
 
@@ -1429,7 +1458,8 @@ mod tests {
     fn touched_field_drifted_returns_false_when_no_drift() {
         let body = serde_json::json!({"Id": "1", "SyncToken": "5", "ShipDate": "2026-04-20"});
         let baseline = serde_json::json!({"ShipDate": "2026-04-01", "Amount": 100.0});
-        let fresh = serde_json::json!({"SyncToken": "7", "ShipDate": "2026-04-01", "Amount": 100.0});
+        let fresh =
+            serde_json::json!({"SyncToken": "7", "ShipDate": "2026-04-01", "Amount": 100.0});
         // ShipDate unchanged between baseline and fresh → no drift
         assert!(!touched_field_drifted(&body, &baseline, &fresh));
     }
@@ -1438,7 +1468,8 @@ mod tests {
     fn touched_field_drifted_returns_true_when_touched_field_changed() {
         let body = serde_json::json!({"Id": "1", "SyncToken": "5", "ShipDate": "2026-04-20"});
         let baseline = serde_json::json!({"ShipDate": "2026-04-01", "Amount": 100.0});
-        let fresh = serde_json::json!({"SyncToken": "7", "ShipDate": "2026-04-25", "Amount": 100.0});
+        let fresh =
+            serde_json::json!({"SyncToken": "7", "ShipDate": "2026-04-25", "Amount": 100.0});
         // ShipDate changed between baseline and fresh while we're touching it → drift
         assert!(touched_field_drifted(&body, &baseline, &fresh));
     }
@@ -1448,7 +1479,8 @@ mod tests {
         let body = serde_json::json!({"Id": "1", "SyncToken": "5", "ShipDate": "2026-04-20"});
         let baseline = serde_json::json!({"ShipDate": "2026-04-01", "Amount": 100.0});
         // Amount changed (not in body) → should not trigger drift
-        let fresh = serde_json::json!({"SyncToken": "7", "ShipDate": "2026-04-01", "Amount": 200.0});
+        let fresh =
+            serde_json::json!({"SyncToken": "7", "ShipDate": "2026-04-01", "Amount": 200.0});
         assert!(!touched_field_drifted(&body, &baseline, &fresh));
     }
 
@@ -1507,10 +1539,18 @@ mod tests {
             max_failures,
         };
         let app = axum::Router::new()
-            .route("/v3/company/{realm}/invoice/{id}", axum::routing::get(guard_get))
-            .route("/v3/company/{realm}/invoice", axum::routing::post(guard_post))
+            .route(
+                "/v3/company/{realm}/invoice/{id}",
+                axum::routing::get(guard_get),
+            )
+            .route(
+                "/v3/company/{realm}/invoice",
+                axum::routing::post(guard_post),
+            )
             .with_state(state.clone());
-        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.expect("bind test server");
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
+            .await
+            .expect("bind test server");
         let addr = listener.local_addr().expect("test local addr");
         tokio::spawn(async move { axum::serve(listener, app).await.expect("test server") });
         (format!("http://{}/v3", addr), state)
@@ -1521,15 +1561,18 @@ mod tests {
         // Baseline ShipDate == fresh ShipDate → no conflict → retry succeeds
         let (base_url, state) = start_guard_server(false, 1).await;
         let client = test_client(&base_url);
-        let body =
-            serde_json::json!({"Id": "1", "SyncToken": "5", "sparse": true, "ShipDate": "2026-04-20"});
+        let body = serde_json::json!({"Id": "1", "SyncToken": "5", "sparse": true, "ShipDate": "2026-04-20"});
         let baseline = serde_json::json!({"ShipDate": "2026-04-01", "SyncToken": "5"});
 
         let result = client
             .update_entity_with_guard("Invoice", body, Some(&baseline), Uuid::new_v4())
             .await;
         assert!(result.is_ok(), "expected success: {:?}", result);
-        assert_eq!(state.post_count.load(Ordering::SeqCst), 2, "2 POST attempts");
+        assert_eq!(
+            state.post_count.load(Ordering::SeqCst),
+            2,
+            "2 POST attempts"
+        );
         assert_eq!(state.get_count.load(Ordering::SeqCst), 1, "1 GET re-fetch");
     }
 
@@ -1538,8 +1581,7 @@ mod tests {
         // Fresh entity has different ShipDate from baseline → ConflictDetected
         let (base_url, _state) = start_guard_server(true, 1).await;
         let client = test_client(&base_url);
-        let body =
-            serde_json::json!({"Id": "1", "SyncToken": "5", "sparse": true, "ShipDate": "2026-04-20"});
+        let body = serde_json::json!({"Id": "1", "SyncToken": "5", "sparse": true, "ShipDate": "2026-04-20"});
         let baseline = serde_json::json!({"ShipDate": "2026-04-01", "SyncToken": "5"});
 
         let result = client
@@ -1557,8 +1599,7 @@ mod tests {
         // No baseline + body has business fields → fail conservatively
         let (base_url, _state) = start_guard_server(false, 1).await;
         let client = test_client(&base_url);
-        let body =
-            serde_json::json!({"Id": "1", "SyncToken": "5", "sparse": true, "ShipDate": "2026-04-20"});
+        let body = serde_json::json!({"Id": "1", "SyncToken": "5", "sparse": true, "ShipDate": "2026-04-20"});
 
         let result = client
             .update_entity_with_guard("Invoice", body, None, Uuid::new_v4())
