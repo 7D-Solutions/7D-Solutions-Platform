@@ -251,11 +251,7 @@ services:
     networks:
       - 7d-platform
     healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://localhost:8091/healthz >/dev/null 2>/dev/null || exit 1"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-      start_period: 60s
+      disable: true
     labels:
       com.7dsolutions.project: "platform"
       com.7dsolutions.tier: "platform"
@@ -292,11 +288,7 @@ services:
     networks:
       - 7d-platform
     healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://localhost:8086/healthz >/dev/null 2>/dev/null || exit 1"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-      start_period: 30s
+      disable: true
     restart: unless-stopped
     cap_drop:
       - ALL
@@ -340,11 +332,7 @@ services:
     networks:
       - 7d-platform
     healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://localhost:8087/healthz >/dev/null 2>/dev/null || exit 1"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-      start_period: 30s
+      disable: true
     restart: unless-stopped
     cap_drop:
       - ALL
@@ -390,11 +378,7 @@ services:
     networks:
       - 7d-platform
     healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://localhost:8088/healthz >/dev/null 2>/dev/null || exit 1"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-      start_period: 30s
+      disable: true
     restart: unless-stopped
     cap_drop:
       - ALL
@@ -437,11 +421,7 @@ services:
     networks:
       - 7d-platform
     healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://localhost:8089/healthz >/dev/null 2>/dev/null || exit 1"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-      start_period: 30s
+      disable: true
     restart: unless-stopped
     cap_drop:
       - ALL
@@ -484,11 +464,7 @@ services:
     networks:
       - 7d-platform
     healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://localhost:8090/healthz >/dev/null 2>/dev/null || exit 1"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-      start_period: 30s
+      disable: true
     restart: unless-stopped
     cap_drop:
       - ALL
@@ -531,11 +507,7 @@ services:
     networks:
       - 7d-platform
     healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://localhost:8092/healthz >/dev/null 2>/dev/null || exit 1"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-      start_period: 30s
+      disable: true
     restart: unless-stopped
     cap_drop:
       - ALL
@@ -578,11 +550,7 @@ services:
     networks:
       - 7d-platform
     healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://localhost:8093/healthz >/dev/null 2>/dev/null || exit 1"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-      start_period: 30s
+      disable: true
     restart: unless-stopped
     cap_drop:
       - ALL
@@ -625,11 +593,7 @@ services:
     networks:
       - 7d-platform
     healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://localhost:8094/healthz >/dev/null 2>/dev/null || exit 1"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-      start_period: 30s
+      disable: true
     restart: unless-stopped
     cap_drop:
       - ALL
@@ -672,11 +636,7 @@ services:
     networks:
       - 7d-platform
     healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://localhost:8104/healthz >/dev/null 2>/dev/null || exit 1"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-      start_period: 30s
+      disable: true
     restart: unless-stopped
     cap_drop:
       - ALL
@@ -719,11 +679,7 @@ services:
     networks:
       - 7d-platform
     healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://localhost:8105/healthz >/dev/null 2>/dev/null || exit 1"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-      start_period: 30s
+      disable: true
     restart: unless-stopped
     cap_drop:
       - ALL
@@ -766,11 +722,7 @@ services:
     networks:
       - 7d-platform
     healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://localhost:8097/healthz >/dev/null 2>/dev/null || exit 1"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-      start_period: 30s
+      disable: true
     restart: unless-stopped
     cap_drop:
       - ALL
@@ -813,11 +765,7 @@ services:
     networks:
       - 7d-platform
     healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://localhost:8098/healthz >/dev/null 2>/dev/null || exit 1"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-      start_period: 30s
+      disable: true
     restart: unless-stopped
     cap_drop:
       - ALL
@@ -877,11 +825,7 @@ services:
     networks:
       - 7d-platform
     healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://localhost:8099/healthz >/dev/null 2>/dev/null || exit 1"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-      start_period: 30s
+      disable: true
     restart: unless-stopped
     cap_drop:
       - ALL
@@ -925,11 +869,7 @@ services:
     networks:
       - 7d-platform
     healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://localhost:8100/healthz >/dev/null 2>/dev/null || exit 1"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-      start_period: 30s
+      disable: true
     restart: unless-stopped
     cap_drop:
       - ALL
@@ -974,11 +914,7 @@ services:
     networks:
       - 7d-platform
     healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://localhost:8102/healthz >/dev/null 2>/dev/null || exit 1"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-      start_period: 30s
+      disable: true
     restart: unless-stopped
     cap_drop:
       - ALL
@@ -1021,11 +957,7 @@ services:
     networks:
       - 7d-platform
     healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://localhost:8101/healthz >/dev/null 2>/dev/null || exit 1"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-      start_period: 30s
+      disable: true
     restart: unless-stopped
     cap_drop:
       - ALL
@@ -1071,11 +1003,7 @@ services:
     networks:
       - 7d-platform
     healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://localhost:8103/healthz >/dev/null 2>/dev/null || exit 1"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-      start_period: 30s
+      disable: true
     restart: unless-stopped
     cap_drop:
       - ALL
@@ -1120,11 +1048,7 @@ services:
     networks:
       - 7d-platform
     healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://localhost:8106/healthz >/dev/null 2>/dev/null || exit 1"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-      start_period: 30s
+      disable: true
     restart: unless-stopped
     cap_drop:
       - ALL
@@ -1167,11 +1091,7 @@ services:
     networks:
       - 7d-platform
     healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://localhost:8107/healthz >/dev/null 2>/dev/null || exit 1"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-      start_period: 30s
+      disable: true
     restart: unless-stopped
     cap_drop:
       - ALL
@@ -1214,11 +1134,7 @@ services:
     networks:
       - 7d-platform
     healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://localhost:8108/healthz >/dev/null 2>/dev/null || exit 1"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-      start_period: 30s
+      disable: true
     restart: unless-stopped
     cap_drop:
       - ALL
@@ -1309,11 +1225,7 @@ services:
     networks:
       - 7d-platform
     healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://localhost:8110/healthz >/dev/null 2>/dev/null || exit 1"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-      start_period: 30s
+      disable: true
     restart: unless-stopped
     cap_drop:
       - ALL
@@ -1356,11 +1268,7 @@ services:
     networks:
       - 7d-platform
     healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://localhost:8120/healthz >/dev/null 2>/dev/null || exit 1"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-      start_period: 30s
+      disable: true
     restart: unless-stopped
     cap_drop:
       - ALL
@@ -1401,11 +1309,7 @@ services:
     networks:
       - 7d-platform
     healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://localhost:8121/healthz >/dev/null 2>/dev/null || exit 1"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-      start_period: 30s
+      disable: true
     restart: unless-stopped
     cap_drop:
       - ALL
@@ -1446,11 +1350,7 @@ services:
     networks:
       - 7d-platform
     healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://localhost:8111/healthz >/dev/null 2>/dev/null || exit 1"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-      start_period: 30s
+      disable: true
     restart: unless-stopped
     cap_drop:
       - ALL
@@ -1495,11 +1395,7 @@ services:
     networks:
       - 7d-platform
     healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://localhost:8095/healthz >/dev/null 2>/dev/null || exit 1"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-      start_period: 30s
+      disable: true
     restart: unless-stopped
     cap_drop:
       - ALL
@@ -1542,11 +1438,7 @@ services:
     networks:
       - 7d-platform
     healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://localhost:8112/healthz >/dev/null 2>/dev/null || exit 1"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-      start_period: 30s
+      disable: true
     restart: unless-stopped
     cap_drop:
       - ALL
@@ -1587,11 +1479,7 @@ services:
     networks:
       - 7d-platform
     healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://localhost:8096/healthz >/dev/null 2>/dev/null || exit 1"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-      start_period: 30s
+      disable: true
     restart: unless-stopped
     cap_drop:
       - ALL
@@ -1634,11 +1522,7 @@ services:
     networks:
       - 7d-platform
     healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://localhost:8113/healthz >/dev/null 2>/dev/null || exit 1"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-      start_period: 30s
+      disable: true
     restart: unless-stopped
     cap_drop:
       - ALL
@@ -1681,11 +1565,7 @@ services:
     networks:
       - 7d-platform
     healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://localhost:8114/healthz >/dev/null 2>/dev/null || exit 1"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-      start_period: 30s
+      disable: true
     restart: unless-stopped
     cap_drop:
       - ALL
