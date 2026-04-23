@@ -4,6 +4,9 @@
 > **Standard:** See `docs/VERSIONING.md` for the rules governing this file.
 
 
+## 2.36.0
+- feat: write-only admin API for carrier credentials — POST /api/integrations/carriers/{type}/credentials and GET .../status for UPS, FedEx, USPS; encrypted storage in integrations_carrier_credentials; internal.rs falls back to connector_configs for CI-seeded sandbox creds ([bd-e3vwo])
+
 ## 2.35.1
 - fix: QBO_CLIENT_ID empty-string check — is_ok() returned true for the docker-compose default QBO_CLIENT_ID='' causing validate_qbo_env to panic at startup ([bd-1ngjq])
 

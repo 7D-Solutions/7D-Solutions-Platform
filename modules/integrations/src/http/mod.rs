@@ -1,3 +1,4 @@
+pub mod carrier_credentials;
 pub mod connectors;
 pub mod external_refs;
 pub mod internal;
@@ -78,6 +79,11 @@ pub fn router(state: Arc<AppState>) -> Router {
             "/api/integrations/qbo/webhook-token",
             post(qbo_settings::set_webhook_token),
         )
+        // Carrier credentials — write
+        .route(
+            "/api/integrations/carriers/{carrier_type}/credentials",
+            post(carrier_credentials::set_carrier_credentials),
+        )
         .route_layer(RequirePermissionsLayer::new(&[
             permissions::INTEGRATIONS_MUTATE,
         ]))
@@ -119,6 +125,11 @@ pub fn router(state: Arc<AppState>) -> Router {
         .route(
             "/api/integrations/qbo/webhook-token/status",
             get(qbo_settings::webhook_token_status),
+        )
+        // Carrier credentials — status read
+        .route(
+            "/api/integrations/carriers/{carrier_type}/credentials/status",
+            get(carrier_credentials::carrier_credentials_status),
         )
         .route_layer(RequirePermissionsLayer::new(&[
             permissions::INTEGRATIONS_READ,

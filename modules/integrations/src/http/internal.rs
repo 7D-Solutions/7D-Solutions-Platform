@@ -17,12 +17,16 @@ use platform_http_contracts::ApiError;
 use std::sync::Arc;
 
 use crate::domain::connectors::repo;
+use crate::domain::webhooks::secret_store;
 use crate::AppState;
 
 /// GET /api/integrations/internal/carrier-credentials/{connector_type}
 ///
-/// Returns the connector config JSON for the tenant identified by `X-App-Id`
-/// header. Returns 404 if no enabled config exists for that tenant + type.
+/// Returns carrier credentials JSON for the tenant identified by `X-App-Id`.
+/// Lookup order:
+///   1. integrations_carrier_credentials (admin API — encrypted)
+///   2. integrations_connector_configs (CI-seeded sandbox creds — plaintext)
+/// Returns 404 if neither source has a row.
 pub async fn get_carrier_credentials(
     State(state): State<Arc<AppState>>,
     Path(connector_type): Path<String>,
@@ -36,6 +40,38 @@ pub async fn get_carrier_credentials(
         }
     };
 
+    // 1. Try admin-managed encrypted credentials first.
+    match secret_store::get_carrier_creds(
+        &state.pool,
+        &app_id,
+        &connector_type,
+        &state.webhooks_key,
+    )
+    .await
+    {
+        Ok(Some(json_str)) => {
+            let value: serde_json::Value = match serde_json::from_str(&json_str) {
+                Ok(v) => v,
+                Err(e) => {
+                    tracing::error!(error = %e, "Corrupt carrier credentials JSON");
+                    return ApiError::internal("Corrupt credentials data").into_response();
+                }
+            };
+            return (StatusCode::OK, Json(value)).into_response();
+        }
+        Ok(None) => {} // fall through to legacy table
+        Err(e) => {
+            tracing::error!(
+                app_id = %app_id,
+                connector_type = %connector_type,
+                error = %e,
+                "Error reading encrypted carrier credentials"
+            );
+            return ApiError::internal("Internal database error").into_response();
+        }
+    }
+
+    // 2. Fall back to CI-seeded connector_configs (sandbox creds).
     match repo::get_config_by_type(&state.pool, &app_id, &connector_type).await {
         Ok(Some(config)) => (StatusCode::OK, Json(config.config)).into_response(),
         Ok(None) => ApiError::not_found(format!(
@@ -73,9 +109,14 @@ mod tests {
     }
 
     async fn test_pool() -> sqlx::PgPool {
-        sqlx::PgPool::connect(&test_db_url())
+        let pool = sqlx::PgPool::connect(&test_db_url())
             .await
-            .expect("Failed to connect to integrations test DB")
+            .expect("Failed to connect to integrations test DB");
+        sqlx::migrate!("./db/migrations")
+            .run(&pool)
+            .await
+            .expect("migrations");
+        pool
     }
 
     async fn cleanup(pool: &sqlx::PgPool, app_id: &str) {

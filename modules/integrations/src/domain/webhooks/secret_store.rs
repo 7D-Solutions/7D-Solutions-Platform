@@ -132,6 +132,57 @@ pub async fn get_token(
     decrypt_token(key, &enc).map(Some)
 }
 
+/// Upserts encrypted carrier credentials for `(app_id, carrier_type)`.
+pub async fn upsert_carrier_creds(
+    pool: &PgPool,
+    app_id: &str,
+    carrier_type: &str,
+    creds_json_str: &str,
+    key: &[u8; 32],
+) -> Result<(), SecretStoreError> {
+    let creds_enc = encrypt_token(key, creds_json_str);
+    sqlx::query(
+        r#"
+        INSERT INTO integrations_carrier_credentials (app_id, carrier_type, creds_enc)
+        VALUES ($1, $2, $3)
+        ON CONFLICT (app_id, carrier_type)
+        DO UPDATE SET creds_enc = EXCLUDED.creds_enc, configured_at = NOW()
+        "#,
+    )
+    .bind(app_id)
+    .bind(carrier_type)
+    .bind(&creds_enc)
+    .execute(pool)
+    .await?;
+    Ok(())
+}
+
+/// Retrieves and decrypts carrier credentials for `(app_id, carrier_type)`.
+///
+/// Returns `Ok(None)` if no row exists (caller should fall back to connector_configs).
+pub async fn get_carrier_creds(
+    pool: &PgPool,
+    app_id: &str,
+    carrier_type: &str,
+    key: &[u8; 32],
+) -> Result<Option<String>, SecretStoreError> {
+    let row: Option<(Vec<u8>,)> = sqlx::query_as(
+        r#"
+        SELECT creds_enc FROM integrations_carrier_credentials
+        WHERE app_id = $1 AND carrier_type = $2
+        "#,
+    )
+    .bind(app_id)
+    .bind(carrier_type)
+    .fetch_optional(pool)
+    .await?;
+
+    match row {
+        Some((enc,)) => decrypt_token(key, &enc).map(Some),
+        None => Ok(None),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
