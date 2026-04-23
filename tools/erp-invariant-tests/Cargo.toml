@@ -1,0 +1,47 @@
+[package]
+name = "erp-invariant-tests"
+version = "0.1.0"
+edition = "2021"
+description = "Adversarial ERP invariant test harness — real Postgres, real HTTP, no mocks"
+
+[lib]
+name = "erp_invariant_tests"
+path = "src/lib.rs"
+
+[dependencies]
+# Async runtime
+tokio = { version = "1.43", features = ["full"] }
+
+# HTTP client
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
+
+# Database
+sqlx = { version = "0.8.2", features = ["runtime-tokio-rustls", "postgres", "uuid", "chrono"] }
+
+# Serialization
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+
+# IDs and time
+uuid = { version = "1.11", features = ["v4", "serde"] }
+chrono = { version = "0.4", features = ["serde"] }
+
+# Error handling
+anyhow = "1.0"
+
+# Env file loading (for local dev)
+dotenvy = "0.15"
+
+# Logging
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+# Concurrency
+futures = "0.3"
+
+# JWT auth
+jsonwebtoken = "9"
+rsa = { version = "0.9", features = ["pem"] }
+
+[lints]
+workspace = true
