@@ -949,7 +949,9 @@ services:
   # =========================
   pdf-editor:
     container_name: 7d-pdf-editor
-    image: flywheel/rust-dev-runtime:2026-04
+    build:
+      context: .
+      dockerfile: modules/pdf-editor/deploy/Dockerfile.workspace
     environment:
       DATABASE_URL: postgres://${PDF_EDITOR_POSTGRES_USER:-pdf_editor_user}:${PDF_EDITOR_POSTGRES_PASSWORD:?PDF_EDITOR_POSTGRES_PASSWORD must be set at deploy time; see docs/security/vuln-triage.md}@7d-pdf-editor-postgres:5432/${PDF_EDITOR_POSTGRES_DB:-pdf_editor_db}?sslmode=require
       NATS_URL: nats://platform:${NATS_AUTH_TOKEN:-dev-nats-token}@7d-nats:4222
@@ -961,12 +963,9 @@ services:
       SERVICE_AUTH_SECRET: ${SERVICE_AUTH_SECRET:-dev-service-auth-secret-do-not-use-in-prod}
       JWT_PRIVATE_KEY_PEM: ${JWT_PRIVATE_KEY_PEM}
       RUST_LOG: ${RUST_LOG:-info}
-      PDFIUM_LIB_PATH: /app/libpdfium.so
     volumes:
-      - ./target/aarch64-unknown-linux-musl/debug/pdf-editor-rs:/app/service:ro
       - ./modules/pdf-editor/module.toml:/app/module.toml:ro
       - ./modules/pdf-editor/db/migrations:/app/db/migrations:ro
-      - ./modules/pdf-editor/libpdfium.so:/app/libpdfium.so:ro
     ports:
       - "127.0.0.1:8102:8102"
     networks:

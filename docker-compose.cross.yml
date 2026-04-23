@@ -154,16 +154,6 @@ services:
       - ./modules/ttp/module.toml:/app/module.toml:ro
       - ./modules/ttp/db/migrations:/app/db/migrations:ro
 
-  pdf-editor:
-    image: 7d-runtime
-    working_dir: /app
-    environment:
-      SERVICE_BINARY: /usr/local/bin/pdf-editor-rs
-    volumes:
-      - ./target/aarch64-unknown-linux-musl/debug/pdf-editor-rs:/usr/local/bin/pdf-editor-rs:ro
-      - ./modules/pdf-editor/module.toml:/app/module.toml:ro
-      - ./modules/pdf-editor/db/migrations:/app/db/migrations:ro
-
   maintenance:
     image: 7d-runtime
     working_dir: /app
