@@ -138,14 +138,41 @@ fn unhealthy_vitals_response(dlq_total: u64) -> health::VitalsResponse {
 
 /// Spawn an axum test server on a random OS-assigned port and return (url, server).
 /// The server is kept alive for the duration of the test via the returned handle.
-async fn spawn_vitals_server(
-    handler: impl axum::handler::Handler<(), ()> + Clone + Send + 'static,
-) -> (String, axum_test::TestServer) {
+async fn healthy_vitals_handler() -> Json<health::VitalsResponse> {
+    Json(healthy_vitals_response())
+}
+
+async fn slow_vitals_handler() -> Json<health::VitalsResponse> {
+    tokio::time::sleep(std::time::Duration::from_secs(3)).await;
+    Json(healthy_vitals_response())
+}
+
+async fn dlq_vitals_handler() -> Json<health::VitalsResponse> {
+    Json(unhealthy_vitals_response(1))
+}
+
+async fn spawn_vitals_server_healthy() -> (String, axum_test::TestServer) {
+    spawn_vitals_server_with(healthy_vitals_handler).await
+}
+
+async fn spawn_vitals_server_slow() -> (String, axum_test::TestServer) {
+    spawn_vitals_server_with(slow_vitals_handler).await
+}
+
+async fn spawn_vitals_server_dlq() -> (String, axum_test::TestServer) {
+    spawn_vitals_server_with(dlq_vitals_handler).await
+}
+
+async fn spawn_vitals_server_with<H, T>(handler: H) -> (String, axum_test::TestServer)
+where
+    H: axum::handler::Handler<T, ()> + Clone + Send + 'static,
+    T: Send + 'static,
+{
     let router = Router::new().route("/api/vitals", get(handler));
     let server = axum_test::TestServer::builder()
         .http_transport()
         .build(router)
-        .expect("build vitals mock server");
+        .expect("build vitals test server");
     let addr = server.server_address().expect("get server address");
     let url = format!("http://{}", addr);
     (url, server)
@@ -223,11 +250,7 @@ async fn tenant_vitals_module_slow_excluded() {
     let pool = test_pool().await;
 
     // Spawn a slow vitals server (responds after 3s)
-    let slow_handler = || async {
-        tokio::time::sleep(std::time::Duration::from_secs(3)).await;
-        Json(healthy_vitals_response())
-    };
-    let (base_url, _server) = spawn_vitals_server(slow_handler).await;
+    let (base_url, _server) = spawn_vitals_server_slow().await;
 
     // Register a fake module in the service catalog
     let module_code = format!("slow_{}", &Uuid::new_v4().to_string()[..8]);
@@ -329,8 +352,7 @@ async fn tenant_vitals_module_slow_excluded() {
 async fn tenant_vitals_module_dlq_not_healthy() {
     let pool = test_pool().await;
 
-    let dlq_handler = || async { Json(unhealthy_vitals_response(1)) };
-    let (base_url, _server) = spawn_vitals_server(dlq_handler).await;
+    let (base_url, _server) = spawn_vitals_server_dlq().await;
 
     let module_code = format!("dlq_{}", &Uuid::new_v4().to_string()[..8]);
     sqlx::query(
