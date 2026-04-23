@@ -1025,6 +1025,12 @@ components:
           type: string
         signaturePath:
           type: array
+          description: >
+            Draw-method signature path. Unlike other annotation coordinates
+            (which are in PDF user-space points), each SignaturePoint's x/y
+            values are 0..1 normalized relative to the annotation's width/height
+            bounding box. The renderer multiplies them by width/height before
+            placing them on the page.
           items:
             $ref: '#/components/schemas/SignaturePoint'
         signatureImage:
@@ -1032,6 +1038,12 @@ components:
           description: Base64-encoded PNG
         signatureText:
           type: string
+        schemaVersion:
+          type: string
+          default: "1.0"
+          description: |
+            Annotation payload schema version. Absent means 1.0. Inbound-only.
+            Current valid value: 1.0.
 
     Point:
       type: object

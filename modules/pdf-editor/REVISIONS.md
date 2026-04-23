@@ -4,6 +4,10 @@
 > **Standard:** See `docs/VERSIONING.md` for the rules governing this file.
 
 
+## 2.3.4
+- fix: signature DRAW coords — multiply signaturePath points by annotation width/height before rendering; fixes sub-1pt blob ([bd-884lm])
+- feat: add optional `schemaVersion` field to annotation payload (inbound-only, defaults to "1.0", wire name `schemaVersion`) ([bd-bt4yr])
+
 ## 2.3.3
 - fix: revert invalid `dynamic` feature flag (doesn't exist in pdfium-render 0.8.37); pdfium dynamic loading is the default behavior without the `static` feature; musl-static binaries cannot dlopen — pdfium render path works on glibc containers (production) but not musl-static dev containers ([bd-didjp])
 

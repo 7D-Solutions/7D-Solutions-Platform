@@ -370,15 +370,19 @@ fn render_signature_draw(
     };
     let color = resolve_color(ann.color.as_deref(), PdfColor::new(0, 0, 0, 255))?;
     let stroke_w = ann.stroke_width.unwrap_or(2.0);
+    // signature_path coords are 0..1 normalized relative to the annotation
+    // bounding box — multiply out before adding to the anchor position.
+    let w = ann.width.unwrap_or(0.0);
+    let h = ann.height.unwrap_or(0.0);
 
     let mut i = 0;
     while i < points.len() {
         if i + 1 < points.len() && !points[i + 1].new_stroke.unwrap_or(false) {
             page.objects_mut().create_path_object_line(
-                PdfPoints::new(ann.x + points[i].x),
-                PdfPoints::new(pdf_y - points[i].y),
-                PdfPoints::new(ann.x + points[i + 1].x),
-                PdfPoints::new(pdf_y - points[i + 1].y),
+                PdfPoints::new(ann.x + points[i].x * w),
+                PdfPoints::new(pdf_y - points[i].y * h),
+                PdfPoints::new(ann.x + points[i + 1].x * w),
+                PdfPoints::new(pdf_y - points[i + 1].y * h),
                 color,
                 PdfPoints::new(stroke_w),
             )?;

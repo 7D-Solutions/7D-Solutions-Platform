@@ -128,8 +128,15 @@ pub struct Annotation {
     pub signature_path: Option<Vec<SignaturePoint>>,
     pub signature_image: Option<String>,
     pub signature_text: Option<String>,
+
+    #[serde(default = "default_schema_version")]
+    pub schema_version: String,
 }
 
 fn default_font_family() -> Option<String> {
     None
+}
+
+fn default_schema_version() -> String {
+    "1.0".to_string()
 }

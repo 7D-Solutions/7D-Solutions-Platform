@@ -54,6 +54,7 @@ fn base_annotation(ann_type: AnnotationType, page: u32) -> Annotation {
         signature_path: None,
         signature_image: None,
         signature_text: None,
+        schema_version: "1.0".to_string(),
     }
 }
 
@@ -341,38 +342,25 @@ fn render_signature_text() {
 
 #[test]
 fn render_signature_draw() {
+    // signature_path coords are 0..1 normalized relative to width/height.
+    // anchor=(100,200), box=50×30, path=[(0.5,0.5),(1.0,1.0)]
+    // expected segment: (125, pdf_y-15) → (150, pdf_y-30)
     let pdf = test_pdf_bytes();
     let mut ann = base_annotation(AnnotationType::Signature, 1);
+    ann.x = 100.0;
+    ann.y = 200.0;
+    ann.width = Some(50.0);
+    ann.height = Some(30.0);
     ann.signature_method = Some("DRAW".to_string());
     ann.signature_path = Some(vec![
         SignaturePoint {
-            x: 0.0,
-            y: 0.0,
+            x: 0.5,
+            y: 0.5,
             new_stroke: None,
         },
         SignaturePoint {
-            x: 10.0,
-            y: 5.0,
-            new_stroke: None,
-        },
-        SignaturePoint {
-            x: 20.0,
-            y: 2.0,
-            new_stroke: None,
-        },
-        SignaturePoint {
-            x: 30.0,
-            y: 8.0,
-            new_stroke: Some(true),
-        },
-        SignaturePoint {
-            x: 35.0,
-            y: 10.0,
-            new_stroke: None,
-        },
-        SignaturePoint {
-            x: 45.0,
-            y: 6.0,
+            x: 1.0,
+            y: 1.0,
             new_stroke: None,
         },
     ]);
@@ -384,6 +372,10 @@ fn render_signature_draw() {
         result.is_ok(),
         "render_signature_draw failed: {:?}",
         result.err()
+    );
+    assert!(
+        result.unwrap().starts_with(b"%PDF-"),
+        "output must be valid PDF"
     );
 }
 
