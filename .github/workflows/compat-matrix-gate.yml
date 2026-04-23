@@ -1,0 +1,49 @@
+name: Compat Matrix Gate
+
+on:
+  pull_request:
+    paths:
+      - 'modules/**/Cargo.toml'
+      - 'platform/**/Cargo.toml'
+
+jobs:
+  compat-matrix-gate:
+    name: Verify compat matrix updated
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check compat matrix for each bumped module version
+        run: |
+          set -euo pipefail
+          FAILED=0
+
+          for file in $(git diff --name-only origin/${{ github.base_ref }}...HEAD | grep -E '(modules|platform)/[^/]+/Cargo\.toml$'); do
+            if [ ! -f "$file" ]; then
+              continue
+            fi
+
+            # Extract version — skip workspace-inherited versions
+            VERSION_LINE=$(grep -m1 '^version\s*=' "$file" || true)
+            if [ -z "$VERSION_LINE" ]; then
+              echo "SKIP $file: no standalone version line (workspace-inherited)"
+              continue
+            fi
+
+            VERSION=$(echo "$VERSION_LINE" | sed 's/.*= *"//;s/".*//')
+            if [ -z "$VERSION" ]; then
+              echo "SKIP $file: could not extract version string"
+              continue
+            fi
+
+            echo "Checking $file @ $VERSION ..."
+            if grep -q "$VERSION" docs/COMPAT-MATRIX.md; then
+              echo "  OK: $VERSION found in COMPAT-MATRIX.md"
+            else
+              echo "  FAIL: $VERSION not found in docs/COMPAT-MATRIX.md"
+              echo "  Add a row for $file version $VERSION before merging."
+              FAILED=1
+            fi
+          done
+
+          exit $FAILED

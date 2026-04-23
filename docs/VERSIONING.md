@@ -185,6 +185,12 @@ Every product has a `MODULE-MANIFEST.md` file (see template at `docs/templates/M
 
 ---
 
+## Compatibility Matrix
+
+Every module version bump requires a corresponding row in [`docs/COMPAT-MATRIX.md`](COMPAT-MATRIX.md) before the PR merges. The row maps the new version to the minimum frontend app version that supports it. The `compat-matrix-gate` CI job (`.github/workflows/compat-matrix-gate.yml`) enforces this automatically: it extracts the version string from any changed `modules/**/Cargo.toml` or `platform/**/Cargo.toml` and fails the PR if that exact version string is absent from `COMPAT-MATRIX.md`.
+
+---
+
 ## Container Registry
 
 All proven module images are stored in a container registry accessible to both development and production environments.
