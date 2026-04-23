@@ -81,6 +81,26 @@ pub struct BomLine {
     pub updated_at: chrono::DateTime<chrono::Utc>,
 }
 
+/// BOM line with optional embedded item details (returned when `?include=item_details`).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BomLineEnriched {
+    pub component_item_id: uuid::Uuid,
+    pub created_at: chrono::DateTime<chrono::Utc>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub find_number: Option<i32>,
+    pub id: uuid::Uuid,
+    pub quantity: f64,
+    pub revision_id: uuid::Uuid,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub scrap_factor: Option<f64>,
+    pub tenant_id: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub uom: Option<String>,
+    pub updated_at: chrono::DateTime<chrono::Utc>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub item: Option<ItemDetails>,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct BomRevision {
     pub bom_id: uuid::Uuid,

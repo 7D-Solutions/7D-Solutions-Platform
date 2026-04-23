@@ -109,4 +109,40 @@ impl BomLinesClient {
             .map_err(ClientError::Network)?;
         parse_response(resp).await
     }
+
+    /// GET `/api/bom/revisions/{revision_id}/lines?include=item_details` — all pages.
+    ///
+    /// Returns lines with embedded `ItemDetails` when available.
+    pub async fn get_lines_enriched_all(
+        &self,
+        claims: &VerifiedClaims,
+        revision_id: uuid::Uuid,
+    ) -> Result<Vec<BomLineEnriched>, ClientError> {
+        let mut all_data = Vec::new();
+        let mut page: i64 = 1;
+        loop {
+            let path = format!("/api/bom/revisions/{}/lines", revision_id);
+            #[derive(serde::Serialize)]
+            struct Query {
+                page: i64,
+                page_size: i64,
+                include: &'static str,
+            }
+            let query = Query { page, page_size: 100, include: "item_details" };
+            let url = build_query_url(&path, &query)?;
+            let resp = self
+                .client
+                .get(&url, claims)
+                .await
+                .map_err(ClientError::Network)?;
+            let page_resp: PaginatedResponse<BomLineEnriched> = parse_response(resp).await?;
+            let total = page_resp.pagination.total_pages;
+            all_data.extend(page_resp.data);
+            if page >= total {
+                break;
+            }
+            page += 1;
+        }
+        Ok(all_data)
+    }
 }
