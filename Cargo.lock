@@ -156,7 +156,7 @@ checksum = "7f202df86484c868dbad7eaa557ef785d5c66295e41b460ef922eca0723b842c"
 
 [[package]]
 name = "ap"
-version = "3.7.0"
+version = "3.7.1"
 dependencies = [
  "async-nats",
  "audit",
@@ -192,7 +192,7 @@ dependencies = [
 
 [[package]]
 name = "ar-rs"
-version = "6.6.4"
+version = "6.6.5"
 dependencies = [
  "async-nats",
  "audit",
@@ -402,7 +402,7 @@ dependencies = [
 
 [[package]]
 name = "auth-rs"
-version = "1.12.1"
+version = "1.12.2"
 dependencies = [
  "argon2",
  "async-nats",
@@ -1119,7 +1119,7 @@ dependencies = [
 
 [[package]]
 name = "bom-rs"
-version = "2.7.0"
+version = "2.7.1"
 dependencies = [
  "axum",
  "chrono",
@@ -1534,7 +1534,7 @@ dependencies = [
 
 [[package]]
 name = "control-plane"
-version = "1.7.0"
+version = "1.7.1"
 dependencies = [
  "axum",
  "axum-test",
@@ -2949,7 +2949,7 @@ dependencies = [
 
 [[package]]
 name = "health"
-version = "1.3.0"
+version = "1.3.1"
 dependencies = [
  "axum",
  "chrono",
@@ -3408,7 +3408,7 @@ dependencies = [
 
 [[package]]
 name = "inventory-rs"
-version = "2.8.0"
+version = "2.8.1"
 dependencies = [
  "axum",
  "chrono",
@@ -5166,7 +5166,7 @@ dependencies = [
 
 [[package]]
 name = "production-rs"
-version = "3.7.0"
+version = "3.7.1"
 dependencies = [
  "audit",
  "axum",
@@ -6074,7 +6074,7 @@ dependencies = [
 
 [[package]]
 name = "security"
-version = "1.12.0"
+version = "1.12.1"
 dependencies = [
  "axum",
  "base64",
@@ -8492,7 +8492,7 @@ dependencies = [
 
 [[package]]
 name = "workforce-competence-rs"
-version = "2.3.0"
+version = "2.3.1"
 dependencies = [
  "axum",
  "chrono",

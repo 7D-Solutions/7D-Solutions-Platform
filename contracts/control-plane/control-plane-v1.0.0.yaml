@@ -254,6 +254,39 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorBody'
 
+  # ── Tenant vitals ────────────────────────────────────────────────────────
+  /api/control/tenants/{tenant_id}/vitals:
+    get:
+      summary: Aggregated tenant health and module vitals
+      operationId: getTenantVitals
+      description: >
+        Returns provisioning step status plus per-module operational vitals
+        collected via parallel HTTP fanout to each module's /api/vitals endpoint.
+        Modules that do not respond (timeout, non-200, connection error) are
+        excluded from the overall_healthy gate rather than treated as failures.
+      tags: [tenants]
+      parameters:
+        - $ref: '#/components/parameters/TenantIdPath'
+      responses:
+        '200':
+          description: Tenant vitals snapshot
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TenantVitalsResponse'
+        '404':
+          description: Tenant not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorBody'
+        '500':
+          description: Database error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorBody'
+
   # ── Platform billing ─────────────────────────────────────────────────────
   /api/control/platform-billing-runs:
     post:
@@ -1101,3 +1134,75 @@ components:
           description: >
             Map of flag_name → enabled. Only flags with at least one DB row
             (per-tenant or global) appear here; absent flags are disabled by default.
+
+    TenantVitalsResponse:
+      type: object
+      required:
+        - tenant_id
+        - tenant_status
+        - provisioning
+        - modules
+        - overall_healthy
+        - timestamp
+      properties:
+        tenant_id:
+          type: string
+          format: uuid
+        tenant_status:
+          type: string
+          description: Lifecycle status of the tenant (informational only).
+        overall_healthy:
+          type: boolean
+          description: >
+            True when all provisioning steps are completed AND every module that
+            responded has dlq.total=0, outbox.pending=0, and tenant_ready=true.
+            Modules that did not respond are excluded from this gate.
+        provisioning:
+          type: object
+          required: [all_steps_complete, steps, module_status]
+          properties:
+            all_steps_complete:
+              type: boolean
+            steps:
+              type: array
+              items:
+                type: object
+                required: [step, order, status]
+                properties:
+                  step:
+                    type: string
+                  order:
+                    type: integer
+                  status:
+                    type: string
+            module_status:
+              type: array
+              items:
+                type: object
+                required: [module_code, status]
+                properties:
+                  module_code:
+                    type: string
+                  status:
+                    type: string
+        modules:
+          type: array
+          items:
+            type: object
+            required: [module, latency_ms]
+            properties:
+              module:
+                type: string
+              vitals:
+                nullable: true
+                type: object
+                description: Parsed VitalsResponse from the module, or null if unreachable.
+              latency_ms:
+                type: integer
+                format: int64
+              error:
+                type: string
+                nullable: true
+        timestamp:
+          type: string
+          format: date-time
