@@ -300,7 +300,7 @@ async fn test_import_without_jwt_returns_401() {
 
     let metrics = Arc::new(IntegrationsMetrics::new().expect("metrics init failed"));
     let bus: Arc<dyn event_bus::EventBus> = Arc::new(InMemoryBus::new());
-    let state = Arc::new(AppState { pool, metrics, bus });
+    let state = Arc::new(AppState { pool, metrics, bus, webhooks_key: [0u8; 32] });
     let app = integrations_rs::http::router(state);
 
     let req = Request::builder()

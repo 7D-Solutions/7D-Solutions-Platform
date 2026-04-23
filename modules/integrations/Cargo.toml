@@ -1,6 +1,6 @@
 [package]
 name = "integrations-rs"
-version = "2.34.0"
+version = "2.35.0"
 edition = "2021"
 description = "External system connectors, webhook routing, and reference linking"
 
@@ -46,6 +46,7 @@ sha2 = "0.10"
 hmac = "0.12"
 hex = "0.4"
 base64 = "0.22"
+aes-gcm = "0.10"
 reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
 async-trait = "0.1"
 urlencoding = "2"

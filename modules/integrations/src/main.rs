@@ -87,11 +87,11 @@ async fn openapi_json() -> Json<utoipa::openapi::OpenApi> {
 
 static MIGRATOR: sqlx::migrate::Migrator = sqlx::migrate!("./db/migrations");
 
-/// Refuse to start in non-dev-local environments when INTUIT_WEBHOOK_VERIFIER_TOKEN is unset.
+/// Warn at startup when INTUIT_WEBHOOK_VERIFIER_TOKEN is absent.
 ///
-/// Called unconditionally — every environment that is not `dev-local` must supply the token.
-/// The token is read at request time by `verify::resolve_verifier`, but checking it at startup
-/// ensures the misconfiguration is caught immediately rather than when the first webhook arrives.
+/// No longer fatal: per-tenant tokens stored via the admin API are the primary
+/// mechanism. The env var remains supported as a global fallback for operators
+/// who have not yet migrated. Missing it is now a deployment hint, not a crash.
 fn validate_webhook_env() {
     let profile = std::env::var("APP_PROFILE").unwrap_or_default();
     if profile == "dev-local" {
@@ -99,13 +99,54 @@ fn validate_webhook_env() {
     }
     let token = std::env::var("INTUIT_WEBHOOK_VERIFIER_TOKEN").unwrap_or_default();
     if token.is_empty() {
-        panic!(
-            "Startup validation failed: INTUIT_WEBHOOK_VERIFIER_TOKEN is not set or empty. \
-             The service would silently accept unsigned Intuit webhooks. \
-             Set INTUIT_WEBHOOK_VERIFIER_TOKEN to the verifier token from the Intuit Developer \
-             Portal. To bypass this check in local development set APP_PROFILE=dev-local."
+        tracing::warn!(
+            "INTUIT_WEBHOOK_VERIFIER_TOKEN is not set — QBO webhook verification will use \
+             per-tenant DB tokens only. Set this env var if a global fallback token is needed."
         );
     }
+}
+
+/// Load and validate INTEGRATIONS_SECRETS_KEY from env.
+///
+/// Fatal if absent, empty, or not exactly 32 bytes after hex/base64 decoding.
+/// The key is used for AES-256-GCM encryption of per-tenant QBO webhook verifier tokens.
+fn load_secrets_key() -> [u8; 32] {
+    let raw = std::env::var("INTEGRATIONS_SECRETS_KEY").unwrap_or_default();
+    if raw.is_empty() {
+        panic!(
+            "Startup validation failed: INTEGRATIONS_SECRETS_KEY is not set or empty. \
+             The service cannot encrypt or decrypt QBO webhook verifier tokens without it. \
+             Set INTEGRATIONS_SECRETS_KEY to a 32-byte value encoded as hex (64 hex chars) \
+             or base64 (44 chars with padding)."
+        );
+    }
+    // Try hex decode first (64 chars = 32 bytes), then base64.
+    let bytes: Vec<u8> = if raw.len() == 64 && raw.chars().all(|c| c.is_ascii_hexdigit()) {
+        (0..raw.len())
+            .step_by(2)
+            .map(|i| u8::from_str_radix(&raw[i..i + 2], 16).expect("valid hex"))
+            .collect()
+    } else {
+        use base64::Engine as _;
+        base64::engine::general_purpose::STANDARD
+            .decode(&raw)
+            .unwrap_or_else(|_| {
+                panic!(
+                    "Startup validation failed: INTEGRATIONS_SECRETS_KEY is not valid hex or base64. \
+                     Provide a 32-byte key as 64 hex characters or base64."
+                )
+            })
+    };
+    if bytes.len() != 32 {
+        panic!(
+            "Startup validation failed: INTEGRATIONS_SECRETS_KEY decoded to {} bytes; \
+             exactly 32 bytes are required for AES-256-GCM.",
+            bytes.len()
+        );
+    }
+    let mut key = [0u8; 32];
+    key.copy_from_slice(&bytes);
+    key
 }
 
 /// Validate the QBO env contract before any worker starts.
@@ -175,6 +216,7 @@ async fn main() {
         .migrator(&MIGRATOR)
         .routes(|ctx| {
             validate_webhook_env();
+            let webhooks_key = load_secrets_key();
 
             let bus = ctx.bus_arc().expect("Integrations requires event bus");
 
@@ -260,6 +302,7 @@ async fn main() {
                 pool: ctx.pool().clone(),
                 metrics: integrations_metrics,
                 bus,
+                webhooks_key,
             });
 
             http::router(app_state).route("/api/openapi.json", get(openapi_json))
@@ -330,8 +373,8 @@ mod startup_guard_tests {
 
     #[test]
     #[serial]
-    #[should_panic(expected = "INTUIT_WEBHOOK_VERIFIER_TOKEN")]
-    fn staging_without_token_panics() {
+    fn staging_without_token_no_longer_panics() {
+        // env var is now optional — warn only, not fatal
         with_env(
             &[
                 ("APP_PROFILE", "staging"),
@@ -343,8 +386,7 @@ mod startup_guard_tests {
 
     #[test]
     #[serial]
-    #[should_panic(expected = "INTUIT_WEBHOOK_VERIFIER_TOKEN")]
-    fn production_without_token_panics() {
+    fn production_without_token_no_longer_panics() {
         with_env(
             &[
                 ("APP_PROFILE", "production"),
@@ -356,8 +398,7 @@ mod startup_guard_tests {
 
     #[test]
     #[serial]
-    #[should_panic(expected = "INTUIT_WEBHOOK_VERIFIER_TOKEN")]
-    fn no_profile_without_token_panics() {
+    fn no_profile_without_token_no_longer_panics() {
         with_env(
             &[
                 ("APP_PROFILE", ""),

@@ -4,6 +4,7 @@ pub mod models;
 pub mod qbo_normalizer;
 pub mod repo;
 pub mod routing;
+pub mod secret_store;
 pub mod service;
 pub mod shopify_normalizer;
 pub mod verify;

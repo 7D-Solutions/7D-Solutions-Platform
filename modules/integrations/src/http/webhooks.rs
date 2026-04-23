@@ -221,7 +221,7 @@ async fn handle_qbo_webhook(
     headers: HeaderMap,
     body: Bytes,
 ) -> Result<Json<Value>, (StatusCode, Json<Value>)> {
-    use crate::domain::webhooks::verify::verify_signature;
+    use crate::domain::webhooks::verify::verify_qbo_signature;
 
     // Convert headers to HashMap<String, String>
     let header_map: std::collections::HashMap<String, String> = headers
@@ -233,21 +233,19 @@ async fn handle_qbo_webhook(
         })
         .collect();
 
-    // Signature verification (stateless, before any DB I/O)
-    verify_signature("quickbooks", &header_map, &body).map_err(|e| match e {
-        WebhookError::SignatureVerification(msg) => (
-            StatusCode::UNAUTHORIZED,
-            Json(json!({ "error": format!("Signature verification failed: {}", msg) })),
-        ),
-        WebhookError::UnsupportedSystem { system } => (
-            StatusCode::NOT_FOUND,
-            Json(json!({ "error": format!("Unknown webhook system: {}", system) })),
-        ),
-        _ => (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(json!({ "error": "Internal error" })),
-        ),
-    })?;
+    // Signature verification — resolves token per-tenant from DB (env var fallback)
+    verify_qbo_signature(&state.pool, &header_map, &body, &state.webhooks_key)
+        .await
+        .map_err(|e| match e {
+            WebhookError::SignatureVerification(msg) => (
+                StatusCode::UNAUTHORIZED,
+                Json(json!({ "error": format!("Signature verification failed: {}", msg) })),
+            ),
+            _ => (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(json!({ "error": "Internal error" })),
+            ),
+        })?;
 
     // Parse raw body as JSON (array)
     let raw_payload: Value = serde_json::from_slice(&body).map_err(|e| {

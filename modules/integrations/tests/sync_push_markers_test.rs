@@ -81,6 +81,7 @@ fn build_test_app(pool: sqlx::PgPool, tenant_id: Uuid) -> Router {
         pool,
         metrics: Arc::new(IntegrationsMetrics::new().expect("IntegrationsMetrics::new")),
         bus: Arc::new(InMemoryBus::new()),
+        webhooks_key: [0u8; 32],
     });
     Router::new()
         .route(
@@ -190,6 +191,7 @@ async fn test_result_markers_stored_on_success() {
         Some("SyncToken-42"),
         Some(raw_ts),
         Some("ph:abc123hash"),
+        None,
     )
     .await
     .expect("complete_with_markers")
@@ -238,7 +240,7 @@ async fn test_result_markers_can_be_null() {
 
     push_attempts::transition_to_inflight(&pool, row.id).await.expect("inflight");
 
-    let done = push_attempts::complete_attempt_with_markers(&pool, row.id, None, None, None)
+    let done = push_attempts::complete_attempt_with_markers(&pool, row.id, None, None, None, None)
         .await
         .expect("complete")
         .expect("row");
@@ -363,7 +365,7 @@ async fn test_no_push_failed_event_on_success_path() {
 
     push_attempts::transition_to_inflight(&pool, row.id).await.expect("inflight");
 
-    push_attempts::complete_attempt_with_markers(&pool, row.id, Some("tok-1"), None, None)
+    push_attempts::complete_attempt_with_markers(&pool, row.id, Some("tok-1"), None, None, None)
         .await
         .expect("complete")
         .expect("row");

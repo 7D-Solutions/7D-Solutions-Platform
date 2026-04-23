@@ -4,6 +4,9 @@
 > **Standard:** See `docs/VERSIONING.md` for the rules governing this file.
 
 
+## 2.35.0
+- feat: per-tenant QBO webhook verifier token system — encrypted storage in `integrations_qbo_webhook_secrets` (AES-256-GCM), write-only admin API (`POST /api/integrations/qbo/webhook-token`, `GET .../status`), webhook verifier updated to DB-first lookup with env-var fallback ([bd-mmnbp, bd-24qxb, bd-c6z0t])
+
 ## 2.34.0
 - feat: test-only QBO 429 rate-limit fixture — `QBO_FORCE_RATE_LIMIT=1` env var forces next push to return `rate_limited` PushOutcome with retry_after; dev-local profile gated; unblocks deterministic rate-limit E2E testing ([bd-ushjt])
 

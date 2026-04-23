@@ -3,6 +3,7 @@ pub mod external_refs;
 pub mod internal;
 pub mod oauth;
 pub mod qbo_invoice;
+pub mod qbo_settings;
 pub mod sync;
 pub mod webhooks;
 
@@ -72,6 +73,11 @@ pub fn router(state: Arc<AppState>) -> Router {
             "/api/integrations/qbo/invoice/{invoice_id}/update",
             post(qbo_invoice::update_invoice),
         )
+        // QBO webhook token — write
+        .route(
+            "/api/integrations/qbo/webhook-token",
+            post(qbo_settings::set_webhook_token),
+        )
         .route_layer(RequirePermissionsLayer::new(&[
             permissions::INTEGRATIONS_MUTATE,
         ]))
@@ -108,6 +114,11 @@ pub fn router(state: Arc<AppState>) -> Router {
         .route(
             "/api/integrations/oauth/status/{provider}",
             get(oauth::status),
+        )
+        // QBO webhook token — status read
+        .route(
+            "/api/integrations/qbo/webhook-token/status",
+            get(qbo_settings::webhook_token_status),
         )
         .route_layer(RequirePermissionsLayer::new(&[
             permissions::INTEGRATIONS_READ,

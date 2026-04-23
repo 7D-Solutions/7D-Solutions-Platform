@@ -91,6 +91,7 @@ fn build_test_app(pool: sqlx::PgPool, tenant_id: Uuid) -> Router {
         pool,
         metrics: Arc::new(IntegrationsMetrics::new().expect("IntegrationsMetrics::new")),
         bus: Arc::new(InMemoryBus::new()),
+        webhooks_key: [0u8; 32],
     });
     Router::new()
         .route(
