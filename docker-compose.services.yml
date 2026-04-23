@@ -251,7 +251,7 @@ services:
     networks:
       - 7d-platform
     healthcheck:
-      test: ["CMD-SHELL", "curl -f http://localhost:8091/api/health || exit 1"]
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8091/healthz >/dev/null 2>/dev/null || exit 1"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -292,7 +292,7 @@ services:
     networks:
       - 7d-platform
     healthcheck:
-      test: ["CMD-SHELL", "curl -f http://localhost:8086/api/health || exit 1"]
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8086/healthz >/dev/null 2>/dev/null || exit 1"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -340,7 +340,7 @@ services:
     networks:
       - 7d-platform
     healthcheck:
-      test: ["CMD-SHELL", "curl -f http://localhost:8087/api/health || exit 1"]
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8087/healthz >/dev/null 2>/dev/null || exit 1"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -390,7 +390,7 @@ services:
     networks:
       - 7d-platform
     healthcheck:
-      test: ["CMD-SHELL", "curl -f http://localhost:8088/api/health || exit 1"]
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8088/healthz >/dev/null 2>/dev/null || exit 1"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -437,7 +437,7 @@ services:
     networks:
       - 7d-platform
     healthcheck:
-      test: ["CMD-SHELL", "curl -f http://localhost:8089/api/health || exit 1"]
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8089/healthz >/dev/null 2>/dev/null || exit 1"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -484,7 +484,7 @@ services:
     networks:
       - 7d-platform
     healthcheck:
-      test: ["CMD-SHELL", "curl -f http://localhost:8090/api/health || exit 1"]
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8090/healthz >/dev/null 2>/dev/null || exit 1"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -531,7 +531,7 @@ services:
     networks:
       - 7d-platform
     healthcheck:
-      test: ["CMD-SHELL", "curl -f http://localhost:8092/api/health || exit 1"]
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8092/healthz >/dev/null 2>/dev/null || exit 1"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -578,7 +578,7 @@ services:
     networks:
       - 7d-platform
     healthcheck:
-      test: ["CMD-SHELL", "curl -f http://localhost:8093/api/health || exit 1"]
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8093/healthz >/dev/null 2>/dev/null || exit 1"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -625,7 +625,7 @@ services:
     networks:
       - 7d-platform
     healthcheck:
-      test: ["CMD-SHELL", "curl -f http://localhost:8094/api/health || exit 1"]
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8094/healthz >/dev/null 2>/dev/null || exit 1"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -672,7 +672,7 @@ services:
     networks:
       - 7d-platform
     healthcheck:
-      test: ["CMD-SHELL", "curl -f http://localhost:8104/api/health || exit 1"]
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8104/healthz >/dev/null 2>/dev/null || exit 1"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -719,7 +719,7 @@ services:
     networks:
       - 7d-platform
     healthcheck:
-      test: ["CMD-SHELL", "curl -f http://localhost:8105/api/health || exit 1"]
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8105/healthz >/dev/null 2>/dev/null || exit 1"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -766,7 +766,7 @@ services:
     networks:
       - 7d-platform
     healthcheck:
-      test: ["CMD-SHELL", "curl -f http://localhost:8097/api/health || exit 1"]
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8097/healthz >/dev/null 2>/dev/null || exit 1"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -813,7 +813,7 @@ services:
     networks:
       - 7d-platform
     healthcheck:
-      test: ["CMD-SHELL", "curl -f http://localhost:8098/api/health || exit 1"]
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8098/healthz >/dev/null 2>/dev/null || exit 1"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -877,7 +877,7 @@ services:
     networks:
       - 7d-platform
     healthcheck:
-      test: ["CMD-SHELL", "curl -f http://localhost:8099/api/health || exit 1"]
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8099/healthz >/dev/null 2>/dev/null || exit 1"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -925,7 +925,7 @@ services:
     networks:
       - 7d-platform
     healthcheck:
-      test: ["CMD-SHELL", "curl -f http://localhost:8100/api/health || exit 1"]
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8100/healthz >/dev/null 2>/dev/null || exit 1"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -974,7 +974,7 @@ services:
     networks:
       - 7d-platform
     healthcheck:
-      test: ["CMD-SHELL", "curl -f http://localhost:8102/api/health || exit 1"]
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8102/healthz >/dev/null 2>/dev/null || exit 1"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -1021,7 +1021,7 @@ services:
     networks:
       - 7d-platform
     healthcheck:
-      test: ["CMD-SHELL", "curl -f http://localhost:8101/api/health || exit 1"]
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8101/healthz >/dev/null 2>/dev/null || exit 1"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -1071,7 +1071,7 @@ services:
     networks:
       - 7d-platform
     healthcheck:
-      test: ["CMD-SHELL", "curl -f http://localhost:8103/api/health || exit 1"]
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8103/healthz >/dev/null 2>/dev/null || exit 1"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -1120,7 +1120,7 @@ services:
     networks:
       - 7d-platform
     healthcheck:
-      test: ["CMD-SHELL", "curl -f http://localhost:8106/api/health || exit 1"]
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8106/healthz >/dev/null 2>/dev/null || exit 1"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -1167,7 +1167,7 @@ services:
     networks:
       - 7d-platform
     healthcheck:
-      test: ["CMD-SHELL", "curl -f http://localhost:8107/api/health || exit 1"]
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8107/healthz >/dev/null 2>/dev/null || exit 1"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -1214,7 +1214,7 @@ services:
     networks:
       - 7d-platform
     healthcheck:
-      test: ["CMD-SHELL", "curl -f http://localhost:8108/api/health || exit 1"]
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8108/healthz >/dev/null 2>/dev/null || exit 1"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -1309,7 +1309,7 @@ services:
     networks:
       - 7d-platform
     healthcheck:
-      test: ["CMD-SHELL", "curl -f http://localhost:8110/api/health || exit 1"]
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8110/healthz >/dev/null 2>/dev/null || exit 1"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -1356,7 +1356,7 @@ services:
     networks:
       - 7d-platform
     healthcheck:
-      test: ["CMD-SHELL", "curl -f http://localhost:8120/api/health || exit 1"]
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8120/healthz >/dev/null 2>/dev/null || exit 1"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -1401,7 +1401,7 @@ services:
     networks:
       - 7d-platform
     healthcheck:
-      test: ["CMD-SHELL", "curl -f http://localhost:8121/api/health || exit 1"]
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8121/healthz >/dev/null 2>/dev/null || exit 1"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -1446,7 +1446,7 @@ services:
     networks:
       - 7d-platform
     healthcheck:
-      test: ["CMD-SHELL", "curl -f http://localhost:8111/api/health || exit 1"]
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8111/healthz >/dev/null 2>/dev/null || exit 1"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -1495,7 +1495,7 @@ services:
     networks:
       - 7d-platform
     healthcheck:
-      test: ["CMD-SHELL", "curl -f http://localhost:8095/api/health || exit 1"]
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8095/healthz >/dev/null 2>/dev/null || exit 1"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -1542,7 +1542,7 @@ services:
     networks:
       - 7d-platform
     healthcheck:
-      test: ["CMD-SHELL", "curl -f http://localhost:8112/api/health || exit 1"]
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8112/healthz >/dev/null 2>/dev/null || exit 1"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -1587,7 +1587,7 @@ services:
     networks:
       - 7d-platform
     healthcheck:
-      test: ["CMD-SHELL", "curl -f http://localhost:8096/api/health || exit 1"]
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8096/healthz >/dev/null 2>/dev/null || exit 1"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -1634,7 +1634,7 @@ services:
     networks:
       - 7d-platform
     healthcheck:
-      test: ["CMD-SHELL", "curl -f http://localhost:8113/api/health || exit 1"]
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8113/healthz >/dev/null 2>/dev/null || exit 1"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -1681,7 +1681,7 @@ services:
     networks:
       - 7d-platform
     healthcheck:
-      test: ["CMD-SHELL", "curl -f http://localhost:8114/api/health || exit 1"]
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8114/healthz >/dev/null 2>/dev/null || exit 1"]
       interval: 10s
       timeout: 5s
       retries: 5
