@@ -15,8 +15,7 @@ async fn main() {
     ModuleBuilder::from_manifest("module.toml")
         .migrator(&MIGRATOR)
         .routes(|ctx| {
-            let so_metrics =
-                Arc::new(SoMetrics::new().expect("SO: failed to create metrics"));
+            let so_metrics = Arc::new(SoMetrics::new().expect("SO: failed to create metrics"));
 
             let app_state = Arc::new(AppState {
                 pool: ctx.pool().clone(),
@@ -29,17 +28,12 @@ async fn main() {
                     bus.clone(),
                     ctx.pool().clone(),
                 );
-                consumers::invoice_issued::start_invoice_issued_consumer(
-                    bus,
-                    ctx.pool().clone(),
-                );
+                consumers::invoice_issued::start_invoice_issued_consumer(bus, ctx.pool().clone());
                 tracing::info!("SO: event consumers started");
             }
 
-            let so_mutate =
-                RequirePermissionsLayer::new(&[permissions::SALES_ORDERS_MUTATE]);
-            let so_read =
-                RequirePermissionsLayer::new(&[permissions::SALES_ORDERS_READ]);
+            let so_mutate = RequirePermissionsLayer::new(&[permissions::SALES_ORDERS_MUTATE]);
+            let so_read = RequirePermissionsLayer::new(&[permissions::SALES_ORDERS_READ]);
 
             let mutations = Router::new()
                 .route("/api/so/orders", post(http::orders::create_order))

@@ -49,9 +49,7 @@ pub enum OrderError {
 impl From<OrderError> for platform_http_contracts::ApiError {
     fn from(err: OrderError) -> Self {
         match err {
-            OrderError::NotFound(id) => {
-                Self::not_found(format!("Sales order {} not found", id))
-            }
+            OrderError::NotFound(id) => Self::not_found(format!("Sales order {} not found", id)),
             OrderError::NotDraft(status) => Self::new(
                 422,
                 "order_not_draft",
@@ -62,17 +60,20 @@ impl From<OrderError> for platform_http_contracts::ApiError {
                 "invalid_transition",
                 format!("Cannot transition order from '{}' to '{}'", from, to),
             ),
-            OrderError::EmptyLines => {
-                Self::new(422, "empty_lines", "Order must have at least one line before booking")
-            }
-            OrderError::MonetaryInvariant(msg) => {
-                Self::new(422, "monetary_invariant", msg)
-            }
+            OrderError::EmptyLines => Self::new(
+                422,
+                "empty_lines",
+                "Order must have at least one line before booking",
+            ),
+            OrderError::MonetaryInvariant(msg) => Self::new(422, "monetary_invariant", msg),
             OrderError::Validation(msg) => Self::new(422, "validation_error", msg),
             OrderError::ReservationFailed { line_id, reason } => Self::new(
                 422,
                 "reservation_failed",
-                format!("Inventory reservation failed for line {}: {}", line_id, reason),
+                format!(
+                    "Inventory reservation failed for line {}: {}",
+                    line_id, reason
+                ),
             ),
             OrderError::Database(e) => {
                 tracing::error!("SO DB error: {}", e);

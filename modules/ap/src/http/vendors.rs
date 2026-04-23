@@ -17,8 +17,8 @@ use std::sync::Arc;
 use uuid::Uuid;
 
 use crate::domain::vendors::{
-    qualification, service, ChangeQualificationRequest, CreateVendorRequest,
-    SetPreferredRequest, UpdateVendorRequest,
+    qualification, service, ChangeQualificationRequest, CreateVendorRequest, SetPreferredRequest,
+    UpdateVendorRequest,
 };
 use crate::http::tenant::with_request_id;
 use crate::AppState;
@@ -229,7 +229,15 @@ pub async fn qualify_vendor(
     };
     let correlation_id = correlation_from_headers(&headers);
 
-    match qualification::change_qualification(&state.pool, &tenant_id, vendor_id, &req, correlation_id).await {
+    match qualification::change_qualification(
+        &state.pool,
+        &tenant_id,
+        vendor_id,
+        &req,
+        correlation_id,
+    )
+    .await
+    {
         Ok(vendor) => Json(vendor).into_response(),
         Err(e) => with_request_id(ApiError::from(e), &tracing_ctx).into_response(),
     }
@@ -285,7 +293,8 @@ pub async fn unmark_vendor_preferred(
         Err(e) => return with_request_id(e, &tracing_ctx).into_response(),
     };
 
-    match qualification::unmark_preferred(&state.pool, &tenant_id, vendor_id, &req.changed_by).await {
+    match qualification::unmark_preferred(&state.pool, &tenant_id, vendor_id, &req.changed_by).await
+    {
         Ok(vendor) => Json(vendor).into_response(),
         Err(e) => with_request_id(ApiError::from(e), &tracing_ctx).into_response(),
     }

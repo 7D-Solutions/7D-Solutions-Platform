@@ -7,7 +7,10 @@ use super::{repo, StatusLabel, UpsertLabelRequest, LABEL_TABLES};
 
 fn validate_table(table: &str) -> Result<(), ApiError> {
     if !LABEL_TABLES.contains(&table) {
-        return Err(ApiError::bad_request(format!("Unknown label table: {}", table)));
+        return Err(ApiError::bad_request(format!(
+            "Unknown label table: {}",
+            table
+        )));
     }
     Ok(())
 }
@@ -34,12 +37,25 @@ pub async fn upsert_label(
         .map_err(|e| ApiError::internal(e.to_string()))
 }
 
-pub async fn list_labels(pool: &PgPool, table: &str, tenant_id: &str) -> Result<Vec<StatusLabel>, ApiError> {
+pub async fn list_labels(
+    pool: &PgPool,
+    table: &str,
+    tenant_id: &str,
+) -> Result<Vec<StatusLabel>, ApiError> {
     validate_table(table)?;
-    repo::list_labels(pool, table, tenant_id).await.map_err(|e| ApiError::internal(e.to_string()))
+    repo::list_labels(pool, table, tenant_id)
+        .await
+        .map_err(|e| ApiError::internal(e.to_string()))
 }
 
-pub async fn delete_label(pool: &PgPool, table: &str, id: Uuid, tenant_id: &str) -> Result<bool, ApiError> {
+pub async fn delete_label(
+    pool: &PgPool,
+    table: &str,
+    id: Uuid,
+    tenant_id: &str,
+) -> Result<bool, ApiError> {
     validate_table(table)?;
-    repo::delete_label(pool, table, id, tenant_id).await.map_err(|e| ApiError::internal(e.to_string()))
+    repo::delete_label(pool, table, id, tenant_id)
+        .await
+        .map_err(|e| ApiError::internal(e.to_string()))
 }

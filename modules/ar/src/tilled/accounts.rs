@@ -224,7 +224,10 @@ mod tests {
             pricing_template_id: "pt_123".to_string(),
         };
         let value = serde_json::to_value(req).expect("test fixture");
-        assert_eq!(value.get("pricing_template_id").expect("test fixture"), "pt_123");
+        assert_eq!(
+            value.get("pricing_template_id").expect("test fixture"),
+            "pt_123"
+        );
     }
 
     #[test]
@@ -233,6 +236,9 @@ mod tests {
             pricing_template_id: "pt_456".to_string(),
         };
         let value = serde_json::to_value(req).expect("test fixture");
-        assert_eq!(value.get("pricing_template_id").expect("test fixture"), "pt_456");
+        assert_eq!(
+            value.get("pricing_template_id").expect("test fixture"),
+            "pt_456"
+        );
     }
 }

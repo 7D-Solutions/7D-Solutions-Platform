@@ -29,7 +29,11 @@ pub async fn insert_hold(pool: &PgPool, hold: &TravelerHold) -> Result<(), sqlx:
     Ok(())
 }
 
-pub async fn fetch_hold(pool: &PgPool, id: Uuid, tenant_id: &str) -> Result<Option<TravelerHold>, sqlx::Error> {
+pub async fn fetch_hold(
+    pool: &PgPool,
+    id: Uuid,
+    tenant_id: &str,
+) -> Result<Option<TravelerHold>, sqlx::Error> {
     let sql = "SELECT * FROM traveler_holds WHERE id = $1 AND tenant_id = $2";
     sqlx::query_as::<_, TravelerHold>(sql)
         .bind(id)
@@ -38,7 +42,11 @@ pub async fn fetch_hold(pool: &PgPool, id: Uuid, tenant_id: &str) -> Result<Opti
         .await
 }
 
-pub async fn fetch_hold_by_number(pool: &PgPool, hold_number: &str, tenant_id: &str) -> Result<Option<TravelerHold>, sqlx::Error> {
+pub async fn fetch_hold_by_number(
+    pool: &PgPool,
+    hold_number: &str,
+    tenant_id: &str,
+) -> Result<Option<TravelerHold>, sqlx::Error> {
     let sql = "SELECT * FROM traveler_holds WHERE hold_number = $1 AND tenant_id = $2";
     sqlx::query_as::<_, TravelerHold>(sql)
         .bind(hold_number)
@@ -47,7 +55,11 @@ pub async fn fetch_hold_by_number(pool: &PgPool, hold_number: &str, tenant_id: &
         .await
 }
 
-pub async fn list_holds(pool: &PgPool, tenant_id: &str, q: &ListHoldsQuery) -> Result<Vec<TravelerHold>, sqlx::Error> {
+pub async fn list_holds(
+    pool: &PgPool,
+    tenant_id: &str,
+    q: &ListHoldsQuery,
+) -> Result<Vec<TravelerHold>, sqlx::Error> {
     let limit = q.limit.unwrap_or(50).min(200);
     let offset = q.offset.unwrap_or(0);
 
@@ -138,7 +150,11 @@ pub async fn release_all_active_for_work_order(
     Ok(result.rows_affected())
 }
 
-pub async fn count_active_holds_for_work_order(pool: &PgPool, work_order_id: Uuid, tenant_id: &str) -> Result<i64, sqlx::Error> {
+pub async fn count_active_holds_for_work_order(
+    pool: &PgPool,
+    work_order_id: Uuid,
+    tenant_id: &str,
+) -> Result<i64, sqlx::Error> {
     let row: (i64,) = sqlx::query_as(
         "SELECT COUNT(*) FROM traveler_holds WHERE work_order_id = $1 AND tenant_id = $2 AND status = 'active'",
     )

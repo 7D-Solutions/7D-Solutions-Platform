@@ -336,7 +336,11 @@ pub async fn post_training_plan(
         .await
         .map_err(|e| with_request_id(ApiError::from(e), &ctx))?;
 
-    let status = if is_replay { StatusCode::OK } else { StatusCode::CREATED };
+    let status = if is_replay {
+        StatusCode::OK
+    } else {
+        StatusCode::CREATED
+    };
     Ok((status, Json(result)))
 }
 
@@ -426,7 +430,11 @@ pub async fn post_training_assignment(
         .await
         .map_err(|e| with_request_id(ApiError::from(e), &ctx))?;
 
-    let status = if is_replay { StatusCode::OK } else { StatusCode::CREATED };
+    let status = if is_replay {
+        StatusCode::OK
+    } else {
+        StatusCode::CREATED
+    };
     Ok((status, Json(result)))
 }
 
@@ -560,7 +568,11 @@ pub async fn post_training_completion(
         .await
         .map_err(|e| with_request_id(ApiError::from(e), &ctx))?;
 
-    let status = if is_replay { StatusCode::OK } else { StatusCode::CREATED };
+    let status = if is_replay {
+        StatusCode::OK
+    } else {
+        StatusCode::CREATED
+    };
     Ok((status, Json(result)))
 }
 

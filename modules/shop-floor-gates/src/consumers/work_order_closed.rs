@@ -39,11 +39,19 @@ async fn consume(bus: Arc<dyn EventBus>, pool: PgPool) {
     }
 }
 
-async fn process_message(msg: &event_bus::BusMessage, pool: &PgPool) -> Result<(), Box<dyn std::error::Error>> {
+async fn process_message(
+    msg: &event_bus::BusMessage,
+    pool: &PgPool,
+) -> Result<(), Box<dyn std::error::Error>> {
     let payload: WorkOrderClosedPayload = serde_json::from_slice(&msg.payload)?;
 
     // Active holds block WO completion — log a warning if any remain; release them anyway
-    let count = holds_repo::count_active_holds_for_work_order(pool, payload.work_order_id, &payload.tenant_id).await?;
+    let count = holds_repo::count_active_holds_for_work_order(
+        pool,
+        payload.work_order_id,
+        &payload.tenant_id,
+    )
+    .await?;
     if count > 0 {
         tracing::warn!(
             work_order_id = %payload.work_order_id,

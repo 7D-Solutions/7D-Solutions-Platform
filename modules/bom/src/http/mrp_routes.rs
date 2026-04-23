@@ -1,3 +1,4 @@
+use axum::Extension;
 use axum::{
     extract::{Path, Query, State},
     http::StatusCode,
@@ -7,7 +8,6 @@ use platform_http_contracts::{ApiError, PaginatedResponse};
 use security::VerifiedClaims;
 use std::sync::Arc;
 use uuid::Uuid;
-use axum::Extension;
 
 use crate::domain::bom_service::BomError;
 use crate::domain::guards::GuardError;
@@ -126,6 +126,15 @@ pub async fn list_mrp_snapshots(
         .map_err(into_api_error)?;
     let total = all.len() as i64;
     let start = ((q.page - 1) * q.page_size) as usize;
-    let data: Vec<MrpSnapshot> = all.into_iter().skip(start).take(q.page_size as usize).collect();
-    Ok(Json(PaginatedResponse::new(data, q.page, q.page_size, total)))
+    let data: Vec<MrpSnapshot> = all
+        .into_iter()
+        .skip(start)
+        .take(q.page_size as usize)
+        .collect();
+    Ok(Json(PaginatedResponse::new(
+        data,
+        q.page,
+        q.page_size,
+        total,
+    )))
 }

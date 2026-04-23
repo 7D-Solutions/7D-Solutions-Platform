@@ -143,12 +143,16 @@ impl From<TimeEntryError> for ApiError {
                 "still_running",
                 "Time entry is still running; stop it before approving",
             ),
-            TimeEntryError::AlreadyApproved => {
-                ApiError::new(409, "already_approved", "Time entry has already been approved")
-            }
-            TimeEntryError::AlreadyRejected => {
-                ApiError::new(409, "already_rejected", "Time entry has already been rejected")
-            }
+            TimeEntryError::AlreadyApproved => ApiError::new(
+                409,
+                "already_approved",
+                "Time entry has already been approved",
+            ),
+            TimeEntryError::AlreadyRejected => ApiError::new(
+                409,
+                "already_rejected",
+                "Time entry has already been rejected",
+            ),
             TimeEntryError::Database(e) => {
                 tracing::error!(error = %e, "time entry database error");
                 ApiError::internal("Database error")

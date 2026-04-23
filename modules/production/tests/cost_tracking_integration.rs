@@ -443,7 +443,10 @@ async fn summary_total_equals_sum_of_postings() {
     .await
     .expect("sum query");
 
-    assert_eq!(summary.total_cost_cents, db_sum, "summary total must equal sum of postings");
+    assert_eq!(
+        summary.total_cost_cents, db_sum,
+        "summary total must equal sum of postings"
+    );
     assert_eq!(summary.total_cost_cents, amounts.iter().sum::<i64>());
     assert_eq!(summary.labor_cost_cents, 1000);
     assert_eq!(summary.material_cost_cents, 2500);
@@ -556,13 +559,12 @@ async fn manual_post_cost_creates_row_and_updates_summary() {
     assert_eq!(summary.posting_count, 1);
 
     // Verify cost_posted event in outbox
-    let event_types: Vec<String> = sqlx::query_scalar(
-        "SELECT event_type FROM production_outbox WHERE aggregate_id = $1",
-    )
-    .bind(posting.posting_id.to_string())
-    .fetch_all(&pool)
-    .await
-    .expect("fetch events");
+    let event_types: Vec<String> =
+        sqlx::query_scalar("SELECT event_type FROM production_outbox WHERE aggregate_id = $1")
+            .bind(posting.posting_id.to_string())
+            .fetch_all(&pool)
+            .await
+            .expect("fetch events");
 
     assert!(
         event_types.iter().any(|et| et == "production.cost_posted"),
@@ -614,5 +616,8 @@ async fn tenant_isolation_cost_postings() {
     let summary_b = CostRepo::get_summary(&pool, wo_a, &tenant_b)
         .await
         .expect("get summary for B");
-    assert!(summary_b.is_none(), "Tenant B must not see tenant A summary");
+    assert!(
+        summary_b.is_none(),
+        "Tenant B must not see tenant A summary"
+    );
 }

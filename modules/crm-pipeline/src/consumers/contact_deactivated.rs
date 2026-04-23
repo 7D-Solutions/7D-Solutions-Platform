@@ -19,7 +19,9 @@ pub struct ContactDeactivatedPayload {
 }
 
 pub async fn handle_contact_deactivated(pool: &PgPool, payload: &ContactDeactivatedPayload) {
-    if let Err(e) = repo::deactivate_contact(pool, &payload.tenant_id, payload.party_contact_id).await {
+    if let Err(e) =
+        repo::deactivate_contact(pool, &payload.tenant_id, payload.party_contact_id).await
+    {
         tracing::error!(
             tenant_id = %payload.tenant_id,
             party_contact_id = %payload.party_contact_id,
@@ -28,7 +30,9 @@ pub async fn handle_contact_deactivated(pool: &PgPool, payload: &ContactDeactiva
         );
     }
 
-    if let Err(e) = repo::nullify_opp_primary_contact(pool, &payload.tenant_id, payload.party_contact_id).await {
+    if let Err(e) =
+        repo::nullify_opp_primary_contact(pool, &payload.tenant_id, payload.party_contact_id).await
+    {
         tracing::error!(
             tenant_id = %payload.tenant_id,
             party_contact_id = %payload.party_contact_id,
@@ -61,7 +65,10 @@ pub fn start_contact_deactivated_consumer(bus: Arc<dyn EventBus>, pool: PgPool) 
                     handle_contact_deactivated(&pool, &envelope.payload).await;
                 }
                 Err(e) => {
-                    tracing::warn!("CRM: failed to deserialize party.contact.deactivated payload: {}", e);
+                    tracing::warn!(
+                        "CRM: failed to deserialize party.contact.deactivated payload: {}",
+                        e
+                    );
                 }
             }
         }

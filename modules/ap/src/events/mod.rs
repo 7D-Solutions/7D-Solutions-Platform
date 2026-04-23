@@ -43,14 +43,13 @@ pub const MUTATION_CLASS_LIFECYCLE: &str = "LIFECYCLE";
 // ============================================================================
 
 pub use vendor::{
-    build_vendor_created_envelope, build_vendor_updated_envelope,
-    build_vendor_qualified_envelope, build_vendor_disqualified_envelope,
-    build_vendor_qualification_changed_envelope,
-    VendorCreatedPayload, VendorUpdatedPayload,
-    VendorQualifiedPayload, VendorDisqualifiedPayload, VendorQualificationChangedPayload,
-    EVENT_TYPE_VENDOR_CREATED, EVENT_TYPE_VENDOR_UPDATED,
-    EVENT_TYPE_VENDOR_QUALIFIED, EVENT_TYPE_VENDOR_DISQUALIFIED,
-    EVENT_TYPE_VENDOR_QUALIFICATION_CHANGED,
+    build_vendor_created_envelope, build_vendor_disqualified_envelope,
+    build_vendor_qualification_changed_envelope, build_vendor_qualified_envelope,
+    build_vendor_updated_envelope, VendorCreatedPayload, VendorDisqualifiedPayload,
+    VendorQualificationChangedPayload, VendorQualifiedPayload, VendorUpdatedPayload,
+    EVENT_TYPE_VENDOR_CREATED, EVENT_TYPE_VENDOR_DISQUALIFIED,
+    EVENT_TYPE_VENDOR_QUALIFICATION_CHANGED, EVENT_TYPE_VENDOR_QUALIFIED,
+    EVENT_TYPE_VENDOR_UPDATED,
 };
 
 pub use po::{

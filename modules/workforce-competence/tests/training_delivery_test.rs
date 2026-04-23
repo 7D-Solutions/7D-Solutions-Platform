@@ -58,7 +58,10 @@ fn unique_code() -> String {
     format!("CODE-{}", &Uuid::new_v4().to_string()[..8].to_uppercase())
 }
 
-async fn create_artifact(pool: &sqlx::PgPool, tenant_id: &str) -> workforce_competence_rs::domain::models::CompetenceArtifact {
+async fn create_artifact(
+    pool: &sqlx::PgPool,
+    tenant_id: &str,
+) -> workforce_competence_rs::domain::models::CompetenceArtifact {
     let req = RegisterArtifactRequest {
         tenant_id: tenant_id.to_string(),
         artifact_type: ArtifactType::Training,
@@ -548,10 +551,9 @@ async fn tenant_isolation_training_plans() {
     let _plan_a = create_plan(&pool, tenant_a).await;
 
     // Tenant B should see zero plans
-    let plans_b =
-        workforce_competence_rs::domain::training::list_training_plans(&pool, tenant_b)
-            .await
-            .expect("list should succeed");
+    let plans_b = workforce_competence_rs::domain::training::list_training_plans(&pool, tenant_b)
+        .await
+        .expect("list should succeed");
     assert!(
         plans_b.iter().all(|p| p.tenant_id == tenant_b),
         "tenant B must only see its own plans"
@@ -640,12 +642,10 @@ async fn terminal_status_rejects_transition() {
         correlation_id: None,
         causation_id: None,
     };
-    let err = workforce_competence_rs::domain::training::transition_assignment_status(
-        &pool,
-        &retry_req,
-    )
-    .await
-    .unwrap_err();
+    let err =
+        workforce_competence_rs::domain::training::transition_assignment_status(&pool, &retry_req)
+            .await
+            .unwrap_err();
 
     assert!(
         matches!(err, ServiceError::Guard(_)),

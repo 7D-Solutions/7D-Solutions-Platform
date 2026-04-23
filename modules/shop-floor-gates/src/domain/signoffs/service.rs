@@ -19,7 +19,10 @@ pub async fn record_signoff(
     req: RecordSignoffRequest,
 ) -> Result<Signoff, ApiError> {
     if !VALID_ENTITY_TYPES.contains(&req.entity_type.as_str()) {
-        return Err(ApiError::bad_request(format!("Invalid entity_type: {}", req.entity_type)));
+        return Err(ApiError::bad_request(format!(
+            "Invalid entity_type: {}",
+            req.entity_type
+        )));
     }
     if req.signature_text.trim().is_empty() {
         return Err(ApiError::bad_request("signature_text is required"));
@@ -40,7 +43,10 @@ pub async fn record_signoff(
         created_at: now,
     };
 
-    let mut tx = pool.begin().await.map_err(|e| ApiError::internal(e.to_string()))?;
+    let mut tx = pool
+        .begin()
+        .await
+        .map_err(|e| ApiError::internal(e.to_string()))?;
 
     sqlx::query(
         r#"INSERT INTO signoffs
@@ -85,12 +91,20 @@ pub async fn record_signoff(
     .await
     .map_err(|e| ApiError::internal(e.to_string()))?;
 
-    tx.commit().await.map_err(|e| ApiError::internal(e.to_string()))?;
+    tx.commit()
+        .await
+        .map_err(|e| ApiError::internal(e.to_string()))?;
     Ok(signoff)
 }
 
-pub async fn list_signoffs(pool: &PgPool, tenant_id: &str, q: ListSignoffsQuery) -> Result<Vec<Signoff>, ApiError> {
-    repo::list_signoffs(pool, tenant_id, &q).await.map_err(|e| ApiError::internal(e.to_string()))
+pub async fn list_signoffs(
+    pool: &PgPool,
+    tenant_id: &str,
+    q: ListSignoffsQuery,
+) -> Result<Vec<Signoff>, ApiError> {
+    repo::list_signoffs(pool, tenant_id, &q)
+        .await
+        .map_err(|e| ApiError::internal(e.to_string()))
 }
 
 pub async fn get_signoff(pool: &PgPool, id: Uuid, tenant_id: &str) -> Result<Signoff, ApiError> {

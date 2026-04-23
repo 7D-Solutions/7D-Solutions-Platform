@@ -43,18 +43,26 @@ impl From<LeadError> for platform_http_contracts::ApiError {
     fn from(err: LeadError) -> Self {
         match err {
             LeadError::NotFound(id) => Self::not_found(format!("Lead {} not found", id)),
-            LeadError::InvalidTransition(from, to) => {
-                Self::new(422, "invalid_transition", format!("Cannot move lead from '{}' to '{}'", from, to))
-            }
-            LeadError::TerminalState(s) => {
-                Self::new(422, "terminal_state", format!("Lead is in terminal state '{}'", s))
-            }
-            LeadError::ConversionRequiresParty => {
-                Self::new(422, "conversion_requires_party", "party_id must be set before converting a lead")
-            }
-            LeadError::DisqualifyRequiresReason => {
-                Self::new(422, "disqualify_requires_reason", "disqualify_reason is required")
-            }
+            LeadError::InvalidTransition(from, to) => Self::new(
+                422,
+                "invalid_transition",
+                format!("Cannot move lead from '{}' to '{}'", from, to),
+            ),
+            LeadError::TerminalState(s) => Self::new(
+                422,
+                "terminal_state",
+                format!("Lead is in terminal state '{}'", s),
+            ),
+            LeadError::ConversionRequiresParty => Self::new(
+                422,
+                "conversion_requires_party",
+                "party_id must be set before converting a lead",
+            ),
+            LeadError::DisqualifyRequiresReason => Self::new(
+                422,
+                "disqualify_requires_reason",
+                "disqualify_reason is required",
+            ),
             LeadError::Validation(msg) => Self::new(422, "validation_error", msg),
             LeadError::PartyApiError(msg) => Self::new(502, "party_api_error", msg),
             LeadError::Database(e) => {
@@ -109,7 +117,10 @@ impl LeadStatus {
     }
 
     pub fn is_terminal(&self) -> bool {
-        matches!(self, LeadStatus::Converted | LeadStatus::Disqualified | LeadStatus::Dead)
+        matches!(
+            self,
+            LeadStatus::Converted | LeadStatus::Disqualified | LeadStatus::Dead
+        )
     }
 
     /// Returns true if this status transition is valid per the state machine.

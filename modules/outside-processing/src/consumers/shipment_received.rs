@@ -51,7 +51,9 @@ pub async fn handle(
     };
 
     let req = CreateReturnEventRequest {
-        received_date: payload.received_date.unwrap_or_else(|| chrono::Local::now().date_naive()),
+        received_date: payload
+            .received_date
+            .unwrap_or_else(|| chrono::Local::now().date_naive()),
         quantity_received: payload.quantity_received.unwrap_or(0),
         unit_of_measure: None,
         condition: ReturnCondition::Good,
@@ -69,7 +71,8 @@ pub async fn handle(
 
     let mut tx = pool.begin().await?;
     repo::mark_event_processed(&mut tx, event_id, SUBJECT, PROCESSOR).await?;
-    let ret_event = repo::create_return_event_tx(&mut tx, &payload.tenant_id, order_id, &req).await?;
+    let ret_event =
+        repo::create_return_event_tx(&mut tx, &payload.tenant_id, order_id, &req).await?;
     repo::set_order_status(&mut tx, &payload.tenant_id, order_id, new_status.as_str()).await?;
 
     let env_event_id = Uuid::new_v4();
@@ -88,10 +91,17 @@ pub async fn handle(
         },
     );
     repo::enqueue_outbox(
-        &mut tx, &payload.tenant_id, env_event_id,
-        events::EVENT_RETURNED, "op_order", &order_id.to_string(),
-        &env, &event_id.to_string(), Some(&event_id.to_string()),
-    ).await?;
+        &mut tx,
+        &payload.tenant_id,
+        env_event_id,
+        events::EVENT_RETURNED,
+        "op_order",
+        &order_id.to_string(),
+        &env,
+        &event_id.to_string(),
+        Some(&event_id.to_string()),
+    )
+    .await?;
 
     tx.commit().await?;
 

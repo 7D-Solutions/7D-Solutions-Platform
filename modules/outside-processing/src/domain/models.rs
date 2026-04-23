@@ -25,9 +25,11 @@ impl From<OpError> for platform_http_contracts::ApiError {
     fn from(err: OpError) -> Self {
         match err {
             OpError::NotFound(id) => Self::not_found(format!("OP order {} not found", id)),
-            OpError::InvalidTransition { from, to } => {
-                Self::new(422, "invalid_transition", format!("Cannot transition from '{}' to '{}'", from, to))
-            }
+            OpError::InvalidTransition { from, to } => Self::new(
+                422,
+                "invalid_transition",
+                format!("Cannot transition from '{}' to '{}'", from, to),
+            ),
             OpError::Validation(msg) => Self::new(422, "validation_error", msg),
             OpError::Database(e) => {
                 tracing::error!("OP database error: {}", e);

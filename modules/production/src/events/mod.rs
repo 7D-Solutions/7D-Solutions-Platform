@@ -837,7 +837,9 @@ pub fn build_work_order_cost_finalized_envelope(
 ) -> event_bus::EventEnvelope<WorkOrderCostFinalizedPayload> {
     create_production_envelope(
         tenant_id.clone(),
-        ProductionEventType::WorkOrderCostFinalized.as_str().to_string(),
+        ProductionEventType::WorkOrderCostFinalized
+            .as_str()
+            .to_string(),
         correlation_id,
         causation_id,
         WorkOrderCostFinalizedPayload {

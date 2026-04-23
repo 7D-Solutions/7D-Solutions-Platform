@@ -91,6 +91,18 @@ pub enum AssetStatus {
     Impaired,
 }
 
+impl AssetStatus {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            AssetStatus::Draft => "draft",
+            AssetStatus::Active => "active",
+            AssetStatus::FullyDepreciated => "fully_depreciated",
+            AssetStatus::Disposed => "disposed",
+            AssetStatus::Impaired => "impaired",
+        }
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Category {
     pub accum_depreciation_ref: String,
@@ -191,6 +203,17 @@ pub enum DepreciationMethod {
     None,
 }
 
+impl DepreciationMethod {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            DepreciationMethod::StraightLine => "straight_line",
+            DepreciationMethod::DecliningBalance => "declining_balance",
+            DepreciationMethod::UnitsOfProduction => "units_of_production",
+            DepreciationMethod::None => "none",
+        }
+    }
+}
+
 /// A depreciation run: posts all unposted schedule periods up to as_of_date.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DepreciationRun {
@@ -280,6 +303,18 @@ pub enum DisposalType {
     WriteOff,
     #[serde(rename = "transfer")]
     Transfer,
+}
+
+impl DisposalType {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            DisposalType::Sale => "sale",
+            DisposalType::Scrap => "scrap",
+            DisposalType::Impairment => "impairment",
+            DisposalType::WriteOff => "write_off",
+            DisposalType::Transfer => "transfer",
+        }
+    }
 }
 
 /// Request to dispose of or impair an asset.

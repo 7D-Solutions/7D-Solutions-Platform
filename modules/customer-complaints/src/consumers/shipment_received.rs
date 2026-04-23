@@ -100,7 +100,10 @@ pub fn start_shipment_received_consumer(bus: Arc<dyn EventBus>, pool: PgPool) {
                 return;
             }
         };
-        tracing::info!(subject, "cc: subscribed to shipping_receiving.inbound_closed");
+        tracing::info!(
+            subject,
+            "cc: subscribed to shipping_receiving.inbound_closed"
+        );
 
         while let Some(msg) = stream.next().await {
             if let Err(e) = process_shipment_received_message(&pool, &msg).await {
@@ -116,9 +119,13 @@ async fn process_shipment_received_message(
     pool: &PgPool,
     msg: &BusMessage,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    let envelope: EventEnvelope<InboundClosedPayload> =
-        serde_json::from_slice(&msg.payload)
-            .map_err(|e| format!("Failed to parse shipping_receiving.inbound_closed envelope: {}", e))?;
+    let envelope: EventEnvelope<InboundClosedPayload> = serde_json::from_slice(&msg.payload)
+        .map_err(|e| {
+            format!(
+                "Failed to parse shipping_receiving.inbound_closed envelope: {}",
+                e
+            )
+        })?;
 
     tracing::info!(
         event_id = %envelope.event_id,
@@ -153,7 +160,11 @@ mod tests {
         format!("cc-sr-{}", Uuid::new_v4().simple())
     }
 
-    async fn seed_complaint_with_shipment(pool: &PgPool, tenant_id: &str, shipment_id: Uuid) -> Uuid {
+    async fn seed_complaint_with_shipment(
+        pool: &PgPool,
+        tenant_id: &str,
+        shipment_id: Uuid,
+    ) -> Uuid {
         sqlx::query_scalar(
             r#"INSERT INTO complaints
                (tenant_id, complaint_number, status, party_id, source, title, created_by,
@@ -230,8 +241,12 @@ mod tests {
         let event_id = Uuid::new_v4();
         let payload = sample_payload(shipment_id, &tid);
 
-        handle_shipment_received(&pool, event_id, &payload).await.expect("first handle failed");
-        handle_shipment_received(&pool, event_id, &payload).await.expect("second handle must not error");
+        handle_shipment_received(&pool, event_id, &payload)
+            .await
+            .expect("first handle failed");
+        handle_shipment_received(&pool, event_id, &payload)
+            .await
+            .expect("second handle must not error");
 
         let (count,): (i64,) = sqlx::query_as(
             "SELECT COUNT(*) FROM complaint_activity_log WHERE tenant_id = $1 AND activity_type = 'internal_communication'",
@@ -241,7 +256,10 @@ mod tests {
         .await
         .expect("count failed");
 
-        assert_eq!(count, 1, "Redelivery must not duplicate activity log entries");
+        assert_eq!(
+            count, 1,
+            "Redelivery must not duplicate activity log entries"
+        );
         cleanup(&pool, &tid).await;
     }
 }

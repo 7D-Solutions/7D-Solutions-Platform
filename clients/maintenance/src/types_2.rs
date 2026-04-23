@@ -8,7 +8,42 @@ use crate::*;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+/// Schedule type for maintenance plans.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub enum ScheduleType {
+    #[serde(rename = "calendar")]
+    Calendar,
+    #[serde(rename = "meter")]
+    Meter,
+    #[serde(rename = "both")]
+    Both,
+}
+
+impl ScheduleType {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            ScheduleType::Calendar => "calendar",
+            ScheduleType::Meter => "meter",
+            ScheduleType::Both => "both",
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TransitionRequest {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub closed_at: Option<chrono::DateTime<chrono::Utc>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub completed_at: Option<chrono::DateTime<chrono::Utc>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub downtime_minutes: Option<i32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub notes: Option<String>,
+    pub status: String,
+    pub tenant_id: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct UpdateAssetRequest {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub asset_type: Option<String>,
@@ -38,7 +73,7 @@ pub struct UpdateAssetRequest {
     pub status: Option<String>,
 }
 
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct UpdatePlanRequest {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub description: Option<String>,
@@ -107,6 +142,21 @@ pub enum WoStatus {
     Cancelled,
 }
 
+impl WoStatus {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            WoStatus::Draft => "draft",
+            WoStatus::AwaitingApproval => "awaiting_approval",
+            WoStatus::Scheduled => "scheduled",
+            WoStatus::InProgress => "in_progress",
+            WoStatus::OnHold => "on_hold",
+            WoStatus::Completed => "completed",
+            WoStatus::Closed => "closed",
+            WoStatus::Cancelled => "cancelled",
+        }
+    }
+}
+
 /// Work order type — classifies the nature of the maintenance work.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub enum WoType {
@@ -116,6 +166,16 @@ pub enum WoType {
     Corrective,
     #[serde(rename = "inspection")]
     Inspection,
+}
+
+impl WoType {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            WoType::Preventive => "preventive",
+            WoType::Corrective => "corrective",
+            WoType::Inspection => "inspection",
+        }
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

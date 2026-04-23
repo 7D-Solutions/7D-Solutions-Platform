@@ -36,8 +36,8 @@ pub struct DataResponse<T> {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Characteristic {
     pub characteristic_type: String,
-    #[serde(default)]
-    pub key_characteristic: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub key_characteristic: Option<bool>,
     pub name: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub nominal: Option<f64>,

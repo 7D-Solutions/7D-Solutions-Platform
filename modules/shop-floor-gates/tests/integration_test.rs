@@ -3,20 +3,18 @@
 //! Requires: 7d-shop-floor-gates-postgres running on localhost:5469
 //! Run: DATABASE_URL=postgres://sfg_user:sfg_pass@localhost:5469/sfg_db cargo test -p shop-floor-gates-rs --test integration_test
 
-use shop_floor_gates_rs::domain::holds::{
-    service as holds_service, PlaceHoldRequest, ReleaseHoldRequest,
-};
+use serial_test::serial;
 use shop_floor_gates_rs::domain::handoffs::{
     service as handoffs_service, AcceptHandoffRequest, InitiateHandoffRequest,
 };
+use shop_floor_gates_rs::domain::holds::{
+    service as holds_service, PlaceHoldRequest, ReleaseHoldRequest,
+};
+use shop_floor_gates_rs::domain::signoffs::{service as signoffs_service, RecordSignoffRequest};
 use shop_floor_gates_rs::domain::verifications::{
     service as verifications_service, CreateVerificationRequest, OperatorConfirmRequest,
     VerifyRequest,
 };
-use shop_floor_gates_rs::domain::signoffs::{
-    service as signoffs_service, RecordSignoffRequest,
-};
-use serial_test::serial;
 use sqlx::postgres::PgPoolOptions;
 use uuid::Uuid;
 
@@ -24,15 +22,19 @@ static MIGRATOR: sqlx::migrate::Migrator = sqlx::migrate!("./db/migrations");
 
 async fn setup_db() -> sqlx::PgPool {
     dotenvy::dotenv().ok();
-    let url = std::env::var("DATABASE_URL").unwrap_or_else(|_| {
-        "postgresql://sfg_user:sfg_pass@localhost:5469/sfg_db".to_string()
-    });
+    let url = std::env::var("DATABASE_URL")
+        .unwrap_or_else(|_| "postgresql://sfg_user:sfg_pass@localhost:5469/sfg_db".to_string());
     let pool = PgPoolOptions::new()
         .max_connections(10)
         .connect(&url)
         .await
-        .expect("Failed to connect to SFG test DB — is 7d-shop-floor-gates-postgres running on :5469?");
-    MIGRATOR.run(&pool).await.expect("Failed to run SFG migrations");
+        .expect(
+            "Failed to connect to SFG test DB — is 7d-shop-floor-gates-postgres running on :5469?",
+        );
+    MIGRATOR
+        .run(&pool)
+        .await
+        .expect("Failed to run SFG migrations");
     pool
 }
 
@@ -64,7 +66,11 @@ async fn place_operation_scoped_hold_without_operation_id_rejected() {
     let result = holds_service::place_hold(&pool, &t, placed_by, req).await;
     assert!(result.is_err());
     let err_str = format!("{:?}", result.unwrap_err());
-    assert!(err_str.contains("400") || err_str.to_lowercase().contains("operation_id"), "Expected 422/400, got: {}", err_str);
+    assert!(
+        err_str.contains("400") || err_str.to_lowercase().contains("operation_id"),
+        "Expected 422/400, got: {}",
+        err_str
+    );
 }
 
 // ── Hold: release authority enforcement ──────────────────────────────────────
@@ -86,7 +92,9 @@ async fn release_authority_quality_only_hold_blocked_for_non_quality_user() {
         reason: "Quality gate".to_string(),
         release_authority: Some("quality".to_string()),
     };
-    let hold = holds_service::place_hold(&pool, &t, placed_by, req).await.expect("place_hold failed");
+    let hold = holds_service::place_hold(&pool, &t, placed_by, req)
+        .await
+        .expect("place_hold failed");
 
     // Non-quality user attempts release — should be forbidden
     let result = holds_service::release_hold(
@@ -94,14 +102,20 @@ async fn release_authority_quality_only_hold_blocked_for_non_quality_user() {
         &t,
         hold.id,
         non_quality_user,
-        ReleaseHoldRequest { release_notes: None },
+        ReleaseHoldRequest {
+            release_notes: None,
+        },
         "engineering",
         false,
     )
     .await;
     assert!(result.is_err());
     let err_str = format!("{:?}", result.unwrap_err());
-    assert!(err_str.contains("403") || err_str.to_lowercase().contains("authority"), "Expected 403, got: {}", err_str);
+    assert!(
+        err_str.contains("403") || err_str.to_lowercase().contains("authority"),
+        "Expected 403, got: {}",
+        err_str
+    );
 }
 
 #[tokio::test]
@@ -120,19 +134,26 @@ async fn release_authority_quality_only_hold_allowed_for_quality_user() {
         reason: "Quality gate".to_string(),
         release_authority: Some("quality".to_string()),
     };
-    let hold = holds_service::place_hold(&pool, &t, placed_by, req).await.expect("place_hold failed");
+    let hold = holds_service::place_hold(&pool, &t, placed_by, req)
+        .await
+        .expect("place_hold failed");
 
     let result = holds_service::release_hold(
         &pool,
         &t,
         hold.id,
         quality_user,
-        ReleaseHoldRequest { release_notes: Some("Passed inspection".to_string()) },
+        ReleaseHoldRequest {
+            release_notes: Some("Passed inspection".to_string()),
+        },
         "quality",
         false,
     )
     .await;
-    assert!(result.is_ok(), "Quality user should be able to release quality hold");
+    assert!(
+        result.is_ok(),
+        "Quality user should be able to release quality hold"
+    );
     let released = result.unwrap();
     assert_eq!(released.status, "released");
     assert_eq!(released.released_by, Some(quality_user));
@@ -155,7 +176,9 @@ async fn system_actor_bypasses_release_authority() {
         reason: "Quality gate for auto-release test".to_string(),
         release_authority: Some("quality".to_string()),
     };
-    let hold = holds_service::place_hold(&pool, &t, placed_by, req).await.expect("place_hold failed");
+    let hold = holds_service::place_hold(&pool, &t, placed_by, req)
+        .await
+        .expect("place_hold failed");
 
     // System actor is not a quality person but should bypass authority check
     let system = shop_floor_gates_rs::domain::holds::service::SYSTEM_ACTOR;
@@ -164,7 +187,9 @@ async fn system_actor_bypasses_release_authority() {
         &t,
         hold.id,
         system,
-        ReleaseHoldRequest { release_notes: Some("auto-released: work_order_completed".to_string()) },
+        ReleaseHoldRequest {
+            release_notes: Some("auto-released: work_order_completed".to_string()),
+        },
         "",
         true,
     )
@@ -191,7 +216,9 @@ async fn hold_not_visible_to_other_tenant() {
         reason: "Tenant A hold".to_string(),
         release_authority: None,
     };
-    let hold = holds_service::place_hold(&pool, &t_a, placed_by, req).await.expect("place_hold failed");
+    let hold = holds_service::place_hold(&pool, &t_a, placed_by, req)
+        .await
+        .expect("place_hold failed");
 
     // Attempt to release from tenant B — should not find the hold
     let result = holds_service::release_hold(
@@ -199,14 +226,20 @@ async fn hold_not_visible_to_other_tenant() {
         &t_b,
         hold.id,
         user(),
-        ReleaseHoldRequest { release_notes: None },
+        ReleaseHoldRequest {
+            release_notes: None,
+        },
         "any_with_role",
         false,
     )
     .await;
     assert!(result.is_err());
     let err_str = format!("{:?}", result.unwrap_err());
-    assert!(err_str.contains("404") || err_str.to_lowercase().contains("not found"), "Expected 404, got: {}", err_str);
+    assert!(
+        err_str.contains("404") || err_str.to_lowercase().contains("not found"),
+        "Expected 404, got: {}",
+        err_str
+    );
 }
 
 // ── Verification: two-step invariant — operator must confirm first ────────────
@@ -225,12 +258,23 @@ async fn verify_blocked_when_operator_not_confirmed() {
         &pool,
         &t,
         operator,
-        CreateVerificationRequest { work_order_id: wo_id, operation_id: op_id, notes: None },
+        CreateVerificationRequest {
+            work_order_id: wo_id,
+            operation_id: op_id,
+            notes: None,
+        },
     )
     .await
     .expect("create_verification failed");
 
-    let result = verifications_service::verify(&pool, &t, verification.id, verifier, VerifyRequest { notes: None }).await;
+    let result = verifications_service::verify(
+        &pool,
+        &t,
+        verification.id,
+        verifier,
+        VerifyRequest { notes: None },
+    )
+    .await;
     assert!(result.is_err());
     let err_str = format!("{:?}", result.unwrap_err());
     assert!(
@@ -256,7 +300,11 @@ async fn verify_blocked_when_checkboxes_not_all_true() {
         &pool,
         &t,
         operator,
-        CreateVerificationRequest { work_order_id: wo_id, operation_id: op_id, notes: None },
+        CreateVerificationRequest {
+            work_order_id: wo_id,
+            operation_id: op_id,
+            notes: None,
+        },
     )
     .await
     .expect("create_verification failed");
@@ -267,16 +315,29 @@ async fn verify_blocked_when_checkboxes_not_all_true() {
         &t,
         verification.id,
         operator,
-        OperatorConfirmRequest { drawing_verified: false, material_verified: true, instruction_verified: true },
+        OperatorConfirmRequest {
+            drawing_verified: false,
+            material_verified: true,
+            instruction_verified: true,
+        },
     )
     .await
     .expect("operator_confirm failed");
 
-    let result = verifications_service::verify(&pool, &t, verification.id, verifier, VerifyRequest { notes: None }).await;
+    let result = verifications_service::verify(
+        &pool,
+        &t,
+        verification.id,
+        verifier,
+        VerifyRequest { notes: None },
+    )
+    .await;
     assert!(result.is_err());
     let err_str = format!("{:?}", result.unwrap_err());
     assert!(
-        err_str.contains("400") || err_str.to_lowercase().contains("checkbox") || err_str.to_lowercase().contains("verified"),
+        err_str.contains("400")
+            || err_str.to_lowercase().contains("checkbox")
+            || err_str.to_lowercase().contains("verified"),
         "Expected 400 about checkboxes, got: {}",
         err_str
     );
@@ -298,7 +359,11 @@ async fn verify_succeeds_when_operator_confirmed_all_checks_true() {
         &pool,
         &t,
         operator,
-        CreateVerificationRequest { work_order_id: wo_id, operation_id: op_id, notes: None },
+        CreateVerificationRequest {
+            work_order_id: wo_id,
+            operation_id: op_id,
+            notes: None,
+        },
     )
     .await
     .expect("create_verification failed");
@@ -308,13 +373,27 @@ async fn verify_succeeds_when_operator_confirmed_all_checks_true() {
         &t,
         verification.id,
         operator,
-        OperatorConfirmRequest { drawing_verified: true, material_verified: true, instruction_verified: true },
+        OperatorConfirmRequest {
+            drawing_verified: true,
+            material_verified: true,
+            instruction_verified: true,
+        },
     )
     .await
     .expect("operator_confirm failed");
 
-    let result = verifications_service::verify(&pool, &t, verification.id, verifier, VerifyRequest { notes: None }).await;
-    assert!(result.is_ok(), "verify should succeed when all conditions met");
+    let result = verifications_service::verify(
+        &pool,
+        &t,
+        verification.id,
+        verifier,
+        VerifyRequest { notes: None },
+    )
+    .await;
+    assert!(
+        result.is_ok(),
+        "verify should succeed when all conditions met"
+    );
     let v = result.unwrap();
     assert_eq!(v.status, "verified");
     assert_eq!(v.verifier_id, Some(verifier));
@@ -336,7 +415,11 @@ async fn verification_uniqueness_per_operation() {
         &pool,
         &t,
         operator,
-        CreateVerificationRequest { work_order_id: wo_id, operation_id: op_id, notes: None },
+        CreateVerificationRequest {
+            work_order_id: wo_id,
+            operation_id: op_id,
+            notes: None,
+        },
     )
     .await
     .expect("first create_verification failed");
@@ -345,10 +428,17 @@ async fn verification_uniqueness_per_operation() {
         &pool,
         &t,
         operator,
-        CreateVerificationRequest { work_order_id: wo_id, operation_id: op_id, notes: None },
+        CreateVerificationRequest {
+            work_order_id: wo_id,
+            operation_id: op_id,
+            notes: None,
+        },
     )
     .await;
-    assert!(result.is_err(), "Duplicate verification for same operation should be rejected");
+    assert!(
+        result.is_err(),
+        "Duplicate verification for same operation should be rejected"
+    );
 }
 
 // ── Signoff: entity_type whitelist enforced ──────────────────────────────────
@@ -376,7 +466,9 @@ async fn signoff_invalid_entity_type_rejected() {
     assert!(result.is_err());
     let err_str = format!("{:?}", result.unwrap_err());
     assert!(
-        err_str.contains("400") || err_str.to_lowercase().contains("entity_type") || err_str.to_lowercase().contains("invalid"),
+        err_str.contains("400")
+            || err_str.to_lowercase().contains("entity_type")
+            || err_str.to_lowercase().contains("invalid"),
         "Expected 400 about invalid entity_type, got: {}",
         err_str
     );
@@ -404,7 +496,10 @@ async fn signoff_valid_entity_type_accepted() {
         },
     )
     .await;
-    assert!(result.is_ok(), "Valid entity_type 'work_order' should be accepted");
+    assert!(
+        result.is_ok(),
+        "Valid entity_type 'work_order' should be accepted"
+    );
     let s = result.unwrap();
     assert_eq!(s.entity_type, "work_order");
     assert_eq!(s.signed_by, signed_by);
@@ -438,7 +533,9 @@ async fn signoff_is_append_only_no_delete_function() {
     .expect("record_signoff failed");
 
     // Signoff must still be there
-    let fetched = signoffs_service::get_signoff(&pool, s.id, &t).await.expect("get_signoff failed");
+    let fetched = signoffs_service::get_signoff(&pool, s.id, &t)
+        .await
+        .expect("get_signoff failed");
     assert_eq!(fetched.id, s.id);
 }
 
@@ -503,9 +600,7 @@ async fn active_hold_count_tracks_state() {
 
     // No holds initially (tenant is unique)
     let count_before = shop_floor_gates_rs::domain::holds::repo::count_active_holds_for_work_order(
-        &pool,
-        wo_id,
-        &t,
+        &pool, wo_id, &t,
     )
     .await
     .expect("count failed");
@@ -531,9 +626,7 @@ async fn active_hold_count_tracks_state() {
     }
 
     let count_after = shop_floor_gates_rs::domain::holds::repo::count_active_holds_for_work_order(
-        &pool,
-        wo_id,
-        &t,
+        &pool, wo_id, &t,
     )
     .await
     .expect("count failed");
@@ -597,9 +690,7 @@ async fn auto_release_holds_on_work_order_closed() {
     assert_eq!(released, 2, "Both holds should be auto-released");
 
     let count = shop_floor_gates_rs::domain::holds::repo::count_active_holds_for_work_order(
-        &pool,
-        wo_id,
-        &t,
+        &pool, wo_id, &t,
     )
     .await
     .expect("count failed");
@@ -613,5 +704,8 @@ async fn auto_release_holds_on_work_order_closed() {
 async fn migrations_are_idempotent() {
     let pool = setup_db().await;
     // Running migrations again must not error
-    MIGRATOR.run(&pool).await.expect("Migrations must be idempotent");
+    MIGRATOR
+        .run(&pool)
+        .await
+        .expect("Migrations must be idempotent");
 }

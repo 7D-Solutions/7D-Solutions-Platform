@@ -98,7 +98,10 @@ impl QualificationStatus {
 
     /// Returns true if the vendor can receive purchase orders.
     pub fn allows_po(&self) -> bool {
-        matches!(self, QualificationStatus::Qualified | QualificationStatus::Restricted)
+        matches!(
+            self,
+            QualificationStatus::Qualified | QualificationStatus::Restricted
+        )
     }
 }
 

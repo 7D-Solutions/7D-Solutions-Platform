@@ -61,6 +61,17 @@ pub enum SubscriptionInterval {
     Year,
 }
 
+impl SubscriptionInterval {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            SubscriptionInterval::Day => "day",
+            SubscriptionInterval::Week => "week",
+            SubscriptionInterval::Month => "month",
+            SubscriptionInterval::Year => "year",
+        }
+    }
+}
+
 /// Subscription status enum
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub enum SubscriptionStatus {
@@ -84,6 +95,23 @@ pub enum SubscriptionStatus {
     PendingSync,
     #[serde(rename = "canceling")]
     Canceling,
+}
+
+impl SubscriptionStatus {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            SubscriptionStatus::Incomplete => "incomplete",
+            SubscriptionStatus::IncompleteExpired => "incomplete_expired",
+            SubscriptionStatus::Trialing => "trialing",
+            SubscriptionStatus::Active => "active",
+            SubscriptionStatus::PastDue => "past_due",
+            SubscriptionStatus::Canceled => "canceled",
+            SubscriptionStatus::Unpaid => "unpaid",
+            SubscriptionStatus::Paused => "paused",
+            SubscriptionStatus::PendingSync => "pending_sync",
+            SubscriptionStatus::Canceling => "canceling",
+        }
+    }
 }
 
 /// Request body for updating a customer
@@ -170,4 +198,15 @@ pub enum WebhookStatus {
     Processed,
     #[serde(rename = "failed")]
     Failed,
+}
+
+impl WebhookStatus {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            WebhookStatus::Received => "received",
+            WebhookStatus::Processing => "processing",
+            WebhookStatus::Processed => "processed",
+            WebhookStatus::Failed => "failed",
+        }
+    }
 }

@@ -11,10 +11,10 @@ impl Config {
     pub fn from_env() -> Self {
         dotenvy::dotenv().ok();
         Self {
-            database_url: env::var("DATABASE_URL")
-                .unwrap_or_else(|_| "postgresql://cc_user:cc_pass@localhost:5468/cc_db".to_string()),
-            nats_url: env::var("NATS_URL")
-                .unwrap_or_else(|_| "nats://localhost:4222".to_string()),
+            database_url: env::var("DATABASE_URL").unwrap_or_else(|_| {
+                "postgresql://cc_user:cc_pass@localhost:5468/cc_db".to_string()
+            }),
+            nats_url: env::var("NATS_URL").unwrap_or_else(|_| "nats://localhost:4222".to_string()),
             server_port: env::var("PORT")
                 .ok()
                 .and_then(|p| p.parse().ok())

@@ -155,10 +155,22 @@ async fn mrp_single_component_no_on_hand() {
     assert_eq!(line.component_item_id, part_b);
     assert_eq!(line.level, 1);
     assert_eq!(line.revision_id, rev_a.id);
-    assert!((line.gross_quantity - 50.0).abs() < 1e-9, "gross={}", line.gross_quantity);
-    assert!((line.scrap_adjusted_quantity - 55.0).abs() < 1e-9, "scrap_adj={}", line.scrap_adjusted_quantity);
+    assert!(
+        (line.gross_quantity - 50.0).abs() < 1e-9,
+        "gross={}",
+        line.gross_quantity
+    );
+    assert!(
+        (line.scrap_adjusted_quantity - 55.0).abs() < 1e-9,
+        "scrap_adj={}",
+        line.scrap_adjusted_quantity
+    );
     assert!((line.on_hand_quantity - 0.0).abs() < 1e-9);
-    assert!((line.net_quantity - 55.0).abs() < 1e-9, "net={}", line.net_quantity);
+    assert!(
+        (line.net_quantity - 55.0).abs() < 1e-9,
+        "net={}",
+        line.net_quantity
+    );
 }
 
 // ============================================================================
@@ -195,7 +207,10 @@ async fn mrp_on_hand_exceeds_requirement_clamps_to_zero() {
             bom_id: bom_a.id,
             demand_quantity: 5.0,
             effectivity_date: now,
-            on_hand: vec![OnHandEntry { item_id: part_b, quantity: 60.0 }],
+            on_hand: vec![OnHandEntry {
+                item_id: part_b,
+                quantity: 60.0,
+            }],
             created_by: "test".to_string(),
         },
         &corr,
@@ -209,7 +224,11 @@ async fn mrp_on_hand_exceeds_requirement_clamps_to_zero() {
     assert!((line.scrap_adjusted_quantity - 55.0).abs() < 1e-9);
     assert!((line.on_hand_quantity - 60.0).abs() < 1e-9);
     // net must clamp to 0, never go negative
-    assert!((line.net_quantity - 0.0).abs() < 1e-9, "net should be 0, got {}", line.net_quantity);
+    assert!(
+        (line.net_quantity - 0.0).abs() < 1e-9,
+        "net should be 0, got {}",
+        line.net_quantity
+    );
 }
 
 // ============================================================================
@@ -269,7 +288,11 @@ async fn mrp_multi_level_bom_all_levels_present() {
     .expect("mrp multi-level explode");
 
     // Must have lines for every level
-    assert_eq!(result.lines.len(), 2, "expected 2 lines (B at level 1, C at level 2)");
+    assert_eq!(
+        result.lines.len(),
+        2,
+        "expected 2 lines (B at level 1, C at level 2)"
+    );
 
     let level1: Vec<_> = result.lines.iter().filter(|l| l.level == 1).collect();
     let level2: Vec<_> = result.lines.iter().filter(|l| l.level == 2).collect();
@@ -305,7 +328,10 @@ async fn mrp_effectivity_date_selects_correct_revision() {
     let bom = bom_service::create_bom(
         &pool,
         &tenant,
-        &CreateBomRequest { part_id: part_a, description: None },
+        &CreateBomRequest {
+            part_id: part_a,
+            description: None,
+        },
         &corr,
         None,
     )
@@ -316,7 +342,9 @@ async fn mrp_effectivity_date_selects_correct_revision() {
         &pool,
         &tenant,
         bom.id,
-        &CreateRevisionRequest { revision_label: "Rev-1".to_string() },
+        &CreateRevisionRequest {
+            revision_label: "Rev-1".to_string(),
+        },
         &corr,
         None,
     )
@@ -357,7 +385,9 @@ async fn mrp_effectivity_date_selects_correct_revision() {
         &pool,
         &tenant,
         bom.id,
-        &CreateRevisionRequest { revision_label: "Rev-2".to_string() },
+        &CreateRevisionRequest {
+            revision_label: "Rev-2".to_string(),
+        },
         &corr,
         None,
     )
@@ -411,7 +441,10 @@ async fn mrp_effectivity_date_selects_correct_revision() {
     .expect("explode before cutover");
 
     assert_eq!(before.lines.len(), 1);
-    assert_eq!(before.lines[0].component_item_id, old_comp, "expected old component before cutover");
+    assert_eq!(
+        before.lines[0].component_item_id, old_comp,
+        "expected old component before cutover"
+    );
 
     // Explode AT/AFTER cutover → should see new_comp only
     let after = mrp_engine::explode(
@@ -431,7 +464,10 @@ async fn mrp_effectivity_date_selects_correct_revision() {
     .expect("explode after cutover");
 
     assert_eq!(after.lines.len(), 1);
-    assert_eq!(after.lines[0].component_item_id, new_comp, "expected new component after cutover");
+    assert_eq!(
+        after.lines[0].component_item_id, new_comp,
+        "expected new component after cutover"
+    );
 }
 
 // ============================================================================
@@ -461,7 +497,10 @@ async fn mrp_snapshot_persisted_with_on_hand_jsonb() {
     )
     .await;
 
-    let on_hand_input = vec![OnHandEntry { item_id: part_b, quantity: 5.0 }];
+    let on_hand_input = vec![OnHandEntry {
+        item_id: part_b,
+        quantity: 5.0,
+    }];
 
     let result = mrp_engine::explode(
         &pool,
@@ -485,7 +524,9 @@ async fn mrp_snapshot_persisted_with_on_hand_jsonb() {
         .expect("get_snapshot");
 
     let snapshot_json = &fetched.snapshot.on_hand_snapshot;
-    let arr = snapshot_json.as_array().expect("on_hand_snapshot must be a JSON array");
+    let arr = snapshot_json
+        .as_array()
+        .expect("on_hand_snapshot must be a JSON array");
     assert_eq!(arr.len(), 1);
     let entry = &arr[0];
     assert_eq!(entry["item_id"].as_str().unwrap(), part_b.to_string());
@@ -528,7 +569,10 @@ async fn mrp_event_written_to_outbox_with_correct_counts() {
             bom_id: bom_a.id,
             demand_quantity: 10.0,
             effectivity_date: now,
-            on_hand: vec![OnHandEntry { item_id: part_b, quantity: 100.0 }],
+            on_hand: vec![OnHandEntry {
+                item_id: part_b,
+                quantity: 100.0,
+            }],
             created_by: "test".to_string(),
         },
         &corr,
@@ -617,13 +661,20 @@ async fn mrp_tenant_isolation() {
 
     // Tenant B cannot see tenant A's snapshot
     let not_found = mrp_engine::get_snapshot(&pool, &tenant_b, snapshot_id).await;
-    assert!(not_found.is_err(), "tenant B should not see tenant A snapshot");
+    assert!(
+        not_found.is_err(),
+        "tenant B should not see tenant A snapshot"
+    );
 
     // Tenant B list returns empty
     let b_list = mrp_engine::list_snapshots(
         &pool,
         &tenant_b,
-        &MrpSnapshotListQuery { bom_id: None, page: 1, page_size: 50 },
+        &MrpSnapshotListQuery {
+            bom_id: None,
+            page: 1,
+            page_size: 50,
+        },
     )
     .await
     .expect("list as tenant_b");
@@ -661,7 +712,10 @@ async fn mrp_deterministic_same_inputs_identical_output() {
         bom_id: bom_a.id,
         demand_quantity: 7.0,
         effectivity_date: now,
-        on_hand: vec![OnHandEntry { item_id: part_b, quantity: 3.0 }],
+        on_hand: vec![OnHandEntry {
+            item_id: part_b,
+            quantity: 3.0,
+        }],
         created_by: "test".to_string(),
     };
 

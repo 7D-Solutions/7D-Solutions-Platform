@@ -124,11 +124,9 @@ async fn build_test_app(prefix: &str, verifier: Arc<JwtVerifier>) -> (SocketAddr
     let app = Router::new()
         .route(
             "/api/things",
-            get(
-                |Extension(claims): Extension<VerifiedClaims>| async move {
-                    Json(serde_json::json!({"user_id": claims.user_id, "ok": true}))
-                },
-            ),
+            get(|Extension(claims): Extension<VerifiedClaims>| async move {
+                Json(serde_json::json!({"user_id": claims.user_id, "ok": true}))
+            }),
         )
         .nest("/api/auth", auth_router)
         .layer(cookie_mw);
@@ -194,7 +192,11 @@ async fn login_sets_httponly_cookies_with_correct_attributes() {
         .filter_map(|v| v.to_str().ok().map(String::from))
         .collect();
 
-    assert_eq!(cookies.len(), 2, "expected 2 Set-Cookie headers, got: {cookies:?}");
+    assert_eq!(
+        cookies.len(),
+        2,
+        "expected 2 Set-Cookie headers, got: {cookies:?}"
+    );
 
     let has_session = cookies.iter().any(|c| c.starts_with("tst_session="));
     let has_refresh = cookies.iter().any(|c| c.starts_with("tst_refresh="));
@@ -204,18 +206,30 @@ async fn login_sets_httponly_cookies_with_correct_attributes() {
     for cookie in &cookies {
         let lc = cookie.to_lowercase();
         assert!(lc.contains("httponly"), "HttpOnly missing: {cookie}");
-        assert!(lc.contains("samesite=lax"), "SameSite=Lax missing: {cookie}");
+        assert!(
+            lc.contains("samesite=lax"),
+            "SameSite=Lax missing: {cookie}"
+        );
         assert!(lc.contains("max-age="), "Max-Age missing: {cookie}");
-        assert!(!lc.contains("; secure"), "Secure must be absent in dev: {cookie}");
+        assert!(
+            !lc.contains("; secure"),
+            "Secure must be absent in dev: {cookie}"
+        );
     }
 
-    let session = cookies.iter().find(|c| c.starts_with("tst_session=")).unwrap();
+    let session = cookies
+        .iter()
+        .find(|c| c.starts_with("tst_session="))
+        .unwrap();
     assert!(
         session.to_lowercase().contains("path=/;") || session.to_lowercase().contains("path=/,"),
         "access cookie must have Path=/: {session}"
     );
 
-    let refresh = cookies.iter().find(|c| c.starts_with("tst_refresh=")).unwrap();
+    let refresh = cookies
+        .iter()
+        .find(|c| c.starts_with("tst_refresh="))
+        .unwrap();
     assert!(
         refresh.to_lowercase().contains("path=/api/auth"),
         "refresh cookie must have Path=/api/auth: {refresh}"
@@ -242,7 +256,12 @@ async fn secure_flag_absent_when_app_env_unset() {
         .await
         .expect("login");
 
-    assert_eq!(resp.status(), 200, "login failed: {}", resp.text().await.unwrap_or_default());
+    assert_eq!(
+        resp.status(),
+        200,
+        "login failed: {}",
+        resp.text().await.unwrap_or_default()
+    );
 
     let cookies: Vec<String> = resp
         .headers()
@@ -299,7 +318,12 @@ async fn force_secure_overrides_app_env() {
         .await
         .expect("login");
 
-    assert_eq!(resp.status(), 200, "login failed: {}", resp.text().await.unwrap_or_default());
+    assert_eq!(
+        resp.status(),
+        200,
+        "login failed: {}",
+        resp.text().await.unwrap_or_default()
+    );
 
     let cookies: Vec<String> = resp
         .headers()
@@ -334,7 +358,12 @@ async fn me_returns_claims_with_valid_access_cookie() {
         .send()
         .await
         .expect("login");
-    assert_eq!(login_resp.status(), 200, "login failed: {}", login_resp.text().await.unwrap_or_default());
+    assert_eq!(
+        login_resp.status(),
+        200,
+        "login failed: {}",
+        login_resp.text().await.unwrap_or_default()
+    );
 
     let me_resp = client
         .get(format!("{}/api/auth/me", base(addr)))
@@ -342,10 +371,17 @@ async fn me_returns_claims_with_valid_access_cookie() {
         .await
         .expect("me request");
 
-    assert_eq!(me_resp.status(), 200, "me should return 200 with valid cookie");
+    assert_eq!(
+        me_resp.status(),
+        200,
+        "me should return 200 with valid cookie"
+    );
 
     let body: serde_json::Value = me_resp.json().await.expect("me body");
-    assert!(!body["user_id"].is_null(), "user_id missing from /me response");
+    assert!(
+        !body["user_id"].is_null(),
+        "user_id missing from /me response"
+    );
     assert_eq!(
         body["tenant_id"].as_str().unwrap_or(""),
         tenant_id.to_string(),
@@ -389,7 +425,12 @@ async fn cookie_middleware_attaches_claims_to_downstream_route() {
         .send()
         .await
         .expect("login");
-    assert_eq!(login_resp.status(), 200, "login failed: {}", login_resp.text().await.unwrap_or_default());
+    assert_eq!(
+        login_resp.status(),
+        200,
+        "login failed: {}",
+        login_resp.text().await.unwrap_or_default()
+    );
 
     // /api/things extracts Extension<VerifiedClaims>; returns 500 if middleware didn't attach claims
     let resp = client
@@ -452,7 +493,12 @@ async fn refresh_rotates_both_cookies() {
         .send()
         .await
         .expect("login");
-    assert_eq!(login_resp.status(), 200, "login failed: {}", login_resp.text().await.unwrap_or_default());
+    assert_eq!(
+        login_resp.status(),
+        200,
+        "login failed: {}",
+        login_resp.text().await.unwrap_or_default()
+    );
 
     // Capture /me tenant before refresh to confirm stability
     let me_before: serde_json::Value = client
@@ -536,7 +582,12 @@ async fn logout_clears_cookies_and_session_is_gone() {
         .send()
         .await
         .expect("login");
-    assert_eq!(login_resp.status(), 200, "login failed: {}", login_resp.text().await.unwrap_or_default());
+    assert_eq!(
+        login_resp.status(),
+        200,
+        "login failed: {}",
+        login_resp.text().await.unwrap_or_default()
+    );
 
     // Verify /me works pre-logout
     let me_before = client
@@ -562,7 +613,11 @@ async fn logout_clears_cookies_and_session_is_gone() {
         .collect();
 
     // Both cookies must be cleared (Max-Age=0)
-    assert_eq!(cookies.len(), 2, "logout must set 2 Set-Cookie headers: {cookies:?}");
+    assert_eq!(
+        cookies.len(),
+        2,
+        "logout must set 2 Set-Cookie headers: {cookies:?}"
+    );
     for cookie in &cookies {
         assert!(
             cookie.to_lowercase().contains("max-age=0"),

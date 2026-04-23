@@ -124,7 +124,8 @@ mod tests {
             "status": "online",
             "last_seen_at": "2026-01-15T12:00:00Z"
         });
-        let status: TerminalReaderConnectionStatus = serde_json::from_value(value).expect("test fixture");
+        let status: TerminalReaderConnectionStatus =
+            serde_json::from_value(value).expect("test fixture");
         assert_eq!(status.connected, Some(true));
         assert_eq!(status.status.as_deref(), Some("online"));
     }

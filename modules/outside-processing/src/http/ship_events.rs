@@ -34,7 +34,10 @@ pub async fn create_ship_event(
 
     let mut tx = match state.pool.begin().await {
         Ok(t) => t,
-        Err(e) => return with_request_id(ApiError::from(OpError::Database(e)), &tracing_ctx).into_response(),
+        Err(e) => {
+            return with_request_id(ApiError::from(OpError::Database(e)), &tracing_ctx)
+                .into_response()
+        }
     };
 
     // Row-lock order and check quantity bounds
@@ -54,11 +57,17 @@ pub async fn create_ship_event(
     let new_total = sum_shipped + req.quantity_shipped as i64;
     if new_total > order.quantity_sent as i64 {
         return with_request_id(
-            ApiError::new(422, "quantity_exceeded",
-                format!("Ship quantity {} would exceed quantity_sent {} (already shipped: {})",
-                    req.quantity_shipped, order.quantity_sent, sum_shipped)),
+            ApiError::new(
+                422,
+                "quantity_exceeded",
+                format!(
+                    "Ship quantity {} would exceed quantity_sent {} (already shipped: {})",
+                    req.quantity_shipped, order.quantity_sent, sum_shipped
+                ),
+            ),
             &tracing_ctx,
-        ).into_response();
+        )
+        .into_response();
     }
 
     let ship_event = match repo::create_ship_event_tx(&mut tx, &tenant_id, order_id, &req).await {
@@ -67,14 +76,18 @@ pub async fn create_ship_event(
     };
 
     // Advance order status
-    if let Err(e) = repo::set_order_status(&mut tx, &tenant_id, order_id, new_status.as_str()).await {
+    if let Err(e) = repo::set_order_status(&mut tx, &tenant_id, order_id, new_status.as_str()).await
+    {
         return with_request_id(ApiError::from(e), &tracing_ctx).into_response();
     }
 
     // Emit shipment_requested event
     let req_event_id = Uuid::new_v4();
     let req_env = events::build_shipment_requested_envelope(
-        req_event_id, tenant_id.clone(), correlation_id.clone(), None,
+        req_event_id,
+        tenant_id.clone(),
+        correlation_id.clone(),
+        None,
         ShipmentRequestedPayload {
             op_order_id: order_id,
             ship_event_id: ship_event.id,
@@ -86,15 +99,25 @@ pub async fn create_ship_event(
         },
     );
     let _ = repo::enqueue_outbox(
-        &mut tx, &tenant_id, req_event_id,
-        events::EVENT_SHIPMENT_REQUESTED, "op_order", &order_id.to_string(),
-        &req_env, &correlation_id, None,
-    ).await;
+        &mut tx,
+        &tenant_id,
+        req_event_id,
+        events::EVENT_SHIPMENT_REQUESTED,
+        "op_order",
+        &order_id.to_string(),
+        &req_env,
+        &correlation_id,
+        None,
+    )
+    .await;
 
     // Emit shipped event
     let shipped_event_id = Uuid::new_v4();
     let shipped_env = events::build_shipped_envelope(
-        shipped_event_id, tenant_id.clone(), correlation_id.clone(), None,
+        shipped_event_id,
+        tenant_id.clone(),
+        correlation_id.clone(),
+        None,
         ShippedPayload {
             op_order_id: order_id,
             ship_event_id: ship_event.id,
@@ -104,10 +127,17 @@ pub async fn create_ship_event(
         },
     );
     let _ = repo::enqueue_outbox(
-        &mut tx, &tenant_id, shipped_event_id,
-        events::EVENT_SHIPPED, "op_order", &order_id.to_string(),
-        &shipped_env, &correlation_id, None,
-    ).await;
+        &mut tx,
+        &tenant_id,
+        shipped_event_id,
+        events::EVENT_SHIPPED,
+        "op_order",
+        &order_id.to_string(),
+        &shipped_env,
+        &correlation_id,
+        None,
+    )
+    .await;
 
     if let Err(e) = tx.commit().await {
         return with_request_id(ApiError::from(OpError::Database(e)), &tracing_ctx).into_response();

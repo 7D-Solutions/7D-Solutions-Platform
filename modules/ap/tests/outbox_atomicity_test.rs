@@ -67,7 +67,9 @@ async fn make_vendor(pool: &PgPool, tid: &str) -> Uuid {
     .vendor_id;
 
     change_qualification(
-        pool, tid, vendor_id,
+        pool,
+        tid,
+        vendor_id,
         &ChangeQualificationRequest {
             status: QualificationStatus::Qualified,
             notes: None,

@@ -42,7 +42,10 @@ async fn create_single_level_bom(
     let bom = bom_service::create_bom(
         pool,
         tenant,
-        &CreateBomRequest { part_id, description: None },
+        &CreateBomRequest {
+            part_id,
+            description: None,
+        },
         corr,
         None,
     )
@@ -53,7 +56,9 @@ async fn create_single_level_bom(
         pool,
         tenant,
         bom.id,
-        &CreateRevisionRequest { revision_label: "Rev-1".to_string() },
+        &CreateRevisionRequest {
+            revision_label: "Rev-1".to_string(),
+        },
         corr,
         None,
     )
@@ -190,13 +195,8 @@ async fn kit_readiness_one_short_returns_partial() {
     let comp_a = Uuid::new_v4();
     let comp_b = Uuid::new_v4();
 
-    let bom = create_single_level_bom(
-        &pool,
-        &tenant,
-        &corr,
-        &[(comp_a, 10.0), (comp_b, 5.0)],
-    )
-    .await;
+    let bom =
+        create_single_level_bom(&pool, &tenant, &corr, &[(comp_a, 10.0), (comp_b, 5.0)]).await;
 
     // comp_a: available=20 (enough for 10 required), comp_b: available=3 (short of 5)
     seed_on_hand(&pool, &tenant, comp_a, 20, 0, 0).await;
@@ -222,8 +222,16 @@ async fn kit_readiness_one_short_returns_partial() {
 
     assert_eq!(result.snapshot.overall_status, "partial");
 
-    let ready: Vec<_> = result.lines.iter().filter(|l| l.status == "ready").collect();
-    let short: Vec<_> = result.lines.iter().filter(|l| l.status == "short").collect();
+    let ready: Vec<_> = result
+        .lines
+        .iter()
+        .filter(|l| l.status == "ready")
+        .collect();
+    let short: Vec<_> = result
+        .lines
+        .iter()
+        .filter(|l| l.status == "short")
+        .collect();
     assert_eq!(ready.len(), 1, "one ready");
     assert_eq!(short.len(), 1, "one short");
     assert_eq!(short[0].component_item_id, comp_b);
@@ -423,5 +431,8 @@ async fn kit_readiness_does_not_modify_on_hand_records() {
     .await
     .expect("on_hand after");
 
-    assert_eq!(before, after, "on_hand_qty must not change after a readiness check");
+    assert_eq!(
+        before, after,
+        "on_hand_qty must not change after a readiness check"
+    );
 }

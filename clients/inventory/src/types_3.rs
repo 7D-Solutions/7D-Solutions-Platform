@@ -98,28 +98,45 @@ pub struct TaskLine {
     pub line_id: uuid::Uuid,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub enum TaskScope {
-    #[default]
     #[serde(rename = "full")]
     Full,
     #[serde(rename = "partial")]
     Partial,
 }
 
+impl TaskScope {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            TaskScope::Full => "full",
+            TaskScope::Partial => "partial",
+        }
+    }
+}
+
 /// How stock movements are tracked for this SKU.
 ///
 /// Set at item creation; immutable thereafter (changing tracking_mode after
 /// stock exists would invalidate historical layer associations).
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub enum TrackingMode {
-    #[default]
     #[serde(rename = "none")]
     None,
     #[serde(rename = "lot")]
     Lot,
     #[serde(rename = "serial")]
     Serial,
+}
+
+impl TrackingMode {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            TrackingMode::None => "none",
+            TrackingMode::Lot => "lot",
+            TrackingMode::Serial => "serial",
+        }
+    }
 }
 
 /// Input for POST /api/inventory/transfers

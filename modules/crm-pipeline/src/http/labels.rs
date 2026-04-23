@@ -1,10 +1,6 @@
 //! HTTP handlers for label tables — 4 list endpoints per spec §4.6.
 
-use axum::{
-    extract::State,
-    response::IntoResponse,
-    Extension, Json,
-};
+use axum::{extract::State, response::IntoResponse, Extension, Json};
 use event_bus::TracingContext;
 use platform_http_contracts::ApiError;
 use security::VerifiedClaims;

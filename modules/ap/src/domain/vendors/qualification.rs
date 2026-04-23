@@ -9,15 +9,16 @@ use sqlx::PgPool;
 use uuid::Uuid;
 
 use crate::events::{
-    build_vendor_qualified_envelope, build_vendor_disqualified_envelope,
-    build_vendor_qualification_changed_envelope,
-    VendorQualifiedPayload, VendorDisqualifiedPayload, VendorQualificationChangedPayload,
-    EVENT_TYPE_VENDOR_QUALIFIED, EVENT_TYPE_VENDOR_DISQUALIFIED,
-    EVENT_TYPE_VENDOR_QUALIFICATION_CHANGED,
+    build_vendor_disqualified_envelope, build_vendor_qualification_changed_envelope,
+    build_vendor_qualified_envelope, VendorDisqualifiedPayload, VendorQualificationChangedPayload,
+    VendorQualifiedPayload, EVENT_TYPE_VENDOR_DISQUALIFIED,
+    EVENT_TYPE_VENDOR_QUALIFICATION_CHANGED, EVENT_TYPE_VENDOR_QUALIFIED,
 };
 use crate::outbox::enqueue_event_tx;
 
-use super::{ChangeQualificationRequest, QualificationStatus, Vendor, VendorError, VendorQualificationEvent};
+use super::{
+    ChangeQualificationRequest, QualificationStatus, Vendor, VendorError, VendorQualificationEvent,
+};
 
 // ============================================================================
 // Reads
@@ -149,9 +150,21 @@ pub async fn change_qualification(
                 qualified_at: now,
             };
             let envelope = build_vendor_qualified_envelope(
-                event_id, tenant_id.to_string(), correlation_id, None, payload,
+                event_id,
+                tenant_id.to_string(),
+                correlation_id,
+                None,
+                payload,
             );
-            enqueue_event_tx(&mut tx, event_id, EVENT_TYPE_VENDOR_QUALIFIED, "vendor", &vendor_id.to_string(), &envelope).await?;
+            enqueue_event_tx(
+                &mut tx,
+                event_id,
+                EVENT_TYPE_VENDOR_QUALIFIED,
+                "vendor",
+                &vendor_id.to_string(),
+                &envelope,
+            )
+            .await?;
         }
         QualificationStatus::Disqualified => {
             let payload = VendorDisqualifiedPayload {
@@ -163,9 +176,21 @@ pub async fn change_qualification(
                 disqualified_at: now,
             };
             let envelope = build_vendor_disqualified_envelope(
-                event_id, tenant_id.to_string(), correlation_id, None, payload,
+                event_id,
+                tenant_id.to_string(),
+                correlation_id,
+                None,
+                payload,
             );
-            enqueue_event_tx(&mut tx, event_id, EVENT_TYPE_VENDOR_DISQUALIFIED, "vendor", &vendor_id.to_string(), &envelope).await?;
+            enqueue_event_tx(
+                &mut tx,
+                event_id,
+                EVENT_TYPE_VENDOR_DISQUALIFIED,
+                "vendor",
+                &vendor_id.to_string(),
+                &envelope,
+            )
+            .await?;
         }
         _ => {
             let payload = VendorQualificationChangedPayload {
@@ -178,9 +203,21 @@ pub async fn change_qualification(
                 changed_at: now,
             };
             let envelope = build_vendor_qualification_changed_envelope(
-                event_id, tenant_id.to_string(), correlation_id, None, payload,
+                event_id,
+                tenant_id.to_string(),
+                correlation_id,
+                None,
+                payload,
             );
-            enqueue_event_tx(&mut tx, event_id, EVENT_TYPE_VENDOR_QUALIFICATION_CHANGED, "vendor", &vendor_id.to_string(), &envelope).await?;
+            enqueue_event_tx(
+                &mut tx,
+                event_id,
+                EVENT_TYPE_VENDOR_QUALIFICATION_CHANGED,
+                "vendor",
+                &vendor_id.to_string(),
+                &envelope,
+            )
+            .await?;
         }
     }
 

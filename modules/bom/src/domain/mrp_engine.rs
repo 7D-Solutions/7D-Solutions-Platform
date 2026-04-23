@@ -26,14 +26,13 @@ pub async fn explode(
     }
 
     // Fetch the root assembly's part_id to seed the cascaded-quantity map
-    let root_part_id: Uuid = sqlx::query_scalar(
-        "SELECT part_id FROM bom_headers WHERE id = $1 AND tenant_id = $2",
-    )
-    .bind(req.bom_id)
-    .bind(tenant_id)
-    .fetch_optional(pool)
-    .await?
-    .ok_or_else(|| GuardError::NotFound(format!("BOM {} not found", req.bom_id)))?;
+    let root_part_id: Uuid =
+        sqlx::query_scalar("SELECT part_id FROM bom_headers WHERE id = $1 AND tenant_id = $2")
+            .bind(req.bom_id)
+            .bind(tenant_id)
+            .fetch_optional(pool)
+            .await?
+            .ok_or_else(|| GuardError::NotFound(format!("BOM {} not found", req.bom_id)))?;
 
     // Run the existing multi-level BOM explosion filtered by effectivity_date
     let explosion_query = ExplosionQuery {
@@ -44,7 +43,11 @@ pub async fn explode(
         bom_queries::explode(pool, tenant_id, req.bom_id, &explosion_query).await?;
 
     // Build on-hand lookup (caller-supplied, deterministic)
-    let on_hand_map: HashMap<Uuid, f64> = req.on_hand.iter().map(|e| (e.item_id, e.quantity)).collect();
+    let on_hand_map: HashMap<Uuid, f64> = req
+        .on_hand
+        .iter()
+        .map(|e| (e.item_id, e.quantity))
+        .collect();
 
     // Cascaded effective demand: tracks the scrap-adjusted quantity needed for each
     // assembly as we walk the tree top-down. Children use their parent's value.
@@ -63,7 +66,10 @@ pub async fn explode(
 
         let gross_quantity = parent_demand * row.quantity;
         let scrap_adjusted_quantity = gross_quantity * (1.0 + row.scrap_factor);
-        let on_hand_quantity = on_hand_map.get(&row.component_item_id).copied().unwrap_or(0.0);
+        let on_hand_quantity = on_hand_map
+            .get(&row.component_item_id)
+            .copied()
+            .unwrap_or(0.0);
         let net_quantity = (scrap_adjusted_quantity - on_hand_quantity).max(0.0);
 
         if net_quantity > 0.0 {
@@ -181,14 +187,15 @@ pub async fn get_snapshot(
     tenant_id: &str,
     snapshot_id: Uuid,
 ) -> Result<MrpSnapshotWithLines, BomError> {
-    let snapshot: MrpSnapshot = sqlx::query_as(
-        "SELECT * FROM mrp_snapshots WHERE id = $1 AND tenant_id = $2",
-    )
-    .bind(snapshot_id)
-    .bind(tenant_id)
-    .fetch_optional(pool)
-    .await?
-    .ok_or_else(|| GuardError::NotFound(format!("MRP snapshot {} not found", snapshot_id)))?;
+    let snapshot: MrpSnapshot =
+        sqlx::query_as("SELECT * FROM mrp_snapshots WHERE id = $1 AND tenant_id = $2")
+            .bind(snapshot_id)
+            .bind(tenant_id)
+            .fetch_optional(pool)
+            .await?
+            .ok_or_else(|| {
+                GuardError::NotFound(format!("MRP snapshot {} not found", snapshot_id))
+            })?;
 
     let lines: Vec<MrpRequirementLine> = sqlx::query_as(
         "SELECT * FROM mrp_requirement_lines WHERE snapshot_id = $1 ORDER BY level, id",
@@ -214,12 +221,10 @@ pub async fn list_snapshots(
         .fetch_all(pool)
         .await?
     } else {
-        sqlx::query_as(
-            "SELECT * FROM mrp_snapshots WHERE tenant_id = $1 ORDER BY created_at DESC",
-        )
-        .bind(tenant_id)
-        .fetch_all(pool)
-        .await?
+        sqlx::query_as("SELECT * FROM mrp_snapshots WHERE tenant_id = $1 ORDER BY created_at DESC")
+            .bind(tenant_id)
+            .fetch_all(pool)
+            .await?
     };
     Ok(snapshots)
 }

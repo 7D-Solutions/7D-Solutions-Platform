@@ -8,20 +8,19 @@ use chrono::{NaiveDate, Utc};
 use jsonschema::JSONSchema;
 use sales_orders_rs::events::{
     blankets::{
-        BlanketActivatedPayload, BlanketCancelledPayload, BlanketExpiredPayload,
-        ReleaseCreatedPayload, build_blanket_activated_envelope, build_blanket_cancelled_envelope,
-        build_blanket_expired_envelope, build_release_created_envelope,
+        build_blanket_activated_envelope, build_blanket_cancelled_envelope,
+        build_blanket_expired_envelope, build_release_created_envelope, BlanketActivatedPayload,
+        BlanketCancelledPayload, BlanketExpiredPayload, ReleaseCreatedPayload,
     },
     cross_module::{
-        InvoiceRequestedPayload, ReservationRequestedPayload, ShipmentRequestedPayload,
         build_invoice_requested_envelope, build_reservation_requested_envelope,
-        build_shipment_requested_envelope,
+        build_shipment_requested_envelope, InvoiceRequestedPayload, ReservationRequestedPayload,
+        ShipmentRequestedPayload,
     },
     orders::{
-        BookedLine, OrderBookedPayload, OrderCancelledPayload, OrderClosedPayload,
-        OrderCreatedPayload, OrderShippedPayload, build_order_booked_envelope,
-        build_order_cancelled_envelope, build_order_closed_envelope, build_order_created_envelope,
-        build_order_shipped_envelope,
+        build_order_booked_envelope, build_order_cancelled_envelope, build_order_closed_envelope,
+        build_order_created_envelope, build_order_shipped_envelope, BookedLine, OrderBookedPayload,
+        OrderCancelledPayload, OrderClosedPayload, OrderCreatedPayload, OrderShippedPayload,
     },
 };
 use serde::Serialize;
@@ -53,7 +52,9 @@ fn assert_valid<T: Serialize>(schema: &JSONSchema, envelope: &T, label: &str) {
         .unwrap_or_else(|e| panic!("Serialization failed for {}: {}", label, e));
     let msgs: Vec<String> = match schema.validate(&value) {
         Ok(()) => vec![],
-        Err(errors) => errors.map(|e| format!("  [{}] {}", e.instance_path, e)).collect(),
+        Err(errors) => errors
+            .map(|e| format!("  [{}] {}", e.instance_path, e))
+            .collect(),
     };
     if !msgs.is_empty() {
         panic!("{} failed schema validation:\n{}", label, msgs.join("\n"));
@@ -267,8 +268,7 @@ fn reservation_requested_validates_against_contract() {
         required_date: Some(NaiveDate::from_ymd_opt(2024, 7, 15).unwrap()),
         tenant_id: tenant(),
     };
-    let env =
-        build_reservation_requested_envelope(Uuid::new_v4(), tenant(), corr(), None, payload);
+    let env = build_reservation_requested_envelope(Uuid::new_v4(), tenant(), corr(), None, payload);
     assert_valid(&schema, &env, "reservation_requested");
 }
 
@@ -283,8 +283,7 @@ fn reservation_requested_null_date_validates_against_contract() {
         required_date: None,
         tenant_id: tenant(),
     };
-    let env =
-        build_reservation_requested_envelope(Uuid::new_v4(), tenant(), corr(), None, payload);
+    let env = build_reservation_requested_envelope(Uuid::new_v4(), tenant(), corr(), None, payload);
     assert_valid(&schema, &env, "reservation_requested (null date)");
 }
 

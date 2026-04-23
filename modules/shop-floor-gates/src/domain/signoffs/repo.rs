@@ -25,7 +25,11 @@ pub async fn insert_signoff(pool: &PgPool, s: &Signoff) -> Result<(), sqlx::Erro
     Ok(())
 }
 
-pub async fn fetch_signoff(pool: &PgPool, id: Uuid, tenant_id: &str) -> Result<Option<Signoff>, sqlx::Error> {
+pub async fn fetch_signoff(
+    pool: &PgPool,
+    id: Uuid,
+    tenant_id: &str,
+) -> Result<Option<Signoff>, sqlx::Error> {
     let sql = "SELECT * FROM signoffs WHERE id = $1 AND tenant_id = $2";
     sqlx::query_as::<_, Signoff>(sql)
         .bind(id)
@@ -34,7 +38,11 @@ pub async fn fetch_signoff(pool: &PgPool, id: Uuid, tenant_id: &str) -> Result<O
         .await
 }
 
-pub async fn list_signoffs(pool: &PgPool, tenant_id: &str, q: &ListSignoffsQuery) -> Result<Vec<Signoff>, sqlx::Error> {
+pub async fn list_signoffs(
+    pool: &PgPool,
+    tenant_id: &str,
+    q: &ListSignoffsQuery,
+) -> Result<Vec<Signoff>, sqlx::Error> {
     let limit = q.limit.unwrap_or(50).min(200);
     let offset = q.offset.unwrap_or(0);
     let sql = r#"SELECT * FROM signoffs

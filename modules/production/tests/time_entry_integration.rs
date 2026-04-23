@@ -585,7 +585,10 @@ async fn approve_running_entry_rejected() {
     let entries = TimeEntryRepo::list_by_work_order(&pool, wo_id, &tenant)
         .await
         .expect("list");
-    let e = entries.iter().find(|e| e.time_entry_id == entry.time_entry_id).unwrap();
+    let e = entries
+        .iter()
+        .find(|e| e.time_entry_id == entry.time_entry_id)
+        .unwrap();
     assert_eq!(e.status, TimeEntryStatus::Pending);
 }
 
@@ -781,7 +784,10 @@ async fn reject_entry_stores_reason_no_event() {
 
     assert_eq!(rejected.status, TimeEntryStatus::Rejected);
     assert_eq!(rejected.rejected_by.as_deref(), Some("supervisor-4"));
-    assert_eq!(rejected.rejected_reason.as_deref(), Some("Incorrect work order"));
+    assert_eq!(
+        rejected.rejected_reason.as_deref(),
+        Some("Incorrect work order")
+    );
 
     // Verify no approval event was emitted
     let approval_events = sqlx::query_as::<_, (i64,)>(
@@ -792,7 +798,10 @@ async fn reject_entry_stores_reason_no_event() {
     .await
     .expect("count");
 
-    assert_eq!(approval_events.0, 0, "No approval event should be emitted on rejection");
+    assert_eq!(
+        approval_events.0, 0,
+        "No approval event should be emitted on rejection"
+    );
 }
 
 // ============================================================================

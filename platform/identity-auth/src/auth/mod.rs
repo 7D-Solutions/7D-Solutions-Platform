@@ -1,5 +1,6 @@
 pub mod authz;
 pub mod concurrency;
+pub mod cookies;
 pub mod handlers;
 pub mod handlers_password_reset;
 pub mod jwt;
@@ -7,7 +8,6 @@ pub mod password;
 pub mod password_policy;
 pub mod password_reset_repo;
 pub mod password_reset_tokens;
-pub mod cookies;
 pub mod refresh;
 pub mod refresh_sessions;
 pub mod session;

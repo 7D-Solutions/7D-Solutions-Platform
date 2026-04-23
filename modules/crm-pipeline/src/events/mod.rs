@@ -14,10 +14,9 @@ pub const MUTATION_CLASS_DATA_MUTATION: &str = "DATA_MUTATION";
 pub const MUTATION_CLASS_LIFECYCLE: &str = "LIFECYCLE";
 
 pub use lead::{
-    build_lead_converted_envelope, build_lead_created_envelope,
-    build_lead_status_changed_envelope, LeadConvertedPayload, LeadCreatedPayload,
-    LeadStatusChangedPayload, EVENT_TYPE_LEAD_CONVERTED, EVENT_TYPE_LEAD_CREATED,
-    EVENT_TYPE_LEAD_STATUS_CHANGED,
+    build_lead_converted_envelope, build_lead_created_envelope, build_lead_status_changed_envelope,
+    LeadConvertedPayload, LeadCreatedPayload, LeadStatusChangedPayload, EVENT_TYPE_LEAD_CONVERTED,
+    EVENT_TYPE_LEAD_CREATED, EVENT_TYPE_LEAD_STATUS_CHANGED,
 };
 
 pub use opportunity::{
@@ -57,8 +56,16 @@ mod tests {
             EVENT_TYPE_ACTIVITY_OVERDUE,
         ];
         for et in &events {
-            assert!(et.starts_with("crm_pipeline."), "Event type '{}' must start with 'crm_pipeline.'", et);
-            assert!(!et.ends_with(".v1"), "Event type '{}' must not end with .v1 (no version suffix in code)", et);
+            assert!(
+                et.starts_with("crm_pipeline."),
+                "Event type '{}' must start with 'crm_pipeline.'",
+                et
+            );
+            assert!(
+                !et.ends_with(".v1"),
+                "Event type '{}' must not end with .v1 (no version suffix in code)",
+                et
+            );
         }
     }
 }

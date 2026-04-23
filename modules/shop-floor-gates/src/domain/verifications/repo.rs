@@ -3,7 +3,10 @@ use uuid::Uuid;
 
 use super::{ListVerificationsQuery, OperationStartVerification};
 
-pub async fn insert_verification(pool: &PgPool, v: &OperationStartVerification) -> Result<(), sqlx::Error> {
+pub async fn insert_verification(
+    pool: &PgPool,
+    v: &OperationStartVerification,
+) -> Result<(), sqlx::Error> {
     sqlx::query(
         r#"INSERT INTO operation_start_verifications
            (id, tenant_id, work_order_id, operation_id, status, drawing_verified,
@@ -27,7 +30,11 @@ pub async fn insert_verification(pool: &PgPool, v: &OperationStartVerification) 
     Ok(())
 }
 
-pub async fn fetch_verification(pool: &PgPool, id: Uuid, tenant_id: &str) -> Result<Option<OperationStartVerification>, sqlx::Error> {
+pub async fn fetch_verification(
+    pool: &PgPool,
+    id: Uuid,
+    tenant_id: &str,
+) -> Result<Option<OperationStartVerification>, sqlx::Error> {
     let sql = "SELECT * FROM operation_start_verifications WHERE id = $1 AND tenant_id = $2";
     sqlx::query_as::<_, OperationStartVerification>(sql)
         .bind(id)

@@ -157,12 +157,18 @@ async fn main() {
             });
 
             let mrp_mutations = Router::new()
-                .route("/api/bom/mrp/explode", axum::routing::post(post_mrp_explode))
+                .route(
+                    "/api/bom/mrp/explode",
+                    axum::routing::post(post_mrp_explode),
+                )
                 .route_layer(RequirePermissionsLayer::new(&[permissions::BOM_MUTATE]))
                 .with_state(app_state.clone());
 
             let mrp_reads = Router::new()
-                .route("/api/bom/mrp/snapshots", axum::routing::get(list_mrp_snapshots))
+                .route(
+                    "/api/bom/mrp/snapshots",
+                    axum::routing::get(list_mrp_snapshots),
+                )
                 .route(
                     "/api/bom/mrp/snapshots/{snapshot_id}",
                     axum::routing::get(get_mrp_snapshot),

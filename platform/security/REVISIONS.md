@@ -3,6 +3,9 @@
 > **What this file is:** The complete record of every change to this module after it was proven. Agents modifying this module must add a row here before committing. Products adopting a new version read this file to understand what changed.
 > **Standard:** See `docs/VERSIONING.md` for the rules governing this file.
 
+## 1.12.1
+- chore: workspace rustfmt pass (no behavioral changes) ([bd-44hil])
+
 ## Revisions
 
 | Version | Date | Bead | What Changed | Why | Breaking? |

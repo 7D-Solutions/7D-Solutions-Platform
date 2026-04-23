@@ -4,7 +4,9 @@ use chrono::Utc;
 use sqlx::PgPool;
 use uuid::Uuid;
 
-use super::{repo, CreateStageRequest, PipelineStage, ReorderStagesRequest, StageError, UpdateStageRequest};
+use super::{
+    repo, CreateStageRequest, PipelineStage, ReorderStagesRequest, StageError, UpdateStageRequest,
+};
 
 pub async fn list_stages(pool: &PgPool, tenant_id: &str) -> Result<Vec<PipelineStage>, StageError> {
     repo::list_stages(pool, tenant_id).await
@@ -30,7 +32,9 @@ pub async fn create_stage(
     }
     if let Some(p) = req.probability_default_pct {
         if !(0..=100).contains(&p) {
-            return Err(StageError::Validation("probability_default_pct must be 0-100".into()));
+            return Err(StageError::Validation(
+                "probability_default_pct must be 0-100".into(),
+            ));
         }
     }
 
@@ -50,7 +54,11 @@ pub async fn create_stage(
     }
 
     // is_win only valid on terminal stages
-    let is_win = if req.is_terminal { req.is_win.unwrap_or(false) } else { false };
+    let is_win = if req.is_terminal {
+        req.is_win.unwrap_or(false)
+    } else {
+        false
+    };
 
     let now = Utc::now();
     let stage = PipelineStage {
@@ -98,7 +106,11 @@ pub async fn reorder_stages(
     req: &ReorderStagesRequest,
     actor: &str,
 ) -> Result<Vec<PipelineStage>, StageError> {
-    let items: Vec<(String, i32)> = req.stages.iter().map(|s| (s.stage_code.clone(), s.order_rank)).collect();
+    let items: Vec<(String, i32)> = req
+        .stages
+        .iter()
+        .map(|s| (s.stage_code.clone(), s.order_rank))
+        .collect();
     let mut conn = pool.acquire().await?;
     repo::reorder_stages(&mut conn, tenant_id, &items).await?;
     repo::list_stages(pool, tenant_id).await

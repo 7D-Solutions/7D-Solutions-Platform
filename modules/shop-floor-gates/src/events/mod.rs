@@ -1,6 +1,6 @@
+use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
-use chrono::{DateTime, Utc};
 
 // Event type constants
 pub const HOLD_PLACED: &str = "shop_floor_gates.hold_placed";
@@ -10,7 +10,8 @@ pub const HANDOFF_INITIATED: &str = "shop_floor_gates.handoff_initiated";
 pub const HANDOFF_ACCEPTED: &str = "shop_floor_gates.handoff_accepted";
 pub const HANDOFF_REJECTED: &str = "shop_floor_gates.handoff_rejected";
 pub const HANDOFF_CANCELLED: &str = "shop_floor_gates.handoff_cancelled";
-pub const VERIFICATION_OPERATOR_CONFIRMED: &str = "shop_floor_gates.verification_operator_confirmed";
+pub const VERIFICATION_OPERATOR_CONFIRMED: &str =
+    "shop_floor_gates.verification_operator_confirmed";
 pub const VERIFICATION_COMPLETED: &str = "shop_floor_gates.verification_completed";
 pub const SIGNOFF_RECORDED: &str = "shop_floor_gates.signoff_recorded";
 

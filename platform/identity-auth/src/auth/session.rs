@@ -123,15 +123,12 @@ async fn refresh_via_cookie(
             // Replay: the presented token was a valid session that has since been
             // rotated/revoked. Burn every remaining live session for this user so
             // the attacker cannot keep moving, then return 401.
-            if let Some(row) = sqlx::query(
-                "SELECT tenant_id, user_id FROM refresh_sessions WHERE token_hash = $1",
-            )
-            .bind(&token_hash)
-            .fetch_optional(&mut *tx)
-            .await
-            .map_err(|e| {
-                err(StatusCode::INTERNAL_SERVER_ERROR, format!("db error: {e}"))
-            })?
+            if let Some(row) =
+                sqlx::query("SELECT tenant_id, user_id FROM refresh_sessions WHERE token_hash = $1")
+                    .bind(&token_hash)
+                    .fetch_optional(&mut *tx)
+                    .await
+                    .map_err(|e| err(StatusCode::INTERNAL_SERVER_ERROR, format!("db error: {e}")))?
             {
                 let tenant_id: Uuid = row.get("tenant_id");
                 let user_id: Uuid = row.get("user_id");
@@ -259,13 +256,23 @@ async fn refresh_via_cookie(
     // Mint a new access token with fresh RBAC snapshot.
     let roles = crate::db::rbac::list_roles_for_user(&state.db, tenant_id, user_id)
         .await
-        .map_err(|e| err(StatusCode::INTERNAL_SERVER_ERROR, format!("rbac roles: {e}")))?
+        .map_err(|e| {
+            err(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                format!("rbac roles: {e}"),
+            )
+        })?
         .into_iter()
         .map(|r| r.name)
         .collect::<Vec<_>>();
     let perms = crate::db::rbac::effective_permissions_for_user(&state.db, tenant_id, user_id)
         .await
-        .map_err(|e| err(StatusCode::INTERNAL_SERVER_ERROR, format!("rbac perms: {e}")))?;
+        .map_err(|e| {
+            err(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                format!("rbac perms: {e}"),
+            )
+        })?;
     let role_snapshot_id = super::jwt::compute_role_snapshot_id(&roles);
 
     let access = state
@@ -337,13 +344,11 @@ async fn refresh_via_cookie(
 
     // Build response: access token in body, rotated refresh cookie in Set-Cookie.
     let max_age = (rotated.expires_at - Utc::now()).num_seconds().max(0);
-    let cookie_value =
-        cookies::build_set_cookie(&rotated.raw_token, max_age, state.cookie_secure);
+    let cookie_value = cookies::build_set_cookie(&rotated.raw_token, max_age, state.cookie_secure);
     let mut resp_headers = HeaderMap::new();
     resp_headers.insert(
         axum::http::header::SET_COOKIE,
-        HeaderValue::from_str(&cookie_value)
-            .unwrap_or_else(|_| HeaderValue::from_static("")),
+        HeaderValue::from_str(&cookie_value).unwrap_or_else(|_| HeaderValue::from_static("")),
     );
     Ok((
         StatusCode::OK,
@@ -562,19 +567,29 @@ async fn refresh_via_body(
             )
         })?;
 
-    tx.commit().await.map_err(|e| {
-        err(StatusCode::INTERNAL_SERVER_ERROR, format!("db error: {e}"))
-    })?;
+    tx.commit()
+        .await
+        .map_err(|e| err(StatusCode::INTERNAL_SERVER_ERROR, format!("db error: {e}")))?;
 
     let roles = crate::db::rbac::list_roles_for_user(&state.db, tenant_id, user_id)
         .await
-        .map_err(|e| err(StatusCode::INTERNAL_SERVER_ERROR, format!("rbac roles: {e}")))?
+        .map_err(|e| {
+            err(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                format!("rbac roles: {e}"),
+            )
+        })?
         .into_iter()
         .map(|r| r.name)
         .collect::<Vec<_>>();
     let perms = crate::db::rbac::effective_permissions_for_user(&state.db, tenant_id, user_id)
         .await
-        .map_err(|e| err(StatusCode::INTERNAL_SERVER_ERROR, format!("rbac perms: {e}")))?;
+        .map_err(|e| {
+            err(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                format!("rbac perms: {e}"),
+            )
+        })?;
     let role_snapshot_id = super::jwt::compute_role_snapshot_id(&roles);
 
     let access = state
@@ -704,9 +719,8 @@ pub async fn logout(
 
         if res.rows_affected() > 0 {
             any_revoked = true;
-            let _ =
-                super::concurrency::revoke_lease_by_token_hash(&state.db, req.tenant_id, &hash)
-                    .await;
+            let _ = super::concurrency::revoke_lease_by_token_hash(&state.db, req.tenant_id, &hash)
+                .await;
         }
     }
 
@@ -813,10 +827,15 @@ pub async fn revoke_session(
 ) -> Result<impl IntoResponse, ApiErr> {
     let trace_id = get_trace_id_from_extensions(&extensions);
 
-    let affected =
-        refresh_sessions::revoke_by_id(&state.db, session_id, req.tenant_id, req.user_id, "user_revoked")
-            .await
-            .map_err(|e| err(StatusCode::INTERNAL_SERVER_ERROR, format!("db error: {e}")))?;
+    let affected = refresh_sessions::revoke_by_id(
+        &state.db,
+        session_id,
+        req.tenant_id,
+        req.user_id,
+        "user_revoked",
+    )
+    .await
+    .map_err(|e| err(StatusCode::INTERNAL_SERVER_ERROR, format!("db error: {e}")))?;
 
     if affected == 0 {
         return Err(err(StatusCode::NOT_FOUND, "session not found"));

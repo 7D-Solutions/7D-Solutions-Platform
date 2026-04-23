@@ -2,6 +2,7 @@
 use security::JwtVerifier;
 use sqlx::PgPool;
 use std::sync::Arc;
+use std::time::Duration;
 
 /// Shared state injected into all handlers
 #[derive(Clone)]
@@ -14,14 +15,21 @@ pub struct AppState {
     /// JWT verifier for extracting caller claims. None disables claim extraction
     /// (all RBAC-protected routes return 401 without a valid token).
     pub jwt_verifier: Option<Arc<JwtVerifier>>,
+    /// HTTP client for module vitals fanout. 3s connection timeout.
+    pub http_client: reqwest::Client,
 }
 
 impl AppState {
     pub fn new(pool: PgPool, ar_pool: Option<PgPool>) -> Self {
+        let http_client = reqwest::Client::builder()
+            .timeout(Duration::from_secs(3))
+            .build()
+            .expect("build reqwest client");
         Self {
             pool,
             ar_pool,
             jwt_verifier: None,
+            http_client,
         }
     }
 

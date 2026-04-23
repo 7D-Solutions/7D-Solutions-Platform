@@ -87,15 +87,7 @@ pub async fn handle_time_entry_approved(
         posted_by: format!("system:time-entry-consumer:{}", payload.approved_by),
     };
 
-    match CostRepo::post_cost(
-        pool,
-        &req,
-        &payload.tenant_id,
-        &event_id.to_string(),
-        None,
-    )
-    .await
-    {
+    match CostRepo::post_cost(pool, &req, &payload.tenant_id, &event_id.to_string(), None).await {
         Ok(_) => {
             tracing::info!(
                 time_entry_id = %payload.time_entry_id,
@@ -131,7 +123,10 @@ pub fn start_time_entry_approved_consumer(bus: Arc<dyn EventBus>, pool: PgPool) 
             }
         };
 
-        tracing::info!(subject, "production: subscribed to time_entry_approved for labor costing");
+        tracing::info!(
+            subject,
+            "production: subscribed to time_entry_approved for labor costing"
+        );
 
         while let Some(msg) = stream.next().await {
             if let Err(e) = process_message(&pool, &msg).await {
@@ -147,9 +142,8 @@ async fn process_message(
     pool: &PgPool,
     msg: &BusMessage,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    let envelope: EventEnvelope<TimeEntryApprovedPayload> =
-        serde_json::from_slice(&msg.payload)
-            .map_err(|e| format!("failed to parse time_entry_approved envelope: {}", e))?;
+    let envelope: EventEnvelope<TimeEntryApprovedPayload> = serde_json::from_slice(&msg.payload)
+        .map_err(|e| format!("failed to parse time_entry_approved envelope: {}", e))?;
 
     handle_time_entry_approved(pool, envelope.event_id, &envelope.payload).await?;
     Ok(())

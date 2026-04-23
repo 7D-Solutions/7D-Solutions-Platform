@@ -4,6 +4,9 @@
 > **Standard:** See `docs/VERSIONING.md` for the rules governing this file.
 
 
+## 1.3.1
+- chore: workspace rustfmt pass (no behavioral changes) ([bd-44hil])
+
 ## 1.3.0
 - feat: operational vitals types — VitalsResponse, DlqVitals, OutboxVitals, ProjectionVitals, ConsumerVitals for the platform vitals API ([bd-fpulo])
 

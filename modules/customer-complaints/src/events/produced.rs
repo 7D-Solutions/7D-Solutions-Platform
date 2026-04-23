@@ -40,7 +40,15 @@ pub fn build_complaint_received_envelope(
     causation_id: Option<String>,
     payload: ComplaintReceivedPayload,
 ) -> EventEnvelope<ComplaintReceivedPayload> {
-    create_cc_envelope(event_id, tenant_id, EVENT_COMPLAINT_RECEIVED.to_string(), correlation_id, causation_id, MUTATION_DATA.to_string(), payload)
+    create_cc_envelope(
+        event_id,
+        tenant_id,
+        EVENT_COMPLAINT_RECEIVED.to_string(),
+        correlation_id,
+        causation_id,
+        MUTATION_DATA.to_string(),
+        payload,
+    )
 }
 
 // ── complaint.triaged ─────────────────────────────────────────────────────────
@@ -62,7 +70,15 @@ pub fn build_complaint_triaged_envelope(
     causation_id: Option<String>,
     payload: ComplaintTriagedPayload,
 ) -> EventEnvelope<ComplaintTriagedPayload> {
-    create_cc_envelope(event_id, tenant_id, EVENT_COMPLAINT_TRIAGED.to_string(), correlation_id, causation_id, MUTATION_LIFECYCLE.to_string(), payload)
+    create_cc_envelope(
+        event_id,
+        tenant_id,
+        EVENT_COMPLAINT_TRIAGED.to_string(),
+        correlation_id,
+        causation_id,
+        MUTATION_LIFECYCLE.to_string(),
+        payload,
+    )
 }
 
 // ── complaint.status_changed ──────────────────────────────────────────────────
@@ -84,7 +100,15 @@ pub fn build_complaint_status_changed_envelope(
     causation_id: Option<String>,
     payload: ComplaintStatusChangedPayload,
 ) -> EventEnvelope<ComplaintStatusChangedPayload> {
-    create_cc_envelope(event_id, tenant_id, EVENT_COMPLAINT_STATUS_CHANGED.to_string(), correlation_id, causation_id, MUTATION_LIFECYCLE.to_string(), payload)
+    create_cc_envelope(
+        event_id,
+        tenant_id,
+        EVENT_COMPLAINT_STATUS_CHANGED.to_string(),
+        correlation_id,
+        causation_id,
+        MUTATION_LIFECYCLE.to_string(),
+        payload,
+    )
 }
 
 // ── complaint.assigned ────────────────────────────────────────────────────────
@@ -106,7 +130,15 @@ pub fn build_complaint_assigned_envelope(
     causation_id: Option<String>,
     payload: ComplaintAssignedPayload,
 ) -> EventEnvelope<ComplaintAssignedPayload> {
-    create_cc_envelope(event_id, tenant_id, EVENT_COMPLAINT_ASSIGNED.to_string(), correlation_id, causation_id, MUTATION_DATA.to_string(), payload)
+    create_cc_envelope(
+        event_id,
+        tenant_id,
+        EVENT_COMPLAINT_ASSIGNED.to_string(),
+        correlation_id,
+        causation_id,
+        MUTATION_DATA.to_string(),
+        payload,
+    )
 }
 
 // ── complaint.customer_communicated ──────────────────────────────────────────
@@ -126,7 +158,15 @@ pub fn build_complaint_customer_communicated_envelope(
     causation_id: Option<String>,
     payload: ComplaintCustomerCommunicatedPayload,
 ) -> EventEnvelope<ComplaintCustomerCommunicatedPayload> {
-    create_cc_envelope(event_id, tenant_id, EVENT_COMPLAINT_CUSTOMER_COMMUNICATED.to_string(), correlation_id, causation_id, MUTATION_DATA.to_string(), payload)
+    create_cc_envelope(
+        event_id,
+        tenant_id,
+        EVENT_COMPLAINT_CUSTOMER_COMMUNICATED.to_string(),
+        correlation_id,
+        causation_id,
+        MUTATION_DATA.to_string(),
+        payload,
+    )
 }
 
 // ── complaint.resolved ────────────────────────────────────────────────────────
@@ -147,7 +187,15 @@ pub fn build_complaint_resolved_envelope(
     causation_id: Option<String>,
     payload: ComplaintResolvedPayload,
 ) -> EventEnvelope<ComplaintResolvedPayload> {
-    create_cc_envelope(event_id, tenant_id, EVENT_COMPLAINT_RESOLVED.to_string(), correlation_id, causation_id, MUTATION_LIFECYCLE.to_string(), payload)
+    create_cc_envelope(
+        event_id,
+        tenant_id,
+        EVENT_COMPLAINT_RESOLVED.to_string(),
+        correlation_id,
+        causation_id,
+        MUTATION_LIFECYCLE.to_string(),
+        payload,
+    )
 }
 
 // ── complaint.closed ──────────────────────────────────────────────────────────
@@ -167,7 +215,15 @@ pub fn build_complaint_closed_envelope(
     causation_id: Option<String>,
     payload: ComplaintClosedPayload,
 ) -> EventEnvelope<ComplaintClosedPayload> {
-    create_cc_envelope(event_id, tenant_id, EVENT_COMPLAINT_CLOSED.to_string(), correlation_id, causation_id, MUTATION_LIFECYCLE.to_string(), payload)
+    create_cc_envelope(
+        event_id,
+        tenant_id,
+        EVENT_COMPLAINT_CLOSED.to_string(),
+        correlation_id,
+        causation_id,
+        MUTATION_LIFECYCLE.to_string(),
+        payload,
+    )
 }
 
 // ── complaint.overdue ─────────────────────────────────────────────────────────
@@ -189,5 +245,13 @@ pub fn build_complaint_overdue_envelope(
     causation_id: Option<String>,
     payload: ComplaintOverduePayload,
 ) -> EventEnvelope<ComplaintOverduePayload> {
-    create_cc_envelope(event_id, tenant_id, EVENT_COMPLAINT_OVERDUE.to_string(), correlation_id, causation_id, MUTATION_LIFECYCLE.to_string(), payload)
+    create_cc_envelope(
+        event_id,
+        tenant_id,
+        EVENT_COMPLAINT_OVERDUE.to_string(),
+        correlation_id,
+        causation_id,
+        MUTATION_LIFECYCLE.to_string(),
+        payload,
+    )
 }

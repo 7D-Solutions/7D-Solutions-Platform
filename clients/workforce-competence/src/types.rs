@@ -80,6 +80,16 @@ pub enum ArtifactType {
     Qualification,
 }
 
+impl ArtifactType {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            ArtifactType::Certification => "certification",
+            ArtifactType::Training => "training",
+            ArtifactType::Qualification => "qualification",
+        }
+    }
+}
+
 /// Request to assign a competence to an operator.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AssignCompetenceRequest {

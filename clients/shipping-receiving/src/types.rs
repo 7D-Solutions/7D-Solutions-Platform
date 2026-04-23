@@ -76,6 +76,15 @@ pub enum Direction {
     Outbound,
 }
 
+impl Direction {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Direction::Inbound => "inbound",
+            Direction::Outbound => "outbound",
+        }
+    }
+}
+
 /// Row returned from inspection_routings table.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct InspectionRoutingRow {

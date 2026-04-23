@@ -32,8 +32,13 @@ pub fn build_lead_created_envelope(
     payload: LeadCreatedPayload,
 ) -> EventEnvelope<LeadCreatedPayload> {
     create_crm_envelope(
-        event_id, tenant_id, EVENT_TYPE_LEAD_CREATED.to_string(),
-        correlation_id, None, MUTATION_CLASS_DATA_MUTATION.to_string(), payload,
+        event_id,
+        tenant_id,
+        EVENT_TYPE_LEAD_CREATED.to_string(),
+        correlation_id,
+        None,
+        MUTATION_CLASS_DATA_MUTATION.to_string(),
+        payload,
     )
 }
 
@@ -55,8 +60,13 @@ pub fn build_lead_status_changed_envelope(
     payload: LeadStatusChangedPayload,
 ) -> EventEnvelope<LeadStatusChangedPayload> {
     create_crm_envelope(
-        event_id, tenant_id, EVENT_TYPE_LEAD_STATUS_CHANGED.to_string(),
-        correlation_id, None, MUTATION_CLASS_LIFECYCLE.to_string(), payload,
+        event_id,
+        tenant_id,
+        EVENT_TYPE_LEAD_STATUS_CHANGED.to_string(),
+        correlation_id,
+        None,
+        MUTATION_CLASS_LIFECYCLE.to_string(),
+        payload,
     )
 }
 
@@ -77,7 +87,12 @@ pub fn build_lead_converted_envelope(
     payload: LeadConvertedPayload,
 ) -> EventEnvelope<LeadConvertedPayload> {
     create_crm_envelope(
-        event_id, tenant_id, EVENT_TYPE_LEAD_CONVERTED.to_string(),
-        correlation_id, None, MUTATION_CLASS_LIFECYCLE.to_string(), payload,
+        event_id,
+        tenant_id,
+        EVENT_TYPE_LEAD_CONVERTED.to_string(),
+        correlation_id,
+        None,
+        MUTATION_CLASS_LIFECYCLE.to_string(),
+        payload,
     )
 }

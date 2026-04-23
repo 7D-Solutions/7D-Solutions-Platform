@@ -66,9 +66,9 @@ use inventory_rs::{
     },
     http::{
         barcode::{
-            get_list_barcode_rules, post_create_barcode_rule, put_update_barcode_rule,
-            post_deactivate_barcode_rule, post_resolve_barcode, post_resolve_barcode_batch,
-            post_test_barcode_rule,
+            get_list_barcode_rules, post_create_barcode_rule, post_deactivate_barcode_rule,
+            post_resolve_barcode, post_resolve_barcode_batch, post_test_barcode_rule,
+            put_update_barcode_rule,
         },
         cycle_counts::{post_cycle_count_approve, post_cycle_count_submit, post_cycle_count_task},
         expiry::{post_expiry_alert_scan, put_lot_expiry},

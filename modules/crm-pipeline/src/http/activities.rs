@@ -12,8 +12,12 @@ use security::VerifiedClaims;
 use std::sync::Arc;
 use uuid::Uuid;
 
-use crate::domain::activities::{service as act_service, CreateActivityRequest, ListActivitiesQuery, UpdateActivityRequest};
-use crate::domain::activity_types::{repo as atype_repo, CreateActivityTypeRequest, UpdateActivityTypeRequest};
+use crate::domain::activities::{
+    service as act_service, CreateActivityRequest, ListActivitiesQuery, UpdateActivityRequest,
+};
+use crate::domain::activity_types::{
+    repo as atype_repo, CreateActivityTypeRequest, UpdateActivityTypeRequest,
+};
 use crate::http::tenant::with_request_id;
 use crate::AppState;
 use platform_sdk::extract_tenant;
@@ -34,7 +38,10 @@ pub async fn log_activity(
         Ok(id) => id,
         Err(e) => return with_request_id(e, &tracing_ctx).into_response(),
     };
-    let actor = claims.as_ref().map(|c| c.user_id.to_string()).unwrap_or_else(|| "unknown".to_string());
+    let actor = claims
+        .as_ref()
+        .map(|c| c.user_id.to_string())
+        .unwrap_or_else(|| "unknown".to_string());
     match act_service::log_activity(&state.pool, &tenant_id, &req, actor).await {
         Ok(act) => (StatusCode::CREATED, Json(act)).into_response(),
         Err(e) => with_request_id(ApiError::from(e), &tracing_ctx).into_response(),
@@ -102,7 +109,10 @@ pub async fn complete_activity(
         Ok(id) => id,
         Err(e) => return with_request_id(e, &tracing_ctx).into_response(),
     };
-    let actor = claims.as_ref().map(|c| c.user_id.to_string()).unwrap_or_else(|| "unknown".to_string());
+    let actor = claims
+        .as_ref()
+        .map(|c| c.user_id.to_string())
+        .unwrap_or_else(|| "unknown".to_string());
     match act_service::complete_activity(&state.pool, &tenant_id, id, actor).await {
         Ok(act) => Json(act).into_response(),
         Err(e) => with_request_id(ApiError::from(e), &tracing_ctx).into_response(),
@@ -168,7 +178,10 @@ pub async fn create_activity_type(
         Ok(id) => id,
         Err(e) => return with_request_id(e, &tracing_ctx).into_response(),
     };
-    let actor = claims.as_ref().map(|c| c.user_id.to_string()).unwrap_or_else(|| "unknown".to_string());
+    let actor = claims
+        .as_ref()
+        .map(|c| c.user_id.to_string())
+        .unwrap_or_else(|| "unknown".to_string());
     match atype_repo::create_activity_type(&state.pool, &tenant_id, &req, &actor).await {
         Ok(at) => (StatusCode::CREATED, Json(at)).into_response(),
         Err(e) => with_request_id(ApiError::from(e), &tracing_ctx).into_response(),
@@ -192,7 +205,10 @@ pub async fn update_activity_type(
         Ok(id) => id,
         Err(e) => return with_request_id(e, &tracing_ctx).into_response(),
     };
-    let actor = claims.as_ref().map(|c| c.user_id.to_string()).unwrap_or_else(|| "unknown".to_string());
+    let actor = claims
+        .as_ref()
+        .map(|c| c.user_id.to_string())
+        .unwrap_or_else(|| "unknown".to_string());
     match atype_repo::update_activity_type(&state.pool, &tenant_id, &code, &req, &actor).await {
         Ok(at) => Json(at).into_response(),
         Err(e) => with_request_id(ApiError::from(e), &tracing_ctx).into_response(),

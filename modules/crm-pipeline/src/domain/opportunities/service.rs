@@ -12,8 +12,8 @@ use uuid::Uuid;
 
 use super::{
     repo, AdvanceStageRequest, CloseLostRequest, CloseWonRequest, CreateOpportunityRequest,
-    ListOpportunitiesQuery, Opportunity, OpportunityDetail, OpportunityError, OpportunityStageHistory,
-    PipelineSummaryItem, UpdateOpportunityRequest,
+    ListOpportunitiesQuery, Opportunity, OpportunityDetail, OpportunityError,
+    OpportunityStageHistory, PipelineSummaryItem, UpdateOpportunityRequest,
 };
 use crate::domain::pipeline_stages::{repo as stages_repo, service as stages_service};
 use crate::events::{
@@ -62,7 +62,9 @@ pub async fn create_opportunity(
 
     let probability_pct = req.probability_pct.unwrap_or(0);
     if !(0..=100).contains(&probability_pct) {
-        return Err(OpportunityError::Validation("probability_pct must be 0-100".into()));
+        return Err(OpportunityError::Validation(
+            "probability_pct must be 0-100".into(),
+        ));
     }
 
     let mut tx = pool.begin().await?;
@@ -84,7 +86,10 @@ pub async fn create_opportunity(
         actual_close_date: None,
         close_reason: None,
         competitor: None,
-        opp_type: req.opp_type.clone().unwrap_or_else(|| "new_business".to_string()),
+        opp_type: req
+            .opp_type
+            .clone()
+            .unwrap_or_else(|| "new_business".to_string()),
         priority: req.priority.clone().unwrap_or_else(|| "medium".to_string()),
         description: req.description.clone(),
         requirements: req.requirements.clone(),
@@ -124,12 +129,20 @@ pub async fn create_opportunity(
         created_at: created.created_at,
     };
     let envelope = build_opportunity_created_envelope(
-        Uuid::new_v4(), tenant_id.to_string(), Uuid::new_v4().to_string(), payload,
+        Uuid::new_v4(),
+        tenant_id.to_string(),
+        Uuid::new_v4().to_string(),
+        payload,
     );
     outbox::enqueue_event_tx(
-        &mut tx, Uuid::new_v4(), EVENT_TYPE_OPPORTUNITY_CREATED, "opportunity",
-        &created.id.to_string(), &envelope,
-    ).await?;
+        &mut tx,
+        Uuid::new_v4(),
+        EVENT_TYPE_OPPORTUNITY_CREATED,
+        "opportunity",
+        &created.id.to_string(),
+        &envelope,
+    )
+    .await?;
 
     tx.commit().await?;
     Ok(created)
@@ -152,7 +165,10 @@ pub async fn get_opportunity_detail(
 ) -> Result<OpportunityDetail, OpportunityError> {
     let opp = get_opportunity(pool, tenant_id, id).await?;
     let history = repo::list_stage_history(pool, tenant_id, id).await?;
-    Ok(OpportunityDetail { opportunity: opp, stage_history: history })
+    Ok(OpportunityDetail {
+        opportunity: opp,
+        stage_history: history,
+    })
 }
 
 pub async fn list_opportunities(
@@ -194,7 +210,11 @@ pub async fn advance_stage(
     let current_stage = stages_repo::fetch_stage(pool, tenant_id, &opp.stage_code)
         .await
         .map_err(|e| OpportunityError::Validation(e.to_string()))?;
-    if current_stage.as_ref().map(|s| s.is_terminal).unwrap_or(false) {
+    if current_stage
+        .as_ref()
+        .map(|s| s.is_terminal)
+        .unwrap_or(false)
+    {
         return Err(OpportunityError::AlreadyTerminal(opp.stage_code.clone()));
     }
 
@@ -206,15 +226,20 @@ pub async fn advance_stage(
 
     // INVARIANT: advance-stage cannot reach terminal stages
     if target_stage.is_terminal {
-        return Err(OpportunityError::TerminalStageViaAdvance(req.stage_code.clone()));
+        return Err(OpportunityError::TerminalStageViaAdvance(
+            req.stage_code.clone(),
+        ));
     }
 
-    let probability_pct = req.probability_pct
+    let probability_pct = req
+        .probability_pct
         .or(target_stage.probability_default_pct)
         .unwrap_or(opp.probability_pct);
 
     if !(0..=100).contains(&probability_pct) {
-        return Err(OpportunityError::Validation("probability_pct must be 0-100".into()));
+        return Err(OpportunityError::Validation(
+            "probability_pct must be 0-100".into(),
+        ));
     }
 
     // Compute days in previous stage
@@ -263,12 +288,20 @@ pub async fn advance_stage(
         days_in_previous_stage: days_in_prev,
     };
     let envelope = build_opportunity_stage_advanced_envelope(
-        Uuid::new_v4(), tenant_id.to_string(), Uuid::new_v4().to_string(), payload,
+        Uuid::new_v4(),
+        tenant_id.to_string(),
+        Uuid::new_v4().to_string(),
+        payload,
     );
     outbox::enqueue_event_tx(
-        &mut tx, Uuid::new_v4(), EVENT_TYPE_OPPORTUNITY_STAGE_ADVANCED, "opportunity",
-        &updated.id.to_string(), &envelope,
-    ).await?;
+        &mut tx,
+        Uuid::new_v4(),
+        EVENT_TYPE_OPPORTUNITY_STAGE_ADVANCED,
+        "opportunity",
+        &updated.id.to_string(),
+        &envelope,
+    )
+    .await?;
 
     tx.commit().await?;
     Ok(updated)
@@ -287,7 +320,11 @@ pub async fn close_won(
     let current_stage = stages_repo::fetch_stage(pool, tenant_id, &opp.stage_code)
         .await
         .map_err(|e| OpportunityError::Validation(e.to_string()))?;
-    if current_stage.as_ref().map(|s| s.is_terminal).unwrap_or(false) {
+    if current_stage
+        .as_ref()
+        .map(|s| s.is_terminal)
+        .unwrap_or(false)
+    {
         return Err(OpportunityError::AlreadyTerminal(opp.stage_code.clone()));
     }
 
@@ -298,11 +335,14 @@ pub async fn close_won(
     let won_stage = stages
         .into_iter()
         .find(|s| s.is_terminal && s.is_win)
-        .ok_or_else(|| OpportunityError::Validation("No active closed_won stage configured".into()))?;
+        .ok_or_else(|| {
+            OpportunityError::Validation("No active closed_won stage configured".into())
+        })?;
 
-    let days_in_prev = repo::list_stage_history(pool, tenant_id, id).await?.last().map(|h| {
-        Utc::now().signed_duration_since(h.changed_at).num_days() as i32
-    });
+    let days_in_prev = repo::list_stage_history(pool, tenant_id, id)
+        .await?
+        .last()
+        .map(|h| Utc::now().signed_duration_since(h.changed_at).num_days() as i32);
 
     let today = chrono::Local::now().date_naive();
     let mut tx = pool.begin().await?;
@@ -327,7 +367,10 @@ pub async fn close_won(
         to_stage_code: won_stage.stage_code.clone(),
         probability_pct_at_change: Some(100),
         days_in_previous_stage: days_in_prev,
-        reason: req.reason.clone().or_else(|| Some("closed_won".to_string())),
+        reason: req
+            .reason
+            .clone()
+            .or_else(|| Some("closed_won".to_string())),
         notes: req.notes.clone(),
         changed_by: actor,
         changed_at: Utc::now(),
@@ -343,12 +386,20 @@ pub async fn close_won(
         sales_order_id: updated.sales_order_id,
     };
     let envelope = build_opportunity_closed_won_envelope(
-        Uuid::new_v4(), tenant_id.to_string(), Uuid::new_v4().to_string(), payload,
+        Uuid::new_v4(),
+        tenant_id.to_string(),
+        Uuid::new_v4().to_string(),
+        payload,
     );
     outbox::enqueue_event_tx(
-        &mut tx, Uuid::new_v4(), EVENT_TYPE_OPPORTUNITY_CLOSED_WON, "opportunity",
-        &updated.id.to_string(), &envelope,
-    ).await?;
+        &mut tx,
+        Uuid::new_v4(),
+        EVENT_TYPE_OPPORTUNITY_CLOSED_WON,
+        "opportunity",
+        &updated.id.to_string(),
+        &envelope,
+    )
+    .await?;
 
     tx.commit().await?;
     Ok(updated)
@@ -371,7 +422,11 @@ pub async fn close_lost(
     let current_stage = stages_repo::fetch_stage(pool, tenant_id, &opp.stage_code)
         .await
         .map_err(|e| OpportunityError::Validation(e.to_string()))?;
-    if current_stage.as_ref().map(|s| s.is_terminal).unwrap_or(false) {
+    if current_stage
+        .as_ref()
+        .map(|s| s.is_terminal)
+        .unwrap_or(false)
+    {
         return Err(OpportunityError::AlreadyTerminal(opp.stage_code.clone()));
     }
 
@@ -382,11 +437,14 @@ pub async fn close_lost(
     let lost_stage = stages
         .into_iter()
         .find(|s| s.is_terminal && !s.is_win)
-        .ok_or_else(|| OpportunityError::Validation("No active closed_lost stage configured".into()))?;
+        .ok_or_else(|| {
+            OpportunityError::Validation("No active closed_lost stage configured".into())
+        })?;
 
-    let days_in_prev = repo::list_stage_history(pool, tenant_id, id).await?.last().map(|h| {
-        Utc::now().signed_duration_since(h.changed_at).num_days() as i32
-    });
+    let days_in_prev = repo::list_stage_history(pool, tenant_id, id)
+        .await?
+        .last()
+        .map(|h| Utc::now().signed_duration_since(h.changed_at).num_days() as i32);
 
     let today = chrono::Local::now().date_naive();
     let mut tx = pool.begin().await?;
@@ -427,12 +485,20 @@ pub async fn close_lost(
         competitor: req.competitor.clone(),
     };
     let envelope = build_opportunity_closed_lost_envelope(
-        Uuid::new_v4(), tenant_id.to_string(), Uuid::new_v4().to_string(), payload,
+        Uuid::new_v4(),
+        tenant_id.to_string(),
+        Uuid::new_v4().to_string(),
+        payload,
     );
     outbox::enqueue_event_tx(
-        &mut tx, Uuid::new_v4(), EVENT_TYPE_OPPORTUNITY_CLOSED_LOST, "opportunity",
-        &updated.id.to_string(), &envelope,
-    ).await?;
+        &mut tx,
+        Uuid::new_v4(),
+        EVENT_TYPE_OPPORTUNITY_CLOSED_LOST,
+        "opportunity",
+        &updated.id.to_string(),
+        &envelope,
+    )
+    .await?;
 
     tx.commit().await?;
     Ok(updated)

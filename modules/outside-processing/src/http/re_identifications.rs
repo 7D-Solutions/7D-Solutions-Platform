@@ -34,7 +34,10 @@ pub async fn create_re_identification(
 
     let mut tx = match state.pool.begin().await {
         Ok(t) => t,
-        Err(e) => return with_request_id(ApiError::from(OpError::Database(e)), &tracing_ctx).into_response(),
+        Err(e) => {
+            return with_request_id(ApiError::from(OpError::Database(e)), &tracing_ctx)
+                .into_response()
+        }
     };
 
     // Re-identification requires a return event
@@ -44,21 +47,30 @@ pub async fn create_re_identification(
     };
     if return_count == 0 {
         return with_request_id(
-            ApiError::new(422, "no_return_event",
-                "Cannot record re-identification before any return event exists"),
+            ApiError::new(
+                422,
+                "no_return_event",
+                "Cannot record re-identification before any return event exists",
+            ),
             &tracing_ctx,
-        ).into_response();
+        )
+        .into_response();
     }
 
-    let return_exists = match repo::return_event_exists(&mut tx, &tenant_id, order_id, req.return_event_id).await {
-        Ok(e) => e,
-        Err(e) => return with_request_id(ApiError::from(e), &tracing_ctx).into_response(),
-    };
+    let return_exists =
+        match repo::return_event_exists(&mut tx, &tenant_id, order_id, req.return_event_id).await {
+            Ok(e) => e,
+            Err(e) => return with_request_id(ApiError::from(e), &tracing_ctx).into_response(),
+        };
     if !return_exists {
         return with_request_id(
-            ApiError::not_found(format!("Return event {} not found for this order", req.return_event_id)),
+            ApiError::not_found(format!(
+                "Return event {} not found for this order",
+                req.return_event_id
+            )),
             &tracing_ctx,
-        ).into_response();
+        )
+        .into_response();
     }
 
     let reid = match repo::create_re_identification_tx(&mut tx, &tenant_id, order_id, &req).await {
@@ -68,7 +80,10 @@ pub async fn create_re_identification(
 
     let event_id = Uuid::new_v4();
     let env = events::build_re_identification_envelope(
-        event_id, tenant_id.clone(), correlation_id.clone(), None,
+        event_id,
+        tenant_id.clone(),
+        correlation_id.clone(),
+        None,
         ReIdentificationRecordedPayload {
             op_order_id: order_id,
             tenant_id: tenant_id.clone(),
@@ -78,10 +93,17 @@ pub async fn create_re_identification(
         },
     );
     let _ = repo::enqueue_outbox(
-        &mut tx, &tenant_id, event_id,
-        events::EVENT_RE_IDENTIFICATION_RECORDED, "op_order", &order_id.to_string(),
-        &env, &correlation_id, None,
-    ).await;
+        &mut tx,
+        &tenant_id,
+        event_id,
+        events::EVENT_RE_IDENTIFICATION_RECORDED,
+        "op_order",
+        &order_id.to_string(),
+        &env,
+        &correlation_id,
+        None,
+    )
+    .await;
 
     if let Err(e) = tx.commit().await {
         return with_request_id(ApiError::from(OpError::Database(e)), &tracing_ctx).into_response();

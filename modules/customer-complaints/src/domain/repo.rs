@@ -58,13 +58,12 @@ pub async fn get_complaint(
     tenant_id: &str,
     complaint_id: Uuid,
 ) -> Result<Option<Complaint>, ComplaintError> {
-    let row = sqlx::query_as::<_, Complaint>(
-        "SELECT * FROM complaints WHERE id = $1 AND tenant_id = $2",
-    )
-    .bind(complaint_id)
-    .bind(tenant_id)
-    .fetch_optional(pool)
-    .await?;
+    let row =
+        sqlx::query_as::<_, Complaint>("SELECT * FROM complaints WHERE id = $1 AND tenant_id = $2")
+            .bind(complaint_id)
+            .bind(tenant_id)
+            .fetch_optional(pool)
+            .await?;
     Ok(row)
 }
 
@@ -79,7 +78,11 @@ pub async fn get_complaint_detail(
     };
     let activity_log = list_activity_log(pool, tenant_id, complaint_id).await?;
     let resolution = get_resolution(pool, tenant_id, complaint_id).await?;
-    Ok(Some(ComplaintDetail { complaint, activity_log, resolution }))
+    Ok(Some(ComplaintDetail {
+        complaint,
+        activity_log,
+        resolution,
+    }))
 }
 
 pub async fn list_complaints(
@@ -173,9 +176,9 @@ pub async fn triage_complaint(
 
     ensure_category_active(tx, tenant_id, &req.category_code).await?;
 
-    let due_date = req.due_date.unwrap_or_else(|| {
-        current.received_at + chrono::Duration::days(30)
-    });
+    let due_date = req
+        .due_date
+        .unwrap_or_else(|| current.received_at + chrono::Duration::days(30));
 
     let complaint = sqlx::query_as::<_, Complaint>(
         r#"
@@ -445,12 +448,16 @@ pub async fn list_activity_log(
 
 /// Append-only guard: activity log entries cannot be updated.
 pub fn update_activity_log_entry(_id: Uuid) -> Result<(), ComplaintError> {
-    Err(ComplaintError::AppendOnly("complaint_activity_log".to_string()))
+    Err(ComplaintError::AppendOnly(
+        "complaint_activity_log".to_string(),
+    ))
 }
 
 /// Append-only guard: activity log entries cannot be deleted.
 pub fn delete_activity_log_entry(_id: Uuid) -> Result<(), ComplaintError> {
-    Err(ComplaintError::AppendOnly("complaint_activity_log".to_string()))
+    Err(ComplaintError::AppendOnly(
+        "complaint_activity_log".to_string(),
+    ))
 }
 
 // ── Resolution ────────────────────────────────────────────────────────────────
@@ -586,7 +593,9 @@ pub async fn update_category_code(
     .bind(&req.updated_by)
     .fetch_optional(pool)
     .await?
-    .ok_or_else(|| ComplaintError::Validation(format!("category code '{}' not found", category_code)))?;
+    .ok_or_else(|| {
+        ComplaintError::Validation(format!("category code '{}' not found", category_code))
+    })?;
     Ok(row)
 }
 

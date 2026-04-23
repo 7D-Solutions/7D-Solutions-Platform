@@ -30,9 +30,11 @@ impl From<ActivityError> for platform_http_contracts::ApiError {
     fn from(err: ActivityError) -> Self {
         match err {
             ActivityError::NotFound(id) => Self::not_found(format!("Activity {} not found", id)),
-            ActivityError::NoEntityReference => {
-                Self::new(422, "no_entity_reference", "Activity must reference at least one entity")
-            }
+            ActivityError::NoEntityReference => Self::new(
+                422,
+                "no_entity_reference",
+                "Activity must reference at least one entity",
+            ),
             ActivityError::AlreadyCompleted => {
                 Self::new(422, "already_completed", "Activity is already completed")
             }

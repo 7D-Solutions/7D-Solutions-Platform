@@ -2,7 +2,10 @@ use chrono::Utc;
 use sqlx::PgPool;
 use uuid::Uuid;
 
-use crate::events::{self, HandoffAcceptedPayload, HandoffCancelledPayload, HandoffInitiatedPayload, HandoffRejectedPayload};
+use crate::events::{
+    self, HandoffAcceptedPayload, HandoffCancelledPayload, HandoffInitiatedPayload,
+    HandoffRejectedPayload,
+};
 use crate::outbox::enqueue_event_tx;
 use platform_http_contracts::ApiError;
 
@@ -25,7 +28,10 @@ pub async fn initiate_handoff(
 ) -> Result<OperationHandoff, ApiError> {
     let initiation_type = req.initiation_type.as_deref().unwrap_or("push");
     if !VALID_INITIATION_TYPES.contains(&initiation_type) {
-        return Err(ApiError::bad_request(format!("Invalid initiation_type: {}", initiation_type)));
+        return Err(ApiError::bad_request(format!(
+            "Invalid initiation_type: {}",
+            initiation_type
+        )));
     }
     if req.quantity <= 0.0 {
         return Err(ApiError::bad_request("quantity must be positive"));
@@ -60,7 +66,10 @@ pub async fn initiate_handoff(
         updated_at: now,
     };
 
-    let mut tx = pool.begin().await.map_err(|e| ApiError::internal(e.to_string()))?;
+    let mut tx = pool
+        .begin()
+        .await
+        .map_err(|e| ApiError::internal(e.to_string()))?;
 
     sqlx::query(
         r#"INSERT INTO operation_handoffs
@@ -105,11 +114,20 @@ pub async fn initiate_handoff(
     })
     .map_err(|e| ApiError::internal(e.to_string()))?;
 
-    enqueue_event_tx(&mut *tx, Uuid::new_v4(), events::HANDOFF_INITIATED, "operation_handoff", &handoff.id.to_string(), &payload)
+    enqueue_event_tx(
+        &mut *tx,
+        Uuid::new_v4(),
+        events::HANDOFF_INITIATED,
+        "operation_handoff",
+        &handoff.id.to_string(),
+        &payload,
+    )
+    .await
+    .map_err(|e| ApiError::internal(e.to_string()))?;
+
+    tx.commit()
         .await
         .map_err(|e| ApiError::internal(e.to_string()))?;
-
-    tx.commit().await.map_err(|e| ApiError::internal(e.to_string()))?;
     Ok(handoff)
 }
 
@@ -120,7 +138,10 @@ pub async fn accept_handoff(
     accepted_by: Uuid,
     _req: AcceptHandoffRequest,
 ) -> Result<OperationHandoff, ApiError> {
-    let mut tx = pool.begin().await.map_err(|e| ApiError::internal(e.to_string()))?;
+    let mut tx = pool
+        .begin()
+        .await
+        .map_err(|e| ApiError::internal(e.to_string()))?;
 
     let updated = sqlx::query_as::<_, OperationHandoff>(
         r#"UPDATE operation_handoffs
@@ -149,11 +170,20 @@ pub async fn accept_handoff(
     })
     .map_err(|e| ApiError::internal(e.to_string()))?;
 
-    enqueue_event_tx(&mut *tx, Uuid::new_v4(), events::HANDOFF_ACCEPTED, "operation_handoff", &updated.id.to_string(), &payload)
+    enqueue_event_tx(
+        &mut *tx,
+        Uuid::new_v4(),
+        events::HANDOFF_ACCEPTED,
+        "operation_handoff",
+        &updated.id.to_string(),
+        &payload,
+    )
+    .await
+    .map_err(|e| ApiError::internal(e.to_string()))?;
+
+    tx.commit()
         .await
         .map_err(|e| ApiError::internal(e.to_string()))?;
-
-    tx.commit().await.map_err(|e| ApiError::internal(e.to_string()))?;
     Ok(updated)
 }
 
@@ -164,7 +194,10 @@ pub async fn reject_handoff(
     rejected_by: Uuid,
     req: RejectHandoffRequest,
 ) -> Result<OperationHandoff, ApiError> {
-    let mut tx = pool.begin().await.map_err(|e| ApiError::internal(e.to_string()))?;
+    let mut tx = pool
+        .begin()
+        .await
+        .map_err(|e| ApiError::internal(e.to_string()))?;
 
     let updated = sqlx::query_as::<_, OperationHandoff>(
         r#"UPDATE operation_handoffs
@@ -196,11 +229,20 @@ pub async fn reject_handoff(
     })
     .map_err(|e| ApiError::internal(e.to_string()))?;
 
-    enqueue_event_tx(&mut *tx, Uuid::new_v4(), events::HANDOFF_REJECTED, "operation_handoff", &updated.id.to_string(), &payload)
+    enqueue_event_tx(
+        &mut *tx,
+        Uuid::new_v4(),
+        events::HANDOFF_REJECTED,
+        "operation_handoff",
+        &updated.id.to_string(),
+        &payload,
+    )
+    .await
+    .map_err(|e| ApiError::internal(e.to_string()))?;
+
+    tx.commit()
         .await
         .map_err(|e| ApiError::internal(e.to_string()))?;
-
-    tx.commit().await.map_err(|e| ApiError::internal(e.to_string()))?;
     Ok(updated)
 }
 
@@ -211,7 +253,10 @@ pub async fn cancel_handoff(
     cancelled_by: Uuid,
     req: CancelHandoffRequest,
 ) -> Result<OperationHandoff, ApiError> {
-    let mut tx = pool.begin().await.map_err(|e| ApiError::internal(e.to_string()))?;
+    let mut tx = pool
+        .begin()
+        .await
+        .map_err(|e| ApiError::internal(e.to_string()))?;
 
     let updated = sqlx::query_as::<_, OperationHandoff>(
         r#"UPDATE operation_handoffs
@@ -243,19 +288,38 @@ pub async fn cancel_handoff(
     })
     .map_err(|e| ApiError::internal(e.to_string()))?;
 
-    enqueue_event_tx(&mut *tx, Uuid::new_v4(), events::HANDOFF_CANCELLED, "operation_handoff", &updated.id.to_string(), &payload)
+    enqueue_event_tx(
+        &mut *tx,
+        Uuid::new_v4(),
+        events::HANDOFF_CANCELLED,
+        "operation_handoff",
+        &updated.id.to_string(),
+        &payload,
+    )
+    .await
+    .map_err(|e| ApiError::internal(e.to_string()))?;
+
+    tx.commit()
         .await
         .map_err(|e| ApiError::internal(e.to_string()))?;
-
-    tx.commit().await.map_err(|e| ApiError::internal(e.to_string()))?;
     Ok(updated)
 }
 
-pub async fn list_handoffs(pool: &PgPool, tenant_id: &str, q: ListHandoffsQuery) -> Result<Vec<OperationHandoff>, ApiError> {
-    repo::list_handoffs(pool, tenant_id, &q).await.map_err(|e| ApiError::internal(e.to_string()))
+pub async fn list_handoffs(
+    pool: &PgPool,
+    tenant_id: &str,
+    q: ListHandoffsQuery,
+) -> Result<Vec<OperationHandoff>, ApiError> {
+    repo::list_handoffs(pool, tenant_id, &q)
+        .await
+        .map_err(|e| ApiError::internal(e.to_string()))
 }
 
-pub async fn get_handoff(pool: &PgPool, handoff_id: Uuid, tenant_id: &str) -> Result<OperationHandoff, ApiError> {
+pub async fn get_handoff(
+    pool: &PgPool,
+    handoff_id: Uuid,
+    tenant_id: &str,
+) -> Result<OperationHandoff, ApiError> {
     repo::fetch_handoff(pool, handoff_id, tenant_id)
         .await
         .map_err(|e| ApiError::internal(e.to_string()))?

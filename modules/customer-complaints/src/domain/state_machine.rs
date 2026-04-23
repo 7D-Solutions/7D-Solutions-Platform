@@ -91,7 +91,10 @@ mod tests {
 
     #[test]
     fn intake_to_triaged() {
-        assert_eq!(transition_triage("intake").unwrap(), ComplaintStatus::Triaged);
+        assert_eq!(
+            transition_triage("intake").unwrap(),
+            ComplaintStatus::Triaged
+        );
     }
 
     #[test]
@@ -104,7 +107,10 @@ mod tests {
 
     #[test]
     fn triaged_to_investigating() {
-        assert_eq!(transition_start_investigation("triaged").unwrap(), ComplaintStatus::Investigating);
+        assert_eq!(
+            transition_start_investigation("triaged").unwrap(),
+            ComplaintStatus::Investigating
+        );
     }
 
     #[test]
@@ -116,7 +122,10 @@ mod tests {
 
     #[test]
     fn investigating_to_responded() {
-        assert_eq!(transition_respond("investigating").unwrap(), ComplaintStatus::Responded);
+        assert_eq!(
+            transition_respond("investigating").unwrap(),
+            ComplaintStatus::Responded
+        );
     }
 
     #[test]
@@ -129,7 +138,10 @@ mod tests {
 
     #[test]
     fn responded_to_closed() {
-        assert_eq!(transition_close("responded").unwrap(), ComplaintStatus::Closed);
+        assert_eq!(
+            transition_close("responded").unwrap(),
+            ComplaintStatus::Closed
+        );
     }
 
     #[test]
@@ -144,7 +156,10 @@ mod tests {
     #[test]
     fn cancel_from_any_non_terminal_succeeds() {
         for status in &["intake", "triaged", "investigating", "responded"] {
-            assert_eq!(transition_cancel(status).unwrap(), ComplaintStatus::Cancelled);
+            assert_eq!(
+                transition_cancel(status).unwrap(),
+                ComplaintStatus::Cancelled
+            );
         }
     }
 

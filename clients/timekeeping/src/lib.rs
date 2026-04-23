@@ -11,7 +11,8 @@ pub mod exports;
 pub mod projects;
 pub mod rollups;
 pub mod tasks;
-pub mod types;
+pub mod types_1;
+pub mod types_2;
 
 pub use allocations::AllocationsClient;
 pub use approvals::ApprovalsClient;
@@ -22,7 +23,8 @@ pub use exports::ExportsClient;
 pub use projects::ProjectsClient;
 pub use rollups::RollupsClient;
 pub use tasks::TasksClient;
-pub use types::*;
+pub use types_1::*;
+pub use types_2::*;
 
 // -- PlatformService trait impls (connects to SDK VerticalBuilder) --
 

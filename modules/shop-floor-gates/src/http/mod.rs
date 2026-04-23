@@ -22,7 +22,10 @@ pub async fn health_check(State(state): State<Arc<AppState>>) -> impl axum::resp
     let pool_metrics = PoolMetrics {
         size: state.pool.size(),
         idle: state.pool.num_idle() as u32,
-        active: state.pool.size().saturating_sub(state.pool.num_idle() as u32),
+        active: state
+            .pool
+            .size()
+            .saturating_sub(state.pool.num_idle() as u32),
     };
     let resp = build_ready_response(
         "shop-floor-gates",

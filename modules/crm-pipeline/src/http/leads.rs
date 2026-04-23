@@ -37,7 +37,10 @@ pub async fn create_lead(
         Ok(id) => id,
         Err(e) => return with_request_id(e, &tracing_ctx).into_response(),
     };
-    let actor = claims.as_ref().map(|c| c.user_id.to_string()).unwrap_or_else(|| "unknown".to_string());
+    let actor = claims
+        .as_ref()
+        .map(|c| c.user_id.to_string())
+        .unwrap_or_else(|| "unknown".to_string());
     match service::create_lead(&state.pool, &tenant_id, &req, actor).await {
         Ok(lead) => (StatusCode::CREATED, Json(lead)).into_response(),
         Err(e) => with_request_id(ApiError::from(e), &tracing_ctx).into_response(),
@@ -128,7 +131,10 @@ pub async fn mark_contacted(
         Ok(id) => id,
         Err(e) => return with_request_id(e, &tracing_ctx).into_response(),
     };
-    let actor = claims.as_ref().map(|c| c.user_id.to_string()).unwrap_or_else(|| "unknown".to_string());
+    let actor = claims
+        .as_ref()
+        .map(|c| c.user_id.to_string())
+        .unwrap_or_else(|| "unknown".to_string());
     match service::mark_contacted(&state.pool, &tenant_id, id, actor).await {
         Ok(lead) => Json(lead).into_response(),
         Err(e) => with_request_id(ApiError::from(e), &tracing_ctx).into_response(),
@@ -150,7 +156,10 @@ pub async fn mark_qualifying(
         Ok(id) => id,
         Err(e) => return with_request_id(e, &tracing_ctx).into_response(),
     };
-    let actor = claims.as_ref().map(|c| c.user_id.to_string()).unwrap_or_else(|| "unknown".to_string());
+    let actor = claims
+        .as_ref()
+        .map(|c| c.user_id.to_string())
+        .unwrap_or_else(|| "unknown".to_string());
     match service::mark_qualifying(&state.pool, &tenant_id, id, actor).await {
         Ok(lead) => Json(lead).into_response(),
         Err(e) => with_request_id(ApiError::from(e), &tracing_ctx).into_response(),
@@ -172,7 +181,10 @@ pub async fn mark_qualified(
         Ok(id) => id,
         Err(e) => return with_request_id(e, &tracing_ctx).into_response(),
     };
-    let actor = claims.as_ref().map(|c| c.user_id.to_string()).unwrap_or_else(|| "unknown".to_string());
+    let actor = claims
+        .as_ref()
+        .map(|c| c.user_id.to_string())
+        .unwrap_or_else(|| "unknown".to_string());
     match service::mark_qualified(&state.pool, &tenant_id, id, actor).await {
         Ok(lead) => Json(lead).into_response(),
         Err(e) => with_request_id(ApiError::from(e), &tracing_ctx).into_response(),
@@ -196,7 +208,15 @@ pub async fn convert_lead(
         Ok(id) => id,
         Err(e) => return with_request_id(e, &tracing_ctx).into_response(),
     };
-    match service::convert_lead(&state.pool, &tenant_id, id, &req, Some(&state.parties_client)).await {
+    match service::convert_lead(
+        &state.pool,
+        &tenant_id,
+        id,
+        &req,
+        Some(&state.parties_client),
+    )
+    .await
+    {
         Ok(resp) => Json(resp).into_response(),
         Err(e) => with_request_id(ApiError::from(e), &tracing_ctx).into_response(),
     }

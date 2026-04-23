@@ -8,6 +8,67 @@ use crate::*;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
+/// Response from validate-close operation
+///
+/// Returns structured validation report with errors/warnings.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ValidateCloseResponse {
+    /// Overall validation result
+    pub can_close: bool,
+    /// Period ID that was validated
+    pub period_id: uuid::Uuid,
+    /// Tenant ID
+    pub tenant_id: String,
+    /// Timestamp when validation was performed
+    pub validated_at: chrono::DateTime<chrono::Utc>,
+    /// Structured validation report (empty if can_close=true)
+    pub validation_report: ValidationReport,
+}
+
+/// Individual validation issue
+///
+/// Structured error/warning with stable code for client handling.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ValidationIssue {
+    /// Stable error code for programmatic handling
+    pub code: String,
+    /// Human-readable message
+    pub message: String,
+    /// Optional metadata for additional context
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub metadata: Option<serde_json::Value>,
+    /// Severity level
+    pub severity: ValidationSeverity,
+}
+
+/// Structured validation report
+///
+/// Machine-readable validation results with severity levels.
+/// Empty if validation passes (can_close=true).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ValidationReport {
+    /// Validation issues grouped by severity
+    pub issues: Vec<ValidationIssue>,
+}
+
+/// Validation issue severity levels
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub enum ValidationSeverity {
+    ERROR,
+    WARNING,
+    INFO,
+}
+
+impl ValidationSeverity {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            ValidationSeverity::ERROR => "ERROR",
+            ValidationSeverity::WARNING => "WARNING",
+            ValidationSeverity::INFO => "INFO",
+        }
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct WaiveChecklistItemRequest {
     pub completed_by: String,

@@ -42,9 +42,7 @@ fn make_test_keys() -> TestKeys {
     let pub_pem = pub_key.to_public_key_pem(LineEnding::LF).expect("pub PEM");
     TestKeys {
         encoding: EncodingKey::from_rsa_pem(priv_pem.as_bytes()).expect("encoding key"),
-        verifier: Arc::new(
-            security::JwtVerifier::from_public_pem(&pub_pem).expect("JWT verifier"),
-        ),
+        verifier: Arc::new(security::JwtVerifier::from_public_pem(&pub_pem).expect("JWT verifier")),
     }
 }
 

@@ -4,17 +4,21 @@
 //! All tests use unique tenant IDs to avoid cross-test interference.
 
 use crm_pipeline_rs::consumers::order_booked::{handle_order_booked, OrderBookedPayload};
-use crm_pipeline_rs::domain::contact_role_attributes::{repo as contact_repo, UpsertContactRoleRequest};
+use crm_pipeline_rs::domain::contact_role_attributes::{
+    repo as contact_repo, UpsertContactRoleRequest,
+};
 use crm_pipeline_rs::domain::leads::{
     service as lead_service, ConvertLeadRequest, CreateLeadRequest,
 };
-use platform_client_party::{PartiesClient, SearchPartiesQuery};
-use platform_sdk::PlatformClient;
 use crm_pipeline_rs::domain::opportunities::{
     service as opp_service, AdvanceStageRequest, CloseLostRequest, CloseWonRequest,
     CreateOpportunityRequest, OpportunityError,
 };
-use crm_pipeline_rs::domain::pipeline_stages::{service as stage_service, CreateStageRequest, StageError};
+use crm_pipeline_rs::domain::pipeline_stages::{
+    service as stage_service, CreateStageRequest, StageError,
+};
+use platform_client_party::{PartiesClient, SearchPartiesQuery};
+use platform_sdk::PlatformClient;
 use serial_test::serial;
 use sqlx::postgres::PgPoolOptions;
 use uuid::Uuid;
@@ -22,7 +26,8 @@ use uuid::Uuid;
 async fn setup_db() -> sqlx::PgPool {
     dotenvy::dotenv().ok();
     let url = std::env::var("DATABASE_URL").unwrap_or_else(|_| {
-        "postgresql://crm_pipeline_user:crm_pipeline_pass@localhost:5465/crm_pipeline_db".to_string()
+        "postgresql://crm_pipeline_user:crm_pipeline_pass@localhost:5465/crm_pipeline_db"
+            .to_string()
     });
     let pool = PgPoolOptions::new()
         .max_connections(5)
@@ -41,12 +46,15 @@ fn unique_tenant() -> String {
 }
 
 fn setup_party_client() -> PartiesClient {
-    let url = std::env::var("PARTY_BASE_URL")
-        .unwrap_or_else(|_| "http://localhost:8098".to_string());
+    let url =
+        std::env::var("PARTY_BASE_URL").unwrap_or_else(|_| "http://localhost:8098".to_string());
     PartiesClient::new(PlatformClient::new(url))
 }
 
-async fn create_qualified_lead(pool: &sqlx::PgPool, tenant_id: &str) -> crm_pipeline_rs::domain::leads::Lead {
+async fn create_qualified_lead(
+    pool: &sqlx::PgPool,
+    tenant_id: &str,
+) -> crm_pipeline_rs::domain::leads::Lead {
     let req = CreateLeadRequest {
         source: "referral".to_string(),
         source_detail: None,
@@ -74,7 +82,10 @@ async fn create_qualified_lead(pool: &sqlx::PgPool, tenant_id: &str) -> crm_pipe
         .expect("mark qualified")
 }
 
-async fn create_open_opportunity(pool: &sqlx::PgPool, tenant_id: &str) -> crm_pipeline_rs::domain::opportunities::Opportunity {
+async fn create_open_opportunity(
+    pool: &sqlx::PgPool,
+    tenant_id: &str,
+) -> crm_pipeline_rs::domain::opportunities::Opportunity {
     stage_service::ensure_default_stages(pool, tenant_id)
         .await
         .expect("seed stages");
@@ -130,7 +141,10 @@ async fn test_lead_convert_without_party_id_creates_party() {
     .expect("auto-create party + convert should succeed");
 
     assert_eq!(resp.lead.status, "converted");
-    let new_party_id = resp.lead.party_id.expect("party_id must be set after auto-create");
+    let new_party_id = resp
+        .lead
+        .party_id
+        .expect("party_id must be set after auto-create");
 
     // Verify the Party company exists in the Party service.
     let tenant_uuid = Uuid::parse_str(&tenant).expect("tenant is a valid UUID");
@@ -146,7 +160,10 @@ async fn test_lead_convert_without_party_id_creates_party() {
         .await
         .expect("search parties");
 
-    assert!(!search.data.is_empty(), "Party company must exist after auto-create");
+    assert!(
+        !search.data.is_empty(),
+        "Party company must exist after auto-create"
+    );
     assert_eq!(
         search.data[0].id, new_party_id,
         "returned party_id must match the created Party row"
@@ -233,9 +250,15 @@ async fn test_default_stages_seeded_idempotent() {
         "Expected 7 default stages, got {}",
         stages.len()
     );
-    assert!(stages.iter().any(|s| s.stage_code == "prospecting" && !s.is_terminal));
-    assert!(stages.iter().any(|s| s.stage_code == "closed_won" && s.is_terminal && s.is_win));
-    assert!(stages.iter().any(|s| s.stage_code == "closed_lost" && s.is_terminal && !s.is_win));
+    assert!(stages
+        .iter()
+        .any(|s| s.stage_code == "prospecting" && !s.is_terminal));
+    assert!(stages
+        .iter()
+        .any(|s| s.stage_code == "closed_won" && s.is_terminal && s.is_win));
+    assert!(stages
+        .iter()
+        .any(|s| s.stage_code == "closed_lost" && s.is_terminal && !s.is_win));
 }
 
 #[tokio::test]
@@ -301,7 +324,10 @@ async fn test_tenant_isolation_stages() {
         .await
         .expect("list tenant B");
 
-    assert!(stages_b.is_empty(), "Tenant B must not see Tenant A's stages");
+    assert!(
+        stages_b.is_empty(),
+        "Tenant B must not see Tenant A's stages"
+    );
 }
 
 // ============================================================================
@@ -346,7 +372,11 @@ async fn test_stage_history_is_append_only() {
     let initial_detail = opp_service::get_opportunity_detail(&pool, &tenant, opp.id)
         .await
         .expect("get detail");
-    assert_eq!(initial_detail.stage_history.len(), 1, "Initial history entry on creation");
+    assert_eq!(
+        initial_detail.stage_history.len(),
+        1,
+        "Initial history entry on creation"
+    );
 
     // Advance to discovery
     opp_service::advance_stage(
@@ -367,7 +397,11 @@ async fn test_stage_history_is_append_only() {
     let detail = opp_service::get_opportunity_detail(&pool, &tenant, opp.id)
         .await
         .expect("get detail after advance");
-    assert_eq!(detail.stage_history.len(), 2, "History must grow after advance");
+    assert_eq!(
+        detail.stage_history.len(),
+        2,
+        "History must grow after advance"
+    );
 
     // Advance to proposal
     opp_service::advance_stage(
@@ -412,7 +446,10 @@ async fn test_close_won_sets_actual_close_date() {
     .await
     .expect("close won");
 
-    assert!(won.actual_close_date.is_some(), "actual_close_date must be set on close-won");
+    assert!(
+        won.actual_close_date.is_some(),
+        "actual_close_date must be set on close-won"
+    );
     assert_eq!(won.stage_code, "closed_won");
     assert_eq!(won.probability_pct, 100);
 }
@@ -487,7 +524,10 @@ async fn test_contact_deactivated_sets_inactive() {
         .await
         .expect("get attrs after")
         .expect("attrs must still exist");
-    assert!(!attrs_after.is_active, "is_active must be false after deactivation");
+    assert!(
+        !attrs_after.is_active,
+        "is_active must be false after deactivation"
+    );
 }
 
 #[tokio::test]

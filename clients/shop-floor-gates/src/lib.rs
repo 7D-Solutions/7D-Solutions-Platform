@@ -224,7 +224,10 @@ impl ShopFloorGatesClient {
         verification_id: Uuid,
         body: &OperatorConfirmRequest,
     ) -> Result<OperationStartVerification, ClientError> {
-        let url = format!("/api/sfg/verifications/{}/operator-confirm", verification_id);
+        let url = format!(
+            "/api/sfg/verifications/{}/operator-confirm",
+            verification_id
+        );
         let resp = self
             .client
             .post(&url, body, claims)

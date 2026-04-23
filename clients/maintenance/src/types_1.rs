@@ -33,7 +33,7 @@ pub struct DataResponse<T> {
     pub data: Vec<T>,
 }
 
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AddLaborRequest {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub currency: Option<String>,
@@ -45,7 +45,7 @@ pub struct AddLaborRequest {
     pub tenant_id: String,
 }
 
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AddPartRequest {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub currency: Option<String>,
@@ -103,6 +103,16 @@ pub enum AssetStatus {
     Retired,
 }
 
+impl AssetStatus {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            AssetStatus::Active => "active",
+            AssetStatus::Inactive => "inactive",
+            AssetStatus::Retired => "retired",
+        }
+    }
+}
+
 /// Asset type — classifies what kind of thing is being maintained.
 /// Asset-type agnostic: this is for filtering/reporting, not behavior.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -119,7 +129,19 @@ pub enum AssetType {
     Other,
 }
 
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+impl AssetType {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            AssetType::Vehicle => "vehicle",
+            AssetType::Machinery => "machinery",
+            AssetType::Equipment => "equipment",
+            AssetType::Facility => "facility",
+            AssetType::Other => "other",
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AssignPlanRequest {
     pub asset_id: uuid::Uuid,
     pub tenant_id: String,
@@ -150,6 +172,17 @@ pub enum CalibrationStatus {
     Overdue,
     #[serde(rename = "out_of_service")]
     OutOfService,
+}
+
+impl CalibrationStatus {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            CalibrationStatus::InCal => "in_cal",
+            CalibrationStatus::Due => "due",
+            CalibrationStatus::Overdue => "overdue",
+            CalibrationStatus::OutOfService => "out_of_service",
+        }
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -189,7 +222,7 @@ pub struct CreateAssetRequest {
     pub tenant_id: String,
 }
 
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CreateDowntimeRequest {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub asset_id: Option<uuid::Uuid>,
@@ -245,7 +278,7 @@ pub struct CreatePlanRequest {
     pub tenant_id: String,
 }
 
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CreateWorkOrderRequest {
     pub asset_id: uuid::Uuid,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -378,7 +411,18 @@ pub enum Priority {
     Critical,
 }
 
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+impl Priority {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Priority::Low => "low",
+            Priority::Medium => "medium",
+            Priority::High => "high",
+            Priority::Critical => "critical",
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RecordCalibrationRequest {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub doc_revision_id: Option<uuid::Uuid>,
@@ -390,7 +434,7 @@ pub struct RecordCalibrationRequest {
     pub tenant_id: String,
 }
 
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RecordReadingRequest {
     pub meter_type_id: uuid::Uuid,
     pub reading_value: i64,
@@ -398,30 +442,5 @@ pub struct RecordReadingRequest {
     pub recorded_at: Option<chrono::DateTime<chrono::Utc>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub recorded_by: Option<String>,
-    pub tenant_id: String,
-}
-
-/// Schedule type for maintenance plans.
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
-pub enum ScheduleType {
-    #[serde(rename = "calendar")]
-    Calendar,
-    #[serde(rename = "meter")]
-    Meter,
-    #[serde(rename = "both")]
-    Both,
-}
-
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-pub struct TransitionRequest {
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub closed_at: Option<chrono::DateTime<chrono::Utc>>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub completed_at: Option<chrono::DateTime<chrono::Utc>>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub downtime_minutes: Option<i32>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub notes: Option<String>,
-    pub status: String,
     pub tenant_id: String,
 }

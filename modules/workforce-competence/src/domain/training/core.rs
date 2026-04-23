@@ -19,15 +19,15 @@ use crate::{
         service::ServiceError,
     },
     events::{
-        create_wc_envelope, MUTATION_CLASS_DATA_MUTATION, WC_EVENT_SCHEMA_VERSION,
-        EVENT_TYPE_TRAINING_ASSIGNED, EVENT_TYPE_TRAINING_COMPLETED, EVENT_TYPE_TRAINING_PLANNED,
+        create_wc_envelope, EVENT_TYPE_TRAINING_ASSIGNED, EVENT_TYPE_TRAINING_COMPLETED,
+        EVENT_TYPE_TRAINING_PLANNED, MUTATION_CLASS_DATA_MUTATION, WC_EVENT_SCHEMA_VERSION,
     },
 };
 
 use super::{
     CreateTrainingAssignmentRequest, CreateTrainingPlanRequest, RecordCompletionRequest,
-    TrainingAssignment, TrainingAssignmentRow, TrainingCompletion, TrainingCompletedPayload,
-    TrainingAssignedPayload, TrainingOutcome, TrainingPlan, TrainingPlannedPayload,
+    TrainingAssignedPayload, TrainingAssignment, TrainingAssignmentRow, TrainingCompletedPayload,
+    TrainingCompletion, TrainingOutcome, TrainingPlan, TrainingPlannedPayload,
     TransitionAssignmentRequest,
 };
 
@@ -148,8 +148,16 @@ pub async fn create_training_plan(
     )
     .await?;
 
-    write_idem_key(&mut tx, &req.tenant_id, &req.idempotency_key, &request_hash, &plan, 201, now)
-        .await?;
+    write_idem_key(
+        &mut tx,
+        &req.tenant_id,
+        &req.idempotency_key,
+        &request_hash,
+        &plan,
+        201,
+        now,
+    )
+    .await?;
 
     tx.commit().await?;
     Ok((plan, false))

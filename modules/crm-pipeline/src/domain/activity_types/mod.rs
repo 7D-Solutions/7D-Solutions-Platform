@@ -23,8 +23,12 @@ pub enum ActivityTypeError {
 impl From<ActivityTypeError> for platform_http_contracts::ApiError {
     fn from(err: ActivityTypeError) -> Self {
         match err {
-            ActivityTypeError::NotFound(code) => Self::not_found(format!("Activity type '{}' not found", code)),
-            ActivityTypeError::DuplicateCode(code) => Self::conflict(format!("Activity type '{}' already exists", code)),
+            ActivityTypeError::NotFound(code) => {
+                Self::not_found(format!("Activity type '{}' not found", code))
+            }
+            ActivityTypeError::DuplicateCode(code) => {
+                Self::conflict(format!("Activity type '{}' already exists", code))
+            }
             ActivityTypeError::Validation(msg) => Self::new(422, "validation_error", msg),
             ActivityTypeError::Database(e) => {
                 tracing::error!("CRM activity_types DB error: {}", e);

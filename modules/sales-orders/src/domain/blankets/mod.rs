@@ -49,10 +49,16 @@ impl From<BlanketError> for platform_http_contracts::ApiError {
                 "invalid_transition",
                 format!("Cannot transition blanket from '{}' to '{}'", from, to),
             ),
-            BlanketError::OverDraw { requested, remaining } => Self::new(
+            BlanketError::OverDraw {
+                requested,
+                remaining,
+            } => Self::new(
                 422,
                 "over_draw",
-                format!("Release qty {:.4} exceeds remaining {:.4}", requested, remaining),
+                format!(
+                    "Release qty {:.4} exceeds remaining {:.4}",
+                    requested, remaining
+                ),
             ),
             BlanketError::Validation(msg) => Self::new(422, "validation_error", msg),
             BlanketError::Database(e) => {

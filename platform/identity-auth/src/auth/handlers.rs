@@ -1249,11 +1249,8 @@ pub async fn login(
     }
 
     let cookie_max_age = (session_expires_at - Utc::now()).num_seconds().max(0);
-    let cookie_value = cookies::build_set_cookie(
-        &session_raw_token,
-        cookie_max_age,
-        state.cookie_secure,
-    );
+    let cookie_value =
+        cookies::build_set_cookie(&session_raw_token, cookie_max_age, state.cookie_secure);
     let mut resp_headers = HeaderMap::new();
     resp_headers.insert(
         axum::http::header::SET_COOKIE,

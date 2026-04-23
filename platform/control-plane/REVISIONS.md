@@ -4,6 +4,9 @@
 > **Standard:** See `docs/VERSIONING.md` for the rules governing this file.
 
 
+## 1.7.1
+- chore: workspace rustfmt pass (no behavioral changes) ([bd-44hil])
+
 ## 1.7.0
 - feat: public tenant feature-flag endpoint — `GET /api/features?tenant_id={uuid}` returns resolved flag map; JWT-gated, cross-tenant isolation enforced ([bd-p2jsi])
 

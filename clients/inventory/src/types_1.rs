@@ -350,6 +350,16 @@ pub enum InvItemStatus {
     Damaged,
 }
 
+impl InvItemStatus {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            InvItemStatus::Available => "available",
+            InvItemStatus::Quarantine => "quarantine",
+            InvItemStatus::Damaged => "damaged",
+        }
+    }
+}
+
 /// A named lot grouping a batch of items received together.
 ///
 /// Lots are unique per (tenant_id, item_id, lot_code).

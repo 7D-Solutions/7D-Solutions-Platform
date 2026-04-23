@@ -439,7 +439,10 @@ async fn barcode_invalid_regex_rejected() {
         .expect_err("invalid regex must be rejected");
 
     assert!(
-        matches!(err, inventory_rs::domain::barcode_resolver::BarcodeError::InvalidRegex(_)),
+        matches!(
+            err,
+            inventory_rs::domain::barcode_resolver::BarcodeError::InvalidRegex(_)
+        ),
         "expected InvalidRegex, got: {:?}",
         err
     );
@@ -578,12 +581,10 @@ async fn barcode_update_rule_validates_regex() {
     let pool = setup_db().await;
     let tenant = format!("test-bc-{}", Uuid::new_v4());
 
-    let rule = barcode_resolver::create_rule(
-        &pool,
-        &make_rule(&tenant, r"^WO-\d+$", "work_order", 0, 10),
-    )
-    .await
-    .expect("create rule");
+    let rule =
+        barcode_resolver::create_rule(&pool, &make_rule(&tenant, r"^WO-\d+$", "work_order", 0, 10))
+            .await
+            .expect("create rule");
 
     let bad_update = UpdateRuleRequest {
         tenant_id: tenant.clone(),
@@ -599,7 +600,10 @@ async fn barcode_update_rule_validates_regex() {
         .expect_err("invalid regex on update must be rejected");
 
     assert!(
-        matches!(err, inventory_rs::domain::barcode_resolver::BarcodeError::InvalidRegex(_)),
+        matches!(
+            err,
+            inventory_rs::domain::barcode_resolver::BarcodeError::InvalidRegex(_)
+        ),
         "expected InvalidRegex, got: {:?}",
         err
     );

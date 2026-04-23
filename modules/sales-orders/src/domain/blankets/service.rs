@@ -179,9 +179,7 @@ pub async fn create_release(
         ));
     }
 
-    let release_date = req
-        .release_date
-        .unwrap_or_else(|| Utc::now().date_naive());
+    let release_date = req.release_date.unwrap_or_else(|| Utc::now().date_naive());
 
     // Over-draw check with row-level lock
     let mut tx = pool.begin().await?;

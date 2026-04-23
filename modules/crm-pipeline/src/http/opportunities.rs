@@ -37,7 +37,10 @@ pub async fn create_opportunity(
         Ok(id) => id,
         Err(e) => return with_request_id(e, &tracing_ctx).into_response(),
     };
-    let actor = claims.as_ref().map(|c| c.user_id.to_string()).unwrap_or_else(|| "unknown".to_string());
+    let actor = claims
+        .as_ref()
+        .map(|c| c.user_id.to_string())
+        .unwrap_or_else(|| "unknown".to_string());
     match service::create_opportunity(&state.pool, &tenant_id, &req, actor).await {
         Ok(opp) => (StatusCode::CREATED, Json(opp)).into_response(),
         Err(e) => with_request_id(ApiError::from(e), &tracing_ctx).into_response(),
@@ -130,7 +133,10 @@ pub async fn advance_stage(
         Ok(id) => id,
         Err(e) => return with_request_id(e, &tracing_ctx).into_response(),
     };
-    let actor = claims.as_ref().map(|c| c.user_id.to_string()).unwrap_or_else(|| "unknown".to_string());
+    let actor = claims
+        .as_ref()
+        .map(|c| c.user_id.to_string())
+        .unwrap_or_else(|| "unknown".to_string());
     match service::advance_stage(&state.pool, &tenant_id, id, &req, actor).await {
         Ok(opp) => Json(opp).into_response(),
         Err(e) => with_request_id(ApiError::from(e), &tracing_ctx).into_response(),
@@ -154,7 +160,10 @@ pub async fn close_won(
         Ok(id) => id,
         Err(e) => return with_request_id(e, &tracing_ctx).into_response(),
     };
-    let actor = claims.as_ref().map(|c| c.user_id.to_string()).unwrap_or_else(|| "unknown".to_string());
+    let actor = claims
+        .as_ref()
+        .map(|c| c.user_id.to_string())
+        .unwrap_or_else(|| "unknown".to_string());
     match service::close_won(&state.pool, &tenant_id, id, &req, actor).await {
         Ok(opp) => Json(opp).into_response(),
         Err(e) => with_request_id(ApiError::from(e), &tracing_ctx).into_response(),
@@ -178,7 +187,10 @@ pub async fn close_lost(
         Ok(id) => id,
         Err(e) => return with_request_id(e, &tracing_ctx).into_response(),
     };
-    let actor = claims.as_ref().map(|c| c.user_id.to_string()).unwrap_or_else(|| "unknown".to_string());
+    let actor = claims
+        .as_ref()
+        .map(|c| c.user_id.to_string())
+        .unwrap_or_else(|| "unknown".to_string());
     match service::close_lost(&state.pool, &tenant_id, id, &req, actor).await {
         Ok(opp) => Json(opp).into_response(),
         Err(e) => with_request_id(ApiError::from(e), &tracing_ctx).into_response(),

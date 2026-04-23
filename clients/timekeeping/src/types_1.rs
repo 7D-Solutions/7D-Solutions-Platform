@@ -90,6 +90,17 @@ pub enum ApprovalStatus {
     Rejected,
 }
 
+impl ApprovalStatus {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            ApprovalStatus::Draft => "Draft",
+            ApprovalStatus::Submitted => "Submitted",
+            ApprovalStatus::Approved => "Approved",
+            ApprovalStatus::Rejected => "Rejected",
+        }
+    }
+}
+
 /// A single billing line item computed from an entry + its rate.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct BillingLineItem {
@@ -280,6 +291,16 @@ pub enum EntryType {
     Void,
 }
 
+impl EntryType {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            EntryType::Original => "Original",
+            EntryType::Correction => "Correction",
+            EntryType::Void => "Void",
+        }
+    }
+}
+
 /// Generated export artifacts returned to the caller.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ExportArtifact {
@@ -317,6 +338,17 @@ pub enum ExportStatus {
     InProgress,
     Completed,
     Failed,
+}
+
+impl ExportStatus {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            ExportStatus::Pending => "Pending",
+            ExportStatus::InProgress => "InProgress",
+            ExportStatus::Completed => "Completed",
+            ExportStatus::Failed => "Failed",
+        }
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -411,60 +443,4 @@ pub struct TimesheetEntry {
     pub task_id: Option<uuid::Uuid>,
     pub version: i32,
     pub work_date: chrono::NaiveDate,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct UpdateAllocationRequest {
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub allocated_minutes_per_week: Option<i32>,
-    pub app_id: String,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub effective_to: Option<chrono::NaiveDate>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct UpdateEmployeeRequest {
-    pub app_id: String,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub currency: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub department: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub email: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub external_payroll_id: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub first_name: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub hourly_rate_minor: Option<i64>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub last_name: Option<String>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct UpdateProjectRequest {
-    pub app_id: String,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub billable: Option<bool>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub description: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub gl_account_ref: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub name: Option<String>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct UpdateTaskRequest {
-    pub app_id: String,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub name: Option<String>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct VoidEntryRequest {
-    pub app_id: String,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub created_by: Option<uuid::Uuid>,
-    pub entry_id: uuid::Uuid,
 }

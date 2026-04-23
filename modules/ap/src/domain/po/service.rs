@@ -54,7 +54,10 @@ pub async fn create_po(
             let status = QualificationStatus::from_str(status_str)
                 .unwrap_or(QualificationStatus::Unqualified);
             if !status.allows_po() {
-                return Err(PoError::VendorNotEligible(req.vendor_id, status_str.clone()));
+                return Err(PoError::VendorNotEligible(
+                    req.vendor_id,
+                    status_str.clone(),
+                ));
             }
         }
     }

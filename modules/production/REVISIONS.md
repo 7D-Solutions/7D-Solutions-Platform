@@ -4,6 +4,9 @@
 > **Standard:** See `docs/VERSIONING.md` for the rules governing this file.
 
 
+## 3.7.1
+- chore: workspace rustfmt pass (no behavioral changes) ([bd-44hil])
+
 ## 3.7.0 — 2026-04-17 — bd-3z1m9
 - feat: direct cost accumulation for work orders
   - New DB tables: `work_order_cost_postings`, `work_order_cost_summaries`

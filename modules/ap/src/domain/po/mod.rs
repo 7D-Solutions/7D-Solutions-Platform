@@ -70,7 +70,10 @@ impl From<PoError> for platform_http_contracts::ApiError {
             PoError::VendorNotEligible(id, status) => Self::new(
                 403,
                 "VENDOR_NOT_ELIGIBLE",
-                format!("Vendor {} cannot receive POs in qualification status '{}'", id, status),
+                format!(
+                    "Vendor {} cannot receive POs in qualification status '{}'",
+                    id, status
+                ),
             ),
             PoError::NotDraft(status) => Self::new(
                 422,

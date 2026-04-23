@@ -116,9 +116,8 @@ async fn process_order_shipped_message(
     pool: &PgPool,
     msg: &BusMessage,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    let envelope: EventEnvelope<OrderShippedPayload> =
-        serde_json::from_slice(&msg.payload)
-            .map_err(|e| format!("Failed to parse sales_orders.order_shipped envelope: {}", e))?;
+    let envelope: EventEnvelope<OrderShippedPayload> = serde_json::from_slice(&msg.payload)
+        .map_err(|e| format!("Failed to parse sales_orders.order_shipped envelope: {}", e))?;
 
     tracing::info!(
         event_id = %envelope.event_id,
@@ -231,8 +230,12 @@ mod tests {
         let event_id = Uuid::new_v4();
         let payload = sample_payload(order_id, &tid);
 
-        handle_order_shipped(&pool, event_id, &payload).await.expect("first handle failed");
-        handle_order_shipped(&pool, event_id, &payload).await.expect("second handle must not error");
+        handle_order_shipped(&pool, event_id, &payload)
+            .await
+            .expect("first handle failed");
+        handle_order_shipped(&pool, event_id, &payload)
+            .await
+            .expect("second handle must not error");
 
         let (count,): (i64,) = sqlx::query_as(
             "SELECT COUNT(*) FROM complaint_activity_log WHERE tenant_id = $1 AND activity_type = 'internal_communication'",
@@ -242,7 +245,10 @@ mod tests {
         .await
         .expect("count failed");
 
-        assert_eq!(count, 1, "Redelivery must not duplicate activity log entries");
+        assert_eq!(
+            count, 1,
+            "Redelivery must not duplicate activity log entries"
+        );
         cleanup(&pool, &tid).await;
     }
 
@@ -262,15 +268,17 @@ mod tests {
             .await
             .expect("handle failed");
 
-        let (count,): (i64,) = sqlx::query_as(
-            "SELECT COUNT(*) FROM complaint_activity_log WHERE tenant_id = $1",
-        )
-        .bind(&tid)
-        .fetch_one(&pool)
-        .await
-        .expect("count failed");
+        let (count,): (i64,) =
+            sqlx::query_as("SELECT COUNT(*) FROM complaint_activity_log WHERE tenant_id = $1")
+                .bind(&tid)
+                .fetch_one(&pool)
+                .await
+                .expect("count failed");
 
-        assert_eq!(count, 0, "Unrelated order should not produce activity log entries");
+        assert_eq!(
+            count, 0,
+            "Unrelated order should not produce activity log entries"
+        );
         cleanup(&pool, &tid).await;
     }
 }

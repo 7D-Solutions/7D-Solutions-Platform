@@ -182,7 +182,10 @@ mod tests {
         };
 
         let value = serde_json::to_value(payload).expect("test fixture");
-        assert_eq!(value.get("email").expect("test fixture"), "user@example.com");
+        assert_eq!(
+            value.get("email").expect("test fixture"),
+            "user@example.com"
+        );
         assert_eq!(value.get("role").expect("test fixture"), "merchant_admin");
         assert_eq!(value.get("password").expect("test fixture"), "Test1234");
         assert_eq!(value.get("name").expect("test fixture"), "User Test");

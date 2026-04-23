@@ -12,11 +12,12 @@ impl CrmPipelineClient {
 
     // ── Leads ─────────────────────────────────────────────────────────────────
 
-    pub async fn list_leads(
-        &self,
-        claims: &VerifiedClaims,
-    ) -> Result<Vec<Lead>, ClientError> {
-        let resp = self.client.get("/api/crm-pipeline/leads", claims).await.map_err(ClientError::Network)?;
+    pub async fn list_leads(&self, claims: &VerifiedClaims) -> Result<Vec<Lead>, ClientError> {
+        let resp = self
+            .client
+            .get("/api/crm-pipeline/leads", claims)
+            .await
+            .map_err(ClientError::Network)?;
         parse_response(resp).await
     }
 
@@ -26,7 +27,11 @@ impl CrmPipelineClient {
         id: uuid::Uuid,
     ) -> Result<Lead, ClientError> {
         let path = format!("/api/crm-pipeline/leads/{id}");
-        let resp = self.client.get(&path, claims).await.map_err(ClientError::Network)?;
+        let resp = self
+            .client
+            .get(&path, claims)
+            .await
+            .map_err(ClientError::Network)?;
         parse_response(resp).await
     }
 
@@ -35,7 +40,11 @@ impl CrmPipelineClient {
         claims: &VerifiedClaims,
         body: &CreateLeadRequest,
     ) -> Result<Lead, ClientError> {
-        let resp = self.client.post("/api/crm-pipeline/leads", body, claims).await.map_err(ClientError::Network)?;
+        let resp = self
+            .client
+            .post("/api/crm-pipeline/leads", body, claims)
+            .await
+            .map_err(ClientError::Network)?;
         parse_response(resp).await
     }
 
@@ -46,7 +55,11 @@ impl CrmPipelineClient {
         body: &UpdateLeadRequest,
     ) -> Result<Lead, ClientError> {
         let path = format!("/api/crm-pipeline/leads/{id}");
-        let resp = self.client.put(&path, body, claims).await.map_err(ClientError::Network)?;
+        let resp = self
+            .client
+            .put(&path, body, claims)
+            .await
+            .map_err(ClientError::Network)?;
         parse_response(resp).await
     }
 
@@ -56,7 +69,11 @@ impl CrmPipelineClient {
         id: uuid::Uuid,
     ) -> Result<Lead, ClientError> {
         let path = format!("/api/crm-pipeline/leads/{id}/contact");
-        let resp = self.client.post(&path, &serde_json::Value::Null, claims).await.map_err(ClientError::Network)?;
+        let resp = self
+            .client
+            .post(&path, &serde_json::Value::Null, claims)
+            .await
+            .map_err(ClientError::Network)?;
         parse_response(resp).await
     }
 
@@ -66,7 +83,11 @@ impl CrmPipelineClient {
         id: uuid::Uuid,
     ) -> Result<Lead, ClientError> {
         let path = format!("/api/crm-pipeline/leads/{id}/qualify");
-        let resp = self.client.post(&path, &serde_json::Value::Null, claims).await.map_err(ClientError::Network)?;
+        let resp = self
+            .client
+            .post(&path, &serde_json::Value::Null, claims)
+            .await
+            .map_err(ClientError::Network)?;
         parse_response(resp).await
     }
 
@@ -76,7 +97,11 @@ impl CrmPipelineClient {
         id: uuid::Uuid,
     ) -> Result<Lead, ClientError> {
         let path = format!("/api/crm-pipeline/leads/{id}/mark-qualified");
-        let resp = self.client.post(&path, &serde_json::Value::Null, claims).await.map_err(ClientError::Network)?;
+        let resp = self
+            .client
+            .post(&path, &serde_json::Value::Null, claims)
+            .await
+            .map_err(ClientError::Network)?;
         parse_response(resp).await
     }
 
@@ -87,7 +112,11 @@ impl CrmPipelineClient {
         body: &ConvertLeadRequest,
     ) -> Result<ConvertLeadResponse, ClientError> {
         let path = format!("/api/crm-pipeline/leads/{id}/convert");
-        let resp = self.client.post(&path, body, claims).await.map_err(ClientError::Network)?;
+        let resp = self
+            .client
+            .post(&path, body, claims)
+            .await
+            .map_err(ClientError::Network)?;
         parse_response(resp).await
     }
 
@@ -98,7 +127,11 @@ impl CrmPipelineClient {
         body: &DisqualifyLeadRequest,
     ) -> Result<Lead, ClientError> {
         let path = format!("/api/crm-pipeline/leads/{id}/disqualify");
-        let resp = self.client.post(&path, body, claims).await.map_err(ClientError::Network)?;
+        let resp = self
+            .client
+            .post(&path, body, claims)
+            .await
+            .map_err(ClientError::Network)?;
         parse_response(resp).await
     }
 
@@ -108,7 +141,11 @@ impl CrmPipelineClient {
         id: uuid::Uuid,
     ) -> Result<Lead, ClientError> {
         let path = format!("/api/crm-pipeline/leads/{id}/mark-dead");
-        let resp = self.client.post(&path, &serde_json::Value::Null, claims).await.map_err(ClientError::Network)?;
+        let resp = self
+            .client
+            .post(&path, &serde_json::Value::Null, claims)
+            .await
+            .map_err(ClientError::Network)?;
         parse_response(resp).await
     }
 
@@ -118,7 +155,11 @@ impl CrmPipelineClient {
         &self,
         claims: &VerifiedClaims,
     ) -> Result<Vec<Opportunity>, ClientError> {
-        let resp = self.client.get("/api/crm-pipeline/opportunities", claims).await.map_err(ClientError::Network)?;
+        let resp = self
+            .client
+            .get("/api/crm-pipeline/opportunities", claims)
+            .await
+            .map_err(ClientError::Network)?;
         parse_response(resp).await
     }
 
@@ -128,7 +169,11 @@ impl CrmPipelineClient {
         id: uuid::Uuid,
     ) -> Result<Opportunity, ClientError> {
         let path = format!("/api/crm-pipeline/opportunities/{id}");
-        let resp = self.client.get(&path, claims).await.map_err(ClientError::Network)?;
+        let resp = self
+            .client
+            .get(&path, claims)
+            .await
+            .map_err(ClientError::Network)?;
         parse_response(resp).await
     }
 
@@ -138,7 +183,11 @@ impl CrmPipelineClient {
         id: uuid::Uuid,
     ) -> Result<Vec<OpportunityStageHistory>, ClientError> {
         let path = format!("/api/crm-pipeline/opportunities/{id}/stage-history");
-        let resp = self.client.get(&path, claims).await.map_err(ClientError::Network)?;
+        let resp = self
+            .client
+            .get(&path, claims)
+            .await
+            .map_err(ClientError::Network)?;
         parse_response(resp).await
     }
 
@@ -146,7 +195,11 @@ impl CrmPipelineClient {
         &self,
         claims: &VerifiedClaims,
     ) -> Result<Vec<PipelineSummaryItem>, ClientError> {
-        let resp = self.client.get("/api/crm-pipeline/pipeline/summary", claims).await.map_err(ClientError::Network)?;
+        let resp = self
+            .client
+            .get("/api/crm-pipeline/pipeline/summary", claims)
+            .await
+            .map_err(ClientError::Network)?;
         parse_response(resp).await
     }
 
@@ -155,7 +208,11 @@ impl CrmPipelineClient {
         claims: &VerifiedClaims,
         body: &CreateOpportunityRequest,
     ) -> Result<Opportunity, ClientError> {
-        let resp = self.client.post("/api/crm-pipeline/opportunities", body, claims).await.map_err(ClientError::Network)?;
+        let resp = self
+            .client
+            .post("/api/crm-pipeline/opportunities", body, claims)
+            .await
+            .map_err(ClientError::Network)?;
         parse_response(resp).await
     }
 
@@ -166,7 +223,11 @@ impl CrmPipelineClient {
         body: &UpdateOpportunityRequest,
     ) -> Result<Opportunity, ClientError> {
         let path = format!("/api/crm-pipeline/opportunities/{id}");
-        let resp = self.client.put(&path, body, claims).await.map_err(ClientError::Network)?;
+        let resp = self
+            .client
+            .put(&path, body, claims)
+            .await
+            .map_err(ClientError::Network)?;
         parse_response(resp).await
     }
 
@@ -177,7 +238,11 @@ impl CrmPipelineClient {
         body: &AdvanceStageRequest,
     ) -> Result<Opportunity, ClientError> {
         let path = format!("/api/crm-pipeline/opportunities/{id}/advance-stage");
-        let resp = self.client.post(&path, body, claims).await.map_err(ClientError::Network)?;
+        let resp = self
+            .client
+            .post(&path, body, claims)
+            .await
+            .map_err(ClientError::Network)?;
         parse_response(resp).await
     }
 
@@ -188,7 +253,11 @@ impl CrmPipelineClient {
         body: &CloseWonRequest,
     ) -> Result<Opportunity, ClientError> {
         let path = format!("/api/crm-pipeline/opportunities/{id}/close-won");
-        let resp = self.client.post(&path, body, claims).await.map_err(ClientError::Network)?;
+        let resp = self
+            .client
+            .post(&path, body, claims)
+            .await
+            .map_err(ClientError::Network)?;
         parse_response(resp).await
     }
 
@@ -199,7 +268,11 @@ impl CrmPipelineClient {
         body: &CloseLostRequest,
     ) -> Result<Opportunity, ClientError> {
         let path = format!("/api/crm-pipeline/opportunities/{id}/close-lost");
-        let resp = self.client.post(&path, body, claims).await.map_err(ClientError::Network)?;
+        let resp = self
+            .client
+            .post(&path, body, claims)
+            .await
+            .map_err(ClientError::Network)?;
         parse_response(resp).await
     }
 
@@ -209,7 +282,11 @@ impl CrmPipelineClient {
         &self,
         claims: &VerifiedClaims,
     ) -> Result<Vec<PipelineStage>, ClientError> {
-        let resp = self.client.get("/api/crm-pipeline/stages", claims).await.map_err(ClientError::Network)?;
+        let resp = self
+            .client
+            .get("/api/crm-pipeline/stages", claims)
+            .await
+            .map_err(ClientError::Network)?;
         parse_response(resp).await
     }
 
@@ -218,7 +295,11 @@ impl CrmPipelineClient {
         claims: &VerifiedClaims,
         body: &CreateStageRequest,
     ) -> Result<PipelineStage, ClientError> {
-        let resp = self.client.post("/api/crm-pipeline/stages", body, claims).await.map_err(ClientError::Network)?;
+        let resp = self
+            .client
+            .post("/api/crm-pipeline/stages", body, claims)
+            .await
+            .map_err(ClientError::Network)?;
         parse_response(resp).await
     }
 
@@ -229,7 +310,11 @@ impl CrmPipelineClient {
         body: &UpdateStageRequest,
     ) -> Result<PipelineStage, ClientError> {
         let path = format!("/api/crm-pipeline/stages/{code}");
-        let resp = self.client.put(&path, body, claims).await.map_err(ClientError::Network)?;
+        let resp = self
+            .client
+            .put(&path, body, claims)
+            .await
+            .map_err(ClientError::Network)?;
         parse_response(resp).await
     }
 
@@ -239,7 +324,11 @@ impl CrmPipelineClient {
         code: &str,
     ) -> Result<(), ClientError> {
         let path = format!("/api/crm-pipeline/stages/{code}/deactivate");
-        let resp = self.client.post(&path, &serde_json::Value::Null, claims).await.map_err(ClientError::Network)?;
+        let resp = self
+            .client
+            .post(&path, &serde_json::Value::Null, claims)
+            .await
+            .map_err(ClientError::Network)?;
         parse_response(resp).await
     }
 
@@ -248,7 +337,11 @@ impl CrmPipelineClient {
         claims: &VerifiedClaims,
         body: &ReorderStagesRequest,
     ) -> Result<Vec<PipelineStage>, ClientError> {
-        let resp = self.client.post("/api/crm-pipeline/stages/reorder", body, claims).await.map_err(ClientError::Network)?;
+        let resp = self
+            .client
+            .post("/api/crm-pipeline/stages/reorder", body, claims)
+            .await
+            .map_err(ClientError::Network)?;
         parse_response(resp).await
     }
 
@@ -258,7 +351,11 @@ impl CrmPipelineClient {
         &self,
         claims: &VerifiedClaims,
     ) -> Result<Vec<Activity>, ClientError> {
-        let resp = self.client.get("/api/crm-pipeline/activities", claims).await.map_err(ClientError::Network)?;
+        let resp = self
+            .client
+            .get("/api/crm-pipeline/activities", claims)
+            .await
+            .map_err(ClientError::Network)?;
         parse_response(resp).await
     }
 
@@ -268,7 +365,11 @@ impl CrmPipelineClient {
         id: uuid::Uuid,
     ) -> Result<Activity, ClientError> {
         let path = format!("/api/crm-pipeline/activities/{id}");
-        let resp = self.client.get(&path, claims).await.map_err(ClientError::Network)?;
+        let resp = self
+            .client
+            .get(&path, claims)
+            .await
+            .map_err(ClientError::Network)?;
         parse_response(resp).await
     }
 
@@ -277,7 +378,11 @@ impl CrmPipelineClient {
         claims: &VerifiedClaims,
         body: &CreateActivityRequest,
     ) -> Result<Activity, ClientError> {
-        let resp = self.client.post("/api/crm-pipeline/activities", body, claims).await.map_err(ClientError::Network)?;
+        let resp = self
+            .client
+            .post("/api/crm-pipeline/activities", body, claims)
+            .await
+            .map_err(ClientError::Network)?;
         parse_response(resp).await
     }
 
@@ -287,7 +392,11 @@ impl CrmPipelineClient {
         id: uuid::Uuid,
     ) -> Result<Activity, ClientError> {
         let path = format!("/api/crm-pipeline/activities/{id}/complete");
-        let resp = self.client.post(&path, &serde_json::Value::Null, claims).await.map_err(ClientError::Network)?;
+        let resp = self
+            .client
+            .post(&path, &serde_json::Value::Null, claims)
+            .await
+            .map_err(ClientError::Network)?;
         parse_response(resp).await
     }
 
@@ -298,7 +407,11 @@ impl CrmPipelineClient {
         body: &UpdateActivityRequest,
     ) -> Result<Activity, ClientError> {
         let path = format!("/api/crm-pipeline/activities/{id}");
-        let resp = self.client.put(&path, body, claims).await.map_err(ClientError::Network)?;
+        let resp = self
+            .client
+            .put(&path, body, claims)
+            .await
+            .map_err(ClientError::Network)?;
         parse_response(resp).await
     }
 
@@ -306,7 +419,11 @@ impl CrmPipelineClient {
         &self,
         claims: &VerifiedClaims,
     ) -> Result<Vec<ActivityType>, ClientError> {
-        let resp = self.client.get("/api/crm-pipeline/activity-types", claims).await.map_err(ClientError::Network)?;
+        let resp = self
+            .client
+            .get("/api/crm-pipeline/activity-types", claims)
+            .await
+            .map_err(ClientError::Network)?;
         parse_response(resp).await
     }
 
@@ -315,7 +432,11 @@ impl CrmPipelineClient {
         claims: &VerifiedClaims,
         body: &CreateActivityTypeRequest,
     ) -> Result<ActivityType, ClientError> {
-        let resp = self.client.post("/api/crm-pipeline/activity-types", body, claims).await.map_err(ClientError::Network)?;
+        let resp = self
+            .client
+            .post("/api/crm-pipeline/activity-types", body, claims)
+            .await
+            .map_err(ClientError::Network)?;
         parse_response(resp).await
     }
 
@@ -326,7 +447,11 @@ impl CrmPipelineClient {
         body: &UpdateActivityTypeRequest,
     ) -> Result<ActivityType, ClientError> {
         let path = format!("/api/crm-pipeline/activity-types/{code}");
-        let resp = self.client.put(&path, body, claims).await.map_err(ClientError::Network)?;
+        let resp = self
+            .client
+            .put(&path, body, claims)
+            .await
+            .map_err(ClientError::Network)?;
         parse_response(resp).await
     }
 
@@ -338,7 +463,11 @@ impl CrmPipelineClient {
         party_contact_id: uuid::Uuid,
     ) -> Result<ContactRoleAttributes, ClientError> {
         let path = format!("/api/crm-pipeline/contacts/{party_contact_id}/attributes");
-        let resp = self.client.get(&path, claims).await.map_err(ClientError::Network)?;
+        let resp = self
+            .client
+            .get(&path, claims)
+            .await
+            .map_err(ClientError::Network)?;
         parse_response(resp).await
     }
 
@@ -349,7 +478,11 @@ impl CrmPipelineClient {
         body: &UpsertContactRoleRequest,
     ) -> Result<ContactRoleAttributes, ClientError> {
         let path = format!("/api/crm-pipeline/contacts/{party_contact_id}/attributes");
-        let resp = self.client.put(&path, body, claims).await.map_err(ClientError::Network)?;
+        let resp = self
+            .client
+            .put(&path, body, claims)
+            .await
+            .map_err(ClientError::Network)?;
         parse_response(resp).await
     }
 
@@ -359,7 +492,11 @@ impl CrmPipelineClient {
         &self,
         claims: &VerifiedClaims,
     ) -> Result<Vec<Label>, ClientError> {
-        let resp = self.client.get("/api/crm-pipeline/status-labels", claims).await.map_err(ClientError::Network)?;
+        let resp = self
+            .client
+            .get("/api/crm-pipeline/status-labels", claims)
+            .await
+            .map_err(ClientError::Network)?;
         parse_response(resp).await
     }
 
@@ -367,7 +504,11 @@ impl CrmPipelineClient {
         &self,
         claims: &VerifiedClaims,
     ) -> Result<Vec<Label>, ClientError> {
-        let resp = self.client.get("/api/crm-pipeline/source-labels", claims).await.map_err(ClientError::Network)?;
+        let resp = self
+            .client
+            .get("/api/crm-pipeline/source-labels", claims)
+            .await
+            .map_err(ClientError::Network)?;
         parse_response(resp).await
     }
 
@@ -375,7 +516,11 @@ impl CrmPipelineClient {
         &self,
         claims: &VerifiedClaims,
     ) -> Result<Vec<Label>, ClientError> {
-        let resp = self.client.get("/api/crm-pipeline/type-labels", claims).await.map_err(ClientError::Network)?;
+        let resp = self
+            .client
+            .get("/api/crm-pipeline/type-labels", claims)
+            .await
+            .map_err(ClientError::Network)?;
         parse_response(resp).await
     }
 
@@ -383,7 +528,11 @@ impl CrmPipelineClient {
         &self,
         claims: &VerifiedClaims,
     ) -> Result<Vec<Label>, ClientError> {
-        let resp = self.client.get("/api/crm-pipeline/priority-labels", claims).await.map_err(ClientError::Network)?;
+        let resp = self
+            .client
+            .get("/api/crm-pipeline/priority-labels", claims)
+            .await
+            .map_err(ClientError::Network)?;
         parse_response(resp).await
     }
 }

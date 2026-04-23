@@ -6,6 +6,7 @@ use axum::{
     Router,
 };
 use http_body_util::BodyExt;
+use platform_sdk::PlatformClient;
 use production_rs::domain::bom_client::BomRevisionClient;
 use production_rs::domain::numbering_client::NumberingClient;
 use production_rs::domain::operations::OperationRepo;
@@ -17,7 +18,6 @@ use production_rs::domain::work_orders::{
 use production_rs::domain::workcenters::{CreateWorkcenterRequest, WorkcenterRepo};
 use production_rs::metrics::ProductionMetrics;
 use production_rs::{AppState, OutsideProcessingClient};
-use platform_sdk::PlatformClient;
 use security::{ActorType, VerifiedClaims};
 use serial_test::serial;
 use sqlx::postgres::PgPoolOptions;
@@ -691,9 +691,9 @@ fn build_test_app_with_bom(
     let metrics = METRICS
         .get_or_init(|| Arc::new(ProductionMetrics::new().expect("metrics init")))
         .clone();
-    let op_client = Arc::new(OutsideProcessingClient::new(
-        PlatformClient::new("http://localhost:1".to_string()),
-    ));
+    let op_client = Arc::new(OutsideProcessingClient::new(PlatformClient::new(
+        "http://localhost:1".to_string(),
+    )));
     let state = Arc::new(AppState {
         pool,
         metrics,

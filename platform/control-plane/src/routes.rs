@@ -13,6 +13,7 @@
 ///   GET  /api/ttp/plans                               — List platform billing plans (plan catalog)
 ///   GET  /api/tenants                                 — Paginated tenant list (BFF-compatible)
 ///   GET  /api/tenants/:tenant_id                      — Tenant detail with derived name and seat_limit
+///   GET  /api/control/tenants/:tenant_id/vitals        — Aggregated tenant health + module vitals
 ///   GET  /api/service-catalog                          — Module-to-URL service catalog
 ///   GET  /api/features                                 — Per-tenant feature flags (requires JWT)
 use axum::{
@@ -99,6 +100,10 @@ pub fn build_router(state: Arc<AppState>, summary_state: Arc<SummaryState>) -> R
         .route(
             "/api/control/tenants/{tenant_id}/provisioning",
             get(handlers::provisioning_status),
+        )
+        .route(
+            "/api/control/tenants/{tenant_id}/vitals",
+            get(handlers::tenant_vitals),
         )
         .route(
             "/api/control/tenants/{tenant_id}/retry",

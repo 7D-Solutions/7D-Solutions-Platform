@@ -21,8 +21,7 @@ use crate::domain::{
     repo,
 };
 use crate::events::produced::{
-    self as ev,
-    ComplaintAssignedPayload, ComplaintClosedPayload, ComplaintReceivedPayload,
+    self as ev, ComplaintAssignedPayload, ComplaintClosedPayload, ComplaintReceivedPayload,
     ComplaintStatusChangedPayload, ComplaintTriagedPayload,
 };
 use crate::http::tenant::with_request_id;
@@ -61,7 +60,9 @@ pub async fn create_complaint(
     };
     let mut tx = match state.pool.begin().await {
         Ok(tx) => tx,
-        Err(e) => return with_request_id(ApiError::internal(e.to_string()), &tracing_ctx).into_response(),
+        Err(e) => {
+            return with_request_id(ApiError::internal(e.to_string()), &tracing_ctx).into_response()
+        }
     };
     let number = match repo::next_complaint_number(&mut tx, &tenant_id).await {
         Ok(n) => n,
@@ -88,7 +89,18 @@ pub async fn create_complaint(
         source_entity_id: complaint.source_entity_id,
         received_at: complaint.received_at,
     };
-    if let Err(e) = outbox::enqueue_event_tx(&mut tx, event_id, ev::EVENT_COMPLAINT_RECEIVED, complaint.id, &tenant_id, Some(&corr), None, &payload).await {
+    if let Err(e) = outbox::enqueue_event_tx(
+        &mut tx,
+        event_id,
+        ev::EVENT_COMPLAINT_RECEIVED,
+        complaint.id,
+        &tenant_id,
+        Some(&corr),
+        None,
+        &payload,
+    )
+    .await
+    {
         let _ = tx.rollback().await;
         return with_request_id(ApiError::internal(e.to_string()), &tracing_ctx).into_response();
     }
@@ -211,7 +223,9 @@ pub async fn triage_complaint(
     };
     let mut tx = match state.pool.begin().await {
         Ok(tx) => tx,
-        Err(e) => return with_request_id(ApiError::internal(e.to_string()), &tracing_ctx).into_response(),
+        Err(e) => {
+            return with_request_id(ApiError::internal(e.to_string()), &tracing_ctx).into_response()
+        }
     };
     let c = match repo::triage_complaint(&mut tx, &tenant_id, id, &req).await {
         Ok(c) => c,
@@ -239,8 +253,30 @@ pub async fn triage_complaint(
         transitioned_by: req.triaged_by.clone(),
         transitioned_at: c.updated_at,
     };
-    let enqueue = outbox::enqueue_event_tx(&mut tx, triaged_event_id, ev::EVENT_COMPLAINT_TRIAGED, c.id, &tenant_id, Some(&corr), None, &triaged_payload).await
-        .and(outbox::enqueue_event_tx(&mut tx, status_event_id, ev::EVENT_COMPLAINT_STATUS_CHANGED, c.id, &tenant_id, Some(&corr), Some(&triaged_event_id.to_string()), &status_payload).await);
+    let enqueue = outbox::enqueue_event_tx(
+        &mut tx,
+        triaged_event_id,
+        ev::EVENT_COMPLAINT_TRIAGED,
+        c.id,
+        &tenant_id,
+        Some(&corr),
+        None,
+        &triaged_payload,
+    )
+    .await
+    .and(
+        outbox::enqueue_event_tx(
+            &mut tx,
+            status_event_id,
+            ev::EVENT_COMPLAINT_STATUS_CHANGED,
+            c.id,
+            &tenant_id,
+            Some(&corr),
+            Some(&triaged_event_id.to_string()),
+            &status_payload,
+        )
+        .await,
+    );
     if let Err(e) = enqueue {
         let _ = tx.rollback().await;
         return with_request_id(ApiError::internal(e.to_string()), &tracing_ctx).into_response();
@@ -276,7 +312,9 @@ pub async fn start_investigation(
     };
     let mut tx = match state.pool.begin().await {
         Ok(tx) => tx,
-        Err(e) => return with_request_id(ApiError::internal(e.to_string()), &tracing_ctx).into_response(),
+        Err(e) => {
+            return with_request_id(ApiError::internal(e.to_string()), &tracing_ctx).into_response()
+        }
     };
     let c = match repo::start_investigation(&mut tx, &tenant_id, id, &req).await {
         Ok(c) => c,
@@ -295,7 +333,18 @@ pub async fn start_investigation(
         transitioned_by: req.started_by.clone(),
         transitioned_at: c.updated_at,
     };
-    if let Err(e) = outbox::enqueue_event_tx(&mut tx, event_id, ev::EVENT_COMPLAINT_STATUS_CHANGED, c.id, &tenant_id, Some(&corr), None, &status_payload).await {
+    if let Err(e) = outbox::enqueue_event_tx(
+        &mut tx,
+        event_id,
+        ev::EVENT_COMPLAINT_STATUS_CHANGED,
+        c.id,
+        &tenant_id,
+        Some(&corr),
+        None,
+        &status_payload,
+    )
+    .await
+    {
         let _ = tx.rollback().await;
         return with_request_id(ApiError::internal(e.to_string()), &tracing_ctx).into_response();
     }
@@ -330,7 +379,9 @@ pub async fn respond_complaint(
     };
     let mut tx = match state.pool.begin().await {
         Ok(tx) => tx,
-        Err(e) => return with_request_id(ApiError::internal(e.to_string()), &tracing_ctx).into_response(),
+        Err(e) => {
+            return with_request_id(ApiError::internal(e.to_string()), &tracing_ctx).into_response()
+        }
     };
     let c = match repo::respond_complaint(&mut tx, &tenant_id, id, &req).await {
         Ok(c) => c,
@@ -349,7 +400,18 @@ pub async fn respond_complaint(
         transitioned_by: req.responded_by.clone(),
         transitioned_at: c.updated_at,
     };
-    if let Err(e) = outbox::enqueue_event_tx(&mut tx, event_id, ev::EVENT_COMPLAINT_STATUS_CHANGED, c.id, &tenant_id, Some(&corr), None, &status_payload).await {
+    if let Err(e) = outbox::enqueue_event_tx(
+        &mut tx,
+        event_id,
+        ev::EVENT_COMPLAINT_STATUS_CHANGED,
+        c.id,
+        &tenant_id,
+        Some(&corr),
+        None,
+        &status_payload,
+    )
+    .await
+    {
         let _ = tx.rollback().await;
         return with_request_id(ApiError::internal(e.to_string()), &tracing_ctx).into_response();
     }
@@ -384,7 +446,9 @@ pub async fn close_complaint(
     };
     let mut tx = match state.pool.begin().await {
         Ok(tx) => tx,
-        Err(e) => return with_request_id(ApiError::internal(e.to_string()), &tracing_ctx).into_response(),
+        Err(e) => {
+            return with_request_id(ApiError::internal(e.to_string()), &tracing_ctx).into_response()
+        }
     };
     let c = match repo::close_complaint(&mut tx, &tenant_id, id, &req).await {
         Ok(c) => c,
@@ -410,8 +474,30 @@ pub async fn close_complaint(
         transitioned_by: req.closed_by.clone(),
         transitioned_at: c.updated_at,
     };
-    let enqueue = outbox::enqueue_event_tx(&mut tx, closed_event_id, ev::EVENT_COMPLAINT_CLOSED, c.id, &tenant_id, Some(&corr), None, &closed_payload).await
-        .and(outbox::enqueue_event_tx(&mut tx, status_event_id, ev::EVENT_COMPLAINT_STATUS_CHANGED, c.id, &tenant_id, Some(&corr), Some(&closed_event_id.to_string()), &status_payload).await);
+    let enqueue = outbox::enqueue_event_tx(
+        &mut tx,
+        closed_event_id,
+        ev::EVENT_COMPLAINT_CLOSED,
+        c.id,
+        &tenant_id,
+        Some(&corr),
+        None,
+        &closed_payload,
+    )
+    .await
+    .and(
+        outbox::enqueue_event_tx(
+            &mut tx,
+            status_event_id,
+            ev::EVENT_COMPLAINT_STATUS_CHANGED,
+            c.id,
+            &tenant_id,
+            Some(&corr),
+            Some(&closed_event_id.to_string()),
+            &status_payload,
+        )
+        .await,
+    );
     if let Err(e) = enqueue {
         let _ = tx.rollback().await;
         return with_request_id(ApiError::internal(e.to_string()), &tracing_ctx).into_response();
@@ -447,7 +533,9 @@ pub async fn cancel_complaint(
     };
     let mut tx = match state.pool.begin().await {
         Ok(tx) => tx,
-        Err(e) => return with_request_id(ApiError::internal(e.to_string()), &tracing_ctx).into_response(),
+        Err(e) => {
+            return with_request_id(ApiError::internal(e.to_string()), &tracing_ctx).into_response()
+        }
     };
     let c = match repo::cancel_complaint(&mut tx, &tenant_id, id, &req).await {
         Ok(c) => c,
@@ -466,7 +554,18 @@ pub async fn cancel_complaint(
         transitioned_by: req.cancelled_by.clone(),
         transitioned_at: c.updated_at,
     };
-    if let Err(e) = outbox::enqueue_event_tx(&mut tx, event_id, ev::EVENT_COMPLAINT_STATUS_CHANGED, c.id, &tenant_id, Some(&corr), None, &status_payload).await {
+    if let Err(e) = outbox::enqueue_event_tx(
+        &mut tx,
+        event_id,
+        ev::EVENT_COMPLAINT_STATUS_CHANGED,
+        c.id,
+        &tenant_id,
+        Some(&corr),
+        None,
+        &status_payload,
+    )
+    .await
+    {
         let _ = tx.rollback().await;
         return with_request_id(ApiError::internal(e.to_string()), &tracing_ctx).into_response();
     }
@@ -501,7 +600,9 @@ pub async fn assign_complaint(
     };
     let mut tx = match state.pool.begin().await {
         Ok(tx) => tx,
-        Err(e) => return with_request_id(ApiError::internal(e.to_string()), &tracing_ctx).into_response(),
+        Err(e) => {
+            return with_request_id(ApiError::internal(e.to_string()), &tracing_ctx).into_response()
+        }
     };
     let c = match repo::assign_complaint(&mut tx, &tenant_id, id, &req).await {
         Ok(c) => c,
@@ -520,7 +621,18 @@ pub async fn assign_complaint(
         assigned_by: req.assigned_by.clone(),
         assigned_at: c.assigned_at.unwrap_or_else(chrono::Utc::now),
     };
-    if let Err(e) = outbox::enqueue_event_tx(&mut tx, event_id, ev::EVENT_COMPLAINT_ASSIGNED, c.id, &tenant_id, Some(&corr), None, &assigned_payload).await {
+    if let Err(e) = outbox::enqueue_event_tx(
+        &mut tx,
+        event_id,
+        ev::EVENT_COMPLAINT_ASSIGNED,
+        c.id,
+        &tenant_id,
+        Some(&corr),
+        None,
+        &assigned_payload,
+    )
+    .await
+    {
         let _ = tx.rollback().await;
         return with_request_id(ApiError::internal(e.to_string()), &tracing_ctx).into_response();
     }

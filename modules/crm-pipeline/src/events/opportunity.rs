@@ -30,8 +30,13 @@ pub fn build_opportunity_created_envelope(
     payload: OpportunityCreatedPayload,
 ) -> EventEnvelope<OpportunityCreatedPayload> {
     create_crm_envelope(
-        event_id, tenant_id, EVENT_TYPE_OPPORTUNITY_CREATED.to_string(),
-        correlation_id, None, MUTATION_CLASS_DATA_MUTATION.to_string(), payload,
+        event_id,
+        tenant_id,
+        EVENT_TYPE_OPPORTUNITY_CREATED.to_string(),
+        correlation_id,
+        None,
+        MUTATION_CLASS_DATA_MUTATION.to_string(),
+        payload,
     )
 }
 
@@ -52,8 +57,13 @@ pub fn build_opportunity_stage_advanced_envelope(
     payload: OpportunityStageAdvancedPayload,
 ) -> EventEnvelope<OpportunityStageAdvancedPayload> {
     create_crm_envelope(
-        event_id, tenant_id, EVENT_TYPE_OPPORTUNITY_STAGE_ADVANCED.to_string(),
-        correlation_id, None, MUTATION_CLASS_LIFECYCLE.to_string(), payload,
+        event_id,
+        tenant_id,
+        EVENT_TYPE_OPPORTUNITY_STAGE_ADVANCED.to_string(),
+        correlation_id,
+        None,
+        MUTATION_CLASS_LIFECYCLE.to_string(),
+        payload,
     )
 }
 
@@ -74,8 +84,13 @@ pub fn build_opportunity_closed_won_envelope(
     payload: OpportunityClosedWonPayload,
 ) -> EventEnvelope<OpportunityClosedWonPayload> {
     create_crm_envelope(
-        event_id, tenant_id, EVENT_TYPE_OPPORTUNITY_CLOSED_WON.to_string(),
-        correlation_id, None, MUTATION_CLASS_LIFECYCLE.to_string(), payload,
+        event_id,
+        tenant_id,
+        EVENT_TYPE_OPPORTUNITY_CLOSED_WON.to_string(),
+        correlation_id,
+        None,
+        MUTATION_CLASS_LIFECYCLE.to_string(),
+        payload,
     )
 }
 
@@ -96,7 +111,12 @@ pub fn build_opportunity_closed_lost_envelope(
     payload: OpportunityClosedLostPayload,
 ) -> EventEnvelope<OpportunityClosedLostPayload> {
     create_crm_envelope(
-        event_id, tenant_id, EVENT_TYPE_OPPORTUNITY_CLOSED_LOST.to_string(),
-        correlation_id, None, MUTATION_CLASS_LIFECYCLE.to_string(), payload,
+        event_id,
+        tenant_id,
+        EVENT_TYPE_OPPORTUNITY_CLOSED_LOST.to_string(),
+        correlation_id,
+        None,
+        MUTATION_CLASS_LIFECYCLE.to_string(),
+        payload,
     )
 }

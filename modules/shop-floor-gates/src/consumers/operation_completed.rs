@@ -40,7 +40,10 @@ async fn consume(bus: Arc<dyn EventBus>, pool: PgPool) {
     }
 }
 
-async fn process_message(msg: &event_bus::BusMessage, pool: &PgPool) -> Result<(), Box<dyn std::error::Error>> {
+async fn process_message(
+    msg: &event_bus::BusMessage,
+    pool: &PgPool,
+) -> Result<(), Box<dyn std::error::Error>> {
     let payload: OperationCompletedPayload = serde_json::from_slice(&msg.payload)?;
 
     // Release operation-scoped active holds for this specific operation

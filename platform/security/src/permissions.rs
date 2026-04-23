@@ -305,7 +305,11 @@ mod tests {
             INTEGRATIONS_SYNC_PUSH,
             INTEGRATIONS_SYNC_READ,
         ] {
-            assert!(perm.contains('.'), "sync permission '{}' must contain a dot", perm);
+            assert!(
+                perm.contains('.'),
+                "sync permission '{}' must contain a dot",
+                perm
+            );
             assert!(
                 perm.starts_with("integrations.sync."),
                 "sync permission '{}' must start with 'integrations.sync.'",
@@ -499,9 +503,19 @@ mod tests {
 
     #[test]
     fn test_permissions_cc_fine_grained_contain_dot() {
-        for perm in &[CC_COMPLAINT_TRIAGE, CC_COMPLAINT_CLOSE, CC_COMPLAINT_CANCEL,
-                      CC_CATEGORY_MANAGE, CC_LABELS_EDIT, CC_ADMIN_SWEEP] {
-            assert!(perm.contains('.'), "Permission '{}' must contain a dot", perm);
+        for perm in &[
+            CC_COMPLAINT_TRIAGE,
+            CC_COMPLAINT_CLOSE,
+            CC_COMPLAINT_CANCEL,
+            CC_CATEGORY_MANAGE,
+            CC_LABELS_EDIT,
+            CC_ADMIN_SWEEP,
+        ] {
+            assert!(
+                perm.contains('.'),
+                "Permission '{}' must contain a dot",
+                perm
+            );
         }
     }
 }

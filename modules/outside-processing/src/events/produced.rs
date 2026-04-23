@@ -39,7 +39,15 @@ pub fn build_order_created_envelope(
     causation_id: Option<String>,
     payload: OrderCreatedPayload,
 ) -> EventEnvelope<OrderCreatedPayload> {
-    create_op_envelope(event_id, tenant_id, EVENT_ORDER_CREATED.to_string(), correlation_id, causation_id, MUTATION_DATA.to_string(), payload)
+    create_op_envelope(
+        event_id,
+        tenant_id,
+        EVENT_ORDER_CREATED.to_string(),
+        correlation_id,
+        causation_id,
+        MUTATION_DATA.to_string(),
+        payload,
+    )
 }
 
 // ── order_issued ──────────────────────────────────────────────────────────────
@@ -59,7 +67,15 @@ pub fn build_order_issued_envelope(
     causation_id: Option<String>,
     payload: OrderIssuedPayload,
 ) -> EventEnvelope<OrderIssuedPayload> {
-    create_op_envelope(event_id, tenant_id, EVENT_ORDER_ISSUED.to_string(), correlation_id, causation_id, MUTATION_LIFECYCLE.to_string(), payload)
+    create_op_envelope(
+        event_id,
+        tenant_id,
+        EVENT_ORDER_ISSUED.to_string(),
+        correlation_id,
+        causation_id,
+        MUTATION_LIFECYCLE.to_string(),
+        payload,
+    )
 }
 
 // ── order_closed ──────────────────────────────────────────────────────────────
@@ -79,7 +95,15 @@ pub fn build_order_closed_envelope(
     causation_id: Option<String>,
     payload: OrderClosedPayload,
 ) -> EventEnvelope<OrderClosedPayload> {
-    create_op_envelope(event_id, tenant_id, EVENT_ORDER_CLOSED.to_string(), correlation_id, causation_id, MUTATION_LIFECYCLE.to_string(), payload)
+    create_op_envelope(
+        event_id,
+        tenant_id,
+        EVENT_ORDER_CLOSED.to_string(),
+        correlation_id,
+        causation_id,
+        MUTATION_LIFECYCLE.to_string(),
+        payload,
+    )
 }
 
 // ── order_cancelled ───────────────────────────────────────────────────────────
@@ -99,7 +123,15 @@ pub fn build_order_cancelled_envelope(
     causation_id: Option<String>,
     payload: OrderCancelledPayload,
 ) -> EventEnvelope<OrderCancelledPayload> {
-    create_op_envelope(event_id, tenant_id, EVENT_ORDER_CANCELLED.to_string(), correlation_id, causation_id, MUTATION_REVERSAL.to_string(), payload)
+    create_op_envelope(
+        event_id,
+        tenant_id,
+        EVENT_ORDER_CANCELLED.to_string(),
+        correlation_id,
+        causation_id,
+        MUTATION_REVERSAL.to_string(),
+        payload,
+    )
 }
 
 // ── shipment_requested ────────────────────────────────────────────────────────
@@ -122,7 +154,15 @@ pub fn build_shipment_requested_envelope(
     causation_id: Option<String>,
     payload: ShipmentRequestedPayload,
 ) -> EventEnvelope<ShipmentRequestedPayload> {
-    create_op_envelope(event_id, tenant_id, EVENT_SHIPMENT_REQUESTED.to_string(), correlation_id, causation_id, MUTATION_DATA.to_string(), payload)
+    create_op_envelope(
+        event_id,
+        tenant_id,
+        EVENT_SHIPMENT_REQUESTED.to_string(),
+        correlation_id,
+        causation_id,
+        MUTATION_DATA.to_string(),
+        payload,
+    )
 }
 
 // ── shipped ───────────────────────────────────────────────────────────────────
@@ -143,7 +183,15 @@ pub fn build_shipped_envelope(
     causation_id: Option<String>,
     payload: ShippedPayload,
 ) -> EventEnvelope<ShippedPayload> {
-    create_op_envelope(event_id, tenant_id, EVENT_SHIPPED.to_string(), correlation_id, causation_id, MUTATION_DATA.to_string(), payload)
+    create_op_envelope(
+        event_id,
+        tenant_id,
+        EVENT_SHIPPED.to_string(),
+        correlation_id,
+        causation_id,
+        MUTATION_DATA.to_string(),
+        payload,
+    )
 }
 
 // ── returned ──────────────────────────────────────────────────────────────────
@@ -165,7 +213,15 @@ pub fn build_returned_envelope(
     causation_id: Option<String>,
     payload: ReturnedPayload,
 ) -> EventEnvelope<ReturnedPayload> {
-    create_op_envelope(event_id, tenant_id, EVENT_RETURNED.to_string(), correlation_id, causation_id, MUTATION_DATA.to_string(), payload)
+    create_op_envelope(
+        event_id,
+        tenant_id,
+        EVENT_RETURNED.to_string(),
+        correlation_id,
+        causation_id,
+        MUTATION_DATA.to_string(),
+        payload,
+    )
 }
 
 // ── review_completed ──────────────────────────────────────────────────────────
@@ -186,7 +242,15 @@ pub fn build_review_completed_envelope(
     causation_id: Option<String>,
     payload: ReviewCompletedPayload,
 ) -> EventEnvelope<ReviewCompletedPayload> {
-    create_op_envelope(event_id, tenant_id, EVENT_REVIEW_COMPLETED.to_string(), correlation_id, causation_id, MUTATION_DATA.to_string(), payload)
+    create_op_envelope(
+        event_id,
+        tenant_id,
+        EVENT_REVIEW_COMPLETED.to_string(),
+        correlation_id,
+        causation_id,
+        MUTATION_DATA.to_string(),
+        payload,
+    )
 }
 
 // ── re_identification_recorded ────────────────────────────────────────────────
@@ -207,7 +271,15 @@ pub fn build_re_identification_envelope(
     causation_id: Option<String>,
     payload: ReIdentificationRecordedPayload,
 ) -> EventEnvelope<ReIdentificationRecordedPayload> {
-    create_op_envelope(event_id, tenant_id, EVENT_RE_IDENTIFICATION_RECORDED.to_string(), correlation_id, causation_id, MUTATION_DATA.to_string(), payload)
+    create_op_envelope(
+        event_id,
+        tenant_id,
+        EVENT_RE_IDENTIFICATION_RECORDED.to_string(),
+        correlation_id,
+        causation_id,
+        MUTATION_DATA.to_string(),
+        payload,
+    )
 }
 
 #[cfg(test)]
@@ -253,7 +325,11 @@ mod tests {
             created_at: Utc::now(),
         };
         let env = build_order_created_envelope(
-            Uuid::new_v4(), "t1".to_string(), "corr-1".to_string(), None, payload,
+            Uuid::new_v4(),
+            "t1".to_string(),
+            "corr-1".to_string(),
+            None,
+            payload,
         );
         assert_eq!(env.event_type, EVENT_ORDER_CREATED);
         assert_eq!(env.source_module, "outside-processing");

@@ -862,6 +862,9 @@ services:
       # Set INTUIT_WEBHOOK_VERIFIER_TOKEN in your .env for local dev testing.
       # Required in staging/production (startup guard enforces this).
       INTUIT_WEBHOOK_VERIFIER_TOKEN: ${INTUIT_WEBHOOK_VERIFIER_TOKEN:-}
+      # AES-256-GCM key for encrypting per-tenant QBO webhook verifier tokens (bd-mmnbp).
+      # Generate: openssl rand -hex 32  — store in .env, never commit.
+      INTEGRATIONS_SECRETS_KEY: ${INTEGRATIONS_SECRETS_KEY:-}
       # Local dev profile — allows empty INTUIT_WEBHOOK_VERIFIER_TOKEN.
       # Staging/production must NOT set this (startup guard will reject empty token).
       APP_PROFILE: dev-local

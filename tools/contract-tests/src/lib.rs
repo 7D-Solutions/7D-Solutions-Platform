@@ -224,10 +224,7 @@ pub fn validate_consumer_schema(
             let schema_name = ref_str
                 .strip_prefix("#/components/schemas/")
                 .ok_or_else(|| {
-                    ContractError::ValidationError(format!(
-                        "Unsupported $ref format: {}",
-                        ref_str
-                    ))
+                    ContractError::ValidationError(format!("Unsupported $ref format: {}", ref_str))
                 })?;
             platform_spec
                 .get("components")
@@ -244,9 +241,7 @@ pub fn validate_consumer_schema(
         .get("properties")
         .and_then(|p| p.as_object())
         .ok_or_else(|| {
-            ContractError::ValidationError(
-                "Resolved schema has no 'properties' object".to_string(),
-            )
+            ContractError::ValidationError("Resolved schema has no 'properties' object".to_string())
         })?;
 
     for field in &consumer.required {

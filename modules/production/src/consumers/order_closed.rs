@@ -132,7 +132,10 @@ pub fn start_order_closed_consumer(
             }
         };
 
-        tracing::info!(subject, "production: subscribed to outside_processing.order_closed for OSP costing");
+        tracing::info!(
+            subject,
+            "production: subscribed to outside_processing.order_closed for OSP costing"
+        );
 
         while let Some(msg) = stream.next().await {
             if let Err(e) = process_message(&pool, &op_client, &msg).await {
@@ -150,7 +153,12 @@ async fn process_message(
     msg: &BusMessage,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let envelope: EventEnvelope<OrderClosedPayload> = serde_json::from_slice(&msg.payload)
-        .map_err(|e| format!("failed to parse outside_processing.order_closed envelope: {}", e))?;
+        .map_err(|e| {
+            format!(
+                "failed to parse outside_processing.order_closed envelope: {}",
+                e
+            )
+        })?;
 
     handle_order_closed(pool, op_client, envelope.event_id, &envelope.payload).await?;
     Ok(())

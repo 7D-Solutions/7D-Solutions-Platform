@@ -11,7 +11,10 @@ impl BusType {
         match s.to_lowercase().as_str() {
             "nats" => Ok(BusType::Nats),
             "inmemory" => Ok(BusType::InMemory),
-            _ => Err(format!("Invalid BUS_TYPE '{}'. Must be 'nats' or 'inmemory'", s)),
+            _ => Err(format!(
+                "Invalid BUS_TYPE '{}'. Must be 'nats' or 'inmemory'",
+                s
+            )),
         }
     }
 }
@@ -30,7 +33,8 @@ pub struct Config {
 impl Config {
     pub fn from_env() -> Result<Self, String> {
         let database_url = env::var("DATABASE_URL").map_err(|_| {
-            "DATABASE_URL is required. Example: postgres://crm_user:pass@localhost/crm_db".to_string()
+            "DATABASE_URL is required. Example: postgres://crm_user:pass@localhost/crm_db"
+                .to_string()
         })?;
 
         if database_url.trim().is_empty() {
@@ -42,7 +46,8 @@ impl Config {
 
         let nats_url = match bus_type {
             BusType::Nats => {
-                let url = env::var("NATS_URL").unwrap_or_else(|_| "nats://localhost:4222".to_string());
+                let url =
+                    env::var("NATS_URL").unwrap_or_else(|_| "nats://localhost:4222".to_string());
                 if url.trim().is_empty() {
                     return Err("NATS_URL cannot be empty when BUS_TYPE=nats".to_string());
                 }
@@ -70,6 +75,14 @@ impl Config {
             return Err("CORS_ORIGINS=* is not allowed in production.".to_string());
         }
 
-        Ok(Config { database_url, bus_type, nats_url, host, port, env, cors_origins })
+        Ok(Config {
+            database_url,
+            bus_type,
+            nats_url,
+            host,
+            port,
+            env,
+            cors_origins,
+        })
     }
 }

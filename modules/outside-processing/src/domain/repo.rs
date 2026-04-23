@@ -429,12 +429,11 @@ pub async fn count_return_events(
     tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
     order_id: Uuid,
 ) -> Result<i64, OpError> {
-    let count: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM op_return_events WHERE op_order_id = $1",
-    )
-    .bind(order_id)
-    .fetch_one(&mut **tx)
-    .await?;
+    let count: i64 =
+        sqlx::query_scalar("SELECT COUNT(*) FROM op_return_events WHERE op_order_id = $1")
+            .bind(order_id)
+            .fetch_one(&mut **tx)
+            .await?;
 
     Ok(count)
 }
@@ -699,12 +698,10 @@ pub async fn next_op_order_number(
         .execute(&mut **tx)
         .await?;
 
-    let count: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM op_orders WHERE tenant_id = $1",
-    )
-    .bind(tenant_id)
-    .fetch_one(&mut **tx)
-    .await?;
+    let count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM op_orders WHERE tenant_id = $1")
+        .bind(tenant_id)
+        .fetch_one(&mut **tx)
+        .await?;
 
     Ok(format!("OP-{:06}", count + 1))
 }

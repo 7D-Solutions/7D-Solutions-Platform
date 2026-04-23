@@ -19,13 +19,20 @@ use uuid::Uuid;
 // ============================================================================
 
 pub const DEFAULT_STAGES: &[(&str, &str, i32, bool, bool, Option<i32>)] = &[
-    ("prospecting",        "Prospecting",         10, false, false, Some(10)),
-    ("discovery",          "Discovery",           20, false, false, Some(25)),
-    ("proposal",           "Proposal",            30, false, false, Some(40)),
-    ("negotiation",        "Negotiation",         40, false, false, Some(60)),
-    ("awaiting_commitment","Awaiting Commitment",  50, false, false, Some(80)),
-    ("closed_won",         "Closed Won",          60, true,  true,  Some(100)),
-    ("closed_lost",        "Closed Lost",         70, true,  false, Some(0)),
+    ("prospecting", "Prospecting", 10, false, false, Some(10)),
+    ("discovery", "Discovery", 20, false, false, Some(25)),
+    ("proposal", "Proposal", 30, false, false, Some(40)),
+    ("negotiation", "Negotiation", 40, false, false, Some(60)),
+    (
+        "awaiting_commitment",
+        "Awaiting Commitment",
+        50,
+        false,
+        false,
+        Some(80),
+    ),
+    ("closed_won", "Closed Won", 60, true, true, Some(100)),
+    ("closed_lost", "Closed Lost", 70, true, false, Some(0)),
 ];
 
 // ============================================================================
@@ -53,9 +60,11 @@ impl From<StageError> for platform_http_contracts::ApiError {
             StageError::DuplicateCode(code) => {
                 Self::conflict(format!("Stage code '{}' already exists", code))
             }
-            StageError::MultipleInitialStages => {
-                Self::new(422, "multiple_initial_stages", "Pipeline must have exactly one initial stage")
-            }
+            StageError::MultipleInitialStages => Self::new(
+                422,
+                "multiple_initial_stages",
+                "Pipeline must have exactly one initial stage",
+            ),
             StageError::Validation(msg) => Self::new(422, "validation_error", msg),
             StageError::Database(e) => {
                 tracing::error!("CRM stages DB error: {}", e);

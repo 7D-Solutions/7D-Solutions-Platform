@@ -64,6 +64,18 @@ pub enum ConfigFieldType {
     Integer,
 }
 
+impl ConfigFieldType {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            ConfigFieldType::Text => "text",
+            ConfigFieldType::Secret => "secret",
+            ConfigFieldType::Url => "url",
+            ConfigFieldType::Boolean => "boolean",
+            ConfigFieldType::Integer => "integer",
+        }
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub enum ConnectionStatus {
     #[serde(rename = "connected")]
@@ -72,6 +84,16 @@ pub enum ConnectionStatus {
     Disconnected,
     #[serde(rename = "needs_reauth")]
     NeedsReauth,
+}
+
+impl ConnectionStatus {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            ConnectionStatus::Connected => "connected",
+            ConnectionStatus::Disconnected => "disconnected",
+            ConnectionStatus::NeedsReauth => "needs_reauth",
+        }
+    }
 }
 
 /// What a given connector implementation supports.

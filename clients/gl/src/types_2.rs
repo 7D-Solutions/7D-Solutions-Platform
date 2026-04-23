@@ -9,6 +9,21 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ExecuteReversalsRequest {
+    pub reversal_date: String,
+    pub target_period: String,
+    pub tenant_id: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ExecuteReversalsResult {
+    pub results: Vec<ReversalResult>,
+    pub reversals_executed: i64,
+    pub reversals_skipped: i64,
+    pub target_period: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ExportResponse {
     pub created_at: String,
     pub export_id: uuid::Uuid,
@@ -143,11 +158,32 @@ pub enum ModificationType {
     Combined,
 }
 
+impl ModificationType {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            ModificationType::PriceChange => "price_change",
+            ModificationType::TermExtension => "term_extension",
+            ModificationType::ObligationAdded => "obligation_added",
+            ModificationType::ObligationRemoved => "obligation_removed",
+            ModificationType::Combined => "combined",
+        }
+    }
+}
+
 /// Normal balance enum matching database normal_balance
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub enum NormalBalance {
     Debit,
     Credit,
+}
+
+impl NormalBalance {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            NormalBalance::Debit => "Debit",
+            NormalBalance::Credit => "Credit",
+        }
+    }
 }
 
 /// Pagination metadata
@@ -370,55 +406,4 @@ pub struct TrialBalanceRow {
 pub struct ValidateCloseRequest {
     /// Tenant ID for multi-tenancy isolation
     pub tenant_id: String,
-}
-
-/// Response from validate-close operation
-///
-/// Returns structured validation report with errors/warnings.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ValidateCloseResponse {
-    /// Overall validation result
-    pub can_close: bool,
-    /// Period ID that was validated
-    pub period_id: uuid::Uuid,
-    /// Tenant ID
-    pub tenant_id: String,
-    /// Timestamp when validation was performed
-    pub validated_at: chrono::DateTime<chrono::Utc>,
-    /// Structured validation report (empty if can_close=true)
-    pub validation_report: ValidationReport,
-}
-
-/// Individual validation issue
-///
-/// Structured error/warning with stable code for client handling.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ValidationIssue {
-    /// Stable error code for programmatic handling
-    pub code: String,
-    /// Human-readable message
-    pub message: String,
-    /// Optional metadata for additional context
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub metadata: Option<serde_json::Value>,
-    /// Severity level
-    pub severity: ValidationSeverity,
-}
-
-/// Structured validation report
-///
-/// Machine-readable validation results with severity levels.
-/// Empty if validation passes (can_close=true).
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ValidationReport {
-    /// Validation issues grouped by severity
-    pub issues: Vec<ValidationIssue>,
-}
-
-/// Validation issue severity levels
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
-pub enum ValidationSeverity {
-    ERROR,
-    WARNING,
-    INFO,
 }

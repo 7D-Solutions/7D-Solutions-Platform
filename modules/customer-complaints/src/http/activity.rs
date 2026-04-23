@@ -17,8 +17,7 @@ use crate::domain::{
     repo,
 };
 use crate::events::produced::{
-    self as ev,
-    ComplaintCustomerCommunicatedPayload, ComplaintResolvedPayload,
+    self as ev, ComplaintCustomerCommunicatedPayload, ComplaintResolvedPayload,
 };
 use crate::http::tenant::with_request_id;
 use crate::outbox;
@@ -60,12 +59,15 @@ pub async fn add_note(
     req.activity_type = ActivityType::Note;
     let mut tx = match state.pool.begin().await {
         Ok(tx) => tx,
-        Err(e) => return with_request_id(ApiError::internal(e.to_string()), &tracing_ctx).into_response(),
+        Err(e) => {
+            return with_request_id(ApiError::internal(e.to_string()), &tracing_ctx).into_response()
+        }
     };
     match repo::add_activity_log_entry(&mut tx, &tenant_id, id, &req).await {
         Ok(entry) => {
             if let Err(e) = tx.commit().await {
-                return with_request_id(ApiError::internal(e.to_string()), &tracing_ctx).into_response();
+                return with_request_id(ApiError::internal(e.to_string()), &tracing_ctx)
+                    .into_response();
             }
             (StatusCode::CREATED, Json(entry)).into_response()
         }
@@ -103,7 +105,9 @@ pub async fn add_customer_communication(
     let recorded_by = req.recorded_by.clone();
     let mut tx = match state.pool.begin().await {
         Ok(tx) => tx,
-        Err(e) => return with_request_id(ApiError::internal(e.to_string()), &tracing_ctx).into_response(),
+        Err(e) => {
+            return with_request_id(ApiError::internal(e.to_string()), &tracing_ctx).into_response()
+        }
     };
     let entry = match repo::add_activity_log_entry(&mut tx, &tenant_id, id, &req).await {
         Ok(e) => e,
@@ -120,7 +124,18 @@ pub async fn add_customer_communication(
         recorded_by,
         recorded_at: entry.recorded_at,
     };
-    if let Err(e) = outbox::enqueue_event_tx(&mut tx, event_id, ev::EVENT_COMPLAINT_CUSTOMER_COMMUNICATED, id, &tenant_id, Some(&corr), None, &payload).await {
+    if let Err(e) = outbox::enqueue_event_tx(
+        &mut tx,
+        event_id,
+        ev::EVENT_COMPLAINT_CUSTOMER_COMMUNICATED,
+        id,
+        &tenant_id,
+        Some(&corr),
+        None,
+        &payload,
+    )
+    .await
+    {
         let _ = tx.rollback().await;
         return with_request_id(ApiError::internal(e.to_string()), &tracing_ctx).into_response();
     }
@@ -180,7 +195,9 @@ pub async fn create_resolution(
     };
     let mut tx = match state.pool.begin().await {
         Ok(tx) => tx,
-        Err(e) => return with_request_id(ApiError::internal(e.to_string()), &tracing_ctx).into_response(),
+        Err(e) => {
+            return with_request_id(ApiError::internal(e.to_string()), &tracing_ctx).into_response()
+        }
     };
     let resolved_by = req.resolved_by.clone();
     let customer_acceptance = req.customer_acceptance.as_str().to_string();
@@ -200,7 +217,18 @@ pub async fn create_resolution(
         resolved_by,
         resolved_at: res.resolved_at,
     };
-    if let Err(e) = outbox::enqueue_event_tx(&mut tx, event_id, ev::EVENT_COMPLAINT_RESOLVED, id, &tenant_id, Some(&corr), None, &payload).await {
+    if let Err(e) = outbox::enqueue_event_tx(
+        &mut tx,
+        event_id,
+        ev::EVENT_COMPLAINT_RESOLVED,
+        id,
+        &tenant_id,
+        Some(&corr),
+        None,
+        &payload,
+    )
+    .await
+    {
         let _ = tx.rollback().await;
         return with_request_id(ApiError::internal(e.to_string()), &tracing_ctx).into_response();
     }

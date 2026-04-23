@@ -21,9 +21,8 @@ static MIGRATOR: sqlx::migrate::Migrator = sqlx::migrate!("./db/migrations");
 
 async fn setup_db() -> sqlx::PgPool {
     dotenvy::dotenv().ok();
-    let url = std::env::var("DATABASE_URL").unwrap_or_else(|_| {
-        "postgresql://so_user:so_pass@localhost:5467/so_db".to_string()
-    });
+    let url = std::env::var("DATABASE_URL")
+        .unwrap_or_else(|_| "postgresql://so_user:so_pass@localhost:5467/so_db".to_string());
     let pool = PgPoolOptions::new()
         .max_connections(10)
         .connect(&url)
@@ -86,7 +85,10 @@ async fn book_order_empty_lines_rejected() {
 
     let result = service::book_order(&pool, &tenant, order.id, corr(), None).await;
     assert!(
-        matches!(result, Err(sales_orders_rs::domain::orders::OrderError::EmptyLines)),
+        matches!(
+            result,
+            Err(sales_orders_rs::domain::orders::OrderError::EmptyLines)
+        ),
         "Expected EmptyLines error, got: {:?}",
         result
     );
@@ -206,7 +208,10 @@ async fn line_edit_rejected_after_booking() {
     )
     .await;
     assert!(
-        matches!(result, Err(sales_orders_rs::domain::orders::OrderError::NotDraft(_))),
+        matches!(
+            result,
+            Err(sales_orders_rs::domain::orders::OrderError::NotDraft(_))
+        ),
         "Expected NotDraft error, got: {:?}",
         result
     );
@@ -231,7 +236,9 @@ async fn cancel_draft_order() {
         &pool,
         &tenant,
         order.id,
-        CancelOrderRequest { reason: Some("test cancel".to_string()) },
+        CancelOrderRequest {
+            reason: Some("test cancel".to_string()),
+        },
         corr(),
         None,
     )
@@ -253,8 +260,7 @@ async fn invalid_transition_rejected() {
         .expect("create order");
 
     // Cannot transition Draft → Shipped
-    let result =
-        service::transition_order(&pool, &tenant, order.id, SoStatus::Shipped).await;
+    let result = service::transition_order(&pool, &tenant, order.id, SoStatus::Shipped).await;
     assert!(
         matches!(
             result,
@@ -281,7 +287,10 @@ async fn tenant_isolation() {
     // Tenant B cannot see tenant A's order
     let result = service::get_order_with_lines(&pool, &tenant_b, order.id).await;
     assert!(
-        matches!(result, Err(sales_orders_rs::domain::orders::OrderError::NotFound(_))),
+        matches!(
+            result,
+            Err(sales_orders_rs::domain::orders::OrderError::NotFound(_))
+        ),
         "Expected NotFound for cross-tenant access, got: {:?}",
         result
     );
@@ -471,7 +480,10 @@ async fn concurrent_releases_no_overdraw() {
         success_count + fail_count == 5,
         "All 5 concurrent tasks must complete"
     );
-    assert!(fail_count >= 2, "At least 2 must be rejected by quota guard");
+    assert!(
+        fail_count >= 2,
+        "At least 2 must be rejected by quota guard"
+    );
 }
 
 // ── Test 10: Book order with inventory (requires 7d-inventory on :8092) ───────
@@ -549,7 +561,10 @@ async fn repo_update_line_shipped_qty_and_invoiced() {
         .expect("get order");
     let updated_line = &with_lines.lines[0];
     assert_eq!(updated_line.shipped_qty, 3.0);
-    assert!(updated_line.invoiced_at.is_some(), "invoiced_at should be set");
+    assert!(
+        updated_line.invoiced_at.is_some(),
+        "invoiced_at should be set"
+    );
 }
 
 // ── Test 12: Order closed when all lines invoiced ────────────────────────────

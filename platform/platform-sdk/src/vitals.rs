@@ -24,11 +24,7 @@ pub use health::{ConsumerVitals, DlqVitals, OutboxVitals, ProjectionVitals, Vita
 /// — the `extended` field is omitted from the serialized response.
 #[async_trait]
 pub trait VitalsProvider: Send + Sync {
-    async fn collect_extended(
-        &self,
-        pool: &PgPool,
-        tenant_id: Option<Uuid>,
-    ) -> serde_json::Value;
+    async fn collect_extended(&self, pool: &PgPool, tenant_id: Option<Uuid>) -> serde_json::Value;
 }
 
 /// Default vitals provider that queries the standard platform tables.
@@ -240,8 +236,7 @@ mod tests {
     #[tokio::test]
     async fn vitals_outbox_pending_zeros_on_missing_table() {
         let pool = test_pool().await;
-        let outbox =
-            StandardVitalsProvider::query_outbox(&pool, "nonexistent_outbox_xyz").await;
+        let outbox = StandardVitalsProvider::query_outbox(&pool, "nonexistent_outbox_xyz").await;
         assert_eq!(outbox.pending, 0);
         assert!(outbox.oldest_pending_secs.is_none());
     }
@@ -250,8 +245,7 @@ mod tests {
     #[tokio::test]
     async fn vitals_projection_lag_computed_from_cursor_timestamps() {
         let pool = test_pool().await;
-        let projections =
-            StandardVitalsProvider::query_projections(&pool, None).await;
+        let projections = StandardVitalsProvider::query_projections(&pool, None).await;
         // Table may or may not exist; either way returns a Vec (possibly empty)
         for p in &projections {
             assert!(!p.name.is_empty());
@@ -275,7 +269,10 @@ mod tests {
         assert_eq!(resp.version, "0.1.0");
         assert!(resp.tenant_ready.is_none());
         assert!(resp.extended.is_none());
-        assert_eq!(resp.dlq.total, resp.dlq.retryable + resp.dlq.fatal + resp.dlq.poison);
+        assert_eq!(
+            resp.dlq.total,
+            resp.dlq.retryable + resp.dlq.fatal + resp.dlq.poison
+        );
         // Timestamp must be RFC-3339
         chrono::DateTime::parse_from_rfc3339(&resp.timestamp)
             .expect("timestamp must be valid RFC-3339");

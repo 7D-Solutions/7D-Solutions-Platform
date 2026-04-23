@@ -4,6 +4,9 @@
 > **Standard:** See `docs/VERSIONING.md` for the rules governing this file.
 
 
+## 3.7.1
+- chore: workspace rustfmt pass (no behavioral changes) ([bd-44hil])
+
 ## 3.6.3
 - chore: rustfmt reflow + regenerate typed clients (no behavior change)
 

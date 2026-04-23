@@ -1,8 +1,8 @@
 //! Lead repository — SQL layer.
 
+use chrono::Utc;
 use sqlx::{PgConnection, PgPool};
 use uuid::Uuid;
-use chrono::Utc;
 
 use super::{Lead, LeadError};
 
@@ -49,14 +49,16 @@ pub async fn insert_lead(conn: &mut PgConnection, lead: &Lead) -> Result<Lead, L
     Ok(row)
 }
 
-pub async fn fetch_lead(pool: &PgPool, tenant_id: &str, id: Uuid) -> Result<Option<Lead>, LeadError> {
-    let row = sqlx::query_as::<_, Lead>(
-        "SELECT * FROM leads WHERE id = $1 AND tenant_id = $2",
-    )
-    .bind(id)
-    .bind(tenant_id)
-    .fetch_optional(pool)
-    .await?;
+pub async fn fetch_lead(
+    pool: &PgPool,
+    tenant_id: &str,
+    id: Uuid,
+) -> Result<Option<Lead>, LeadError> {
+    let row = sqlx::query_as::<_, Lead>("SELECT * FROM leads WHERE id = $1 AND tenant_id = $2")
+        .bind(id)
+        .bind(tenant_id)
+        .fetch_optional(pool)
+        .await?;
     Ok(row)
 }
 
@@ -97,7 +99,10 @@ pub async fn list_leads(
     };
 
     if let Some(owner) = owner_filter {
-        return Ok(rows.into_iter().filter(|l| l.owner_id.as_deref() == Some(owner)).collect());
+        return Ok(rows
+            .into_iter()
+            .filter(|l| l.owner_id.as_deref() == Some(owner))
+            .collect());
     }
     Ok(rows)
 }
@@ -189,7 +194,10 @@ pub async fn update_lead_fields(
     Ok(row)
 }
 
-pub async fn next_lead_number(conn: &mut PgConnection, tenant_id: &str) -> Result<String, LeadError> {
+pub async fn next_lead_number(
+    conn: &mut PgConnection,
+    tenant_id: &str,
+) -> Result<String, LeadError> {
     let count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM leads WHERE tenant_id = $1")
         .bind(tenant_id)
         .fetch_one(&mut *conn)

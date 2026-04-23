@@ -93,12 +93,10 @@ pub async fn sweep_overdue_complaints(pool: &PgPool) -> Result<i64, sqlx::Error>
         )
         .await?;
 
-        sqlx::query(
-            "UPDATE complaints SET overdue_emitted_at = now() WHERE id = $1",
-        )
-        .bind(c.id)
-        .execute(&mut *tx)
-        .await?;
+        sqlx::query("UPDATE complaints SET overdue_emitted_at = now() WHERE id = $1")
+            .bind(c.id)
+            .execute(&mut *tx)
+            .await?;
 
         tx.commit().await?;
         swept += 1;

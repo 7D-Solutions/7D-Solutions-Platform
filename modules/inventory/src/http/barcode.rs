@@ -208,10 +208,14 @@ pub async fn post_resolve_barcode(
 
     if req.barcode_raw.len() > BARCODE_MAX_LEN {
         return with_request_id(
-            ApiError::new(413, "payload_too_large", format!(
-                "barcode_raw exceeds maximum length of {} characters",
-                BARCODE_MAX_LEN
-            )),
+            ApiError::new(
+                413,
+                "payload_too_large",
+                format!(
+                    "barcode_raw exceeds maximum length of {} characters",
+                    BARCODE_MAX_LEN
+                ),
+            ),
             &tracing_ctx,
         )
         .into_response();
@@ -252,10 +256,11 @@ pub async fn post_resolve_barcode_batch(
     // Enforce batch cap before any allocation
     if req.barcodes.len() > BATCH_MAX_BARCODES {
         return with_request_id(
-            ApiError::new(413, "payload_too_large", format!(
-                "Batch exceeds maximum of {} barcodes",
-                BATCH_MAX_BARCODES
-            )),
+            ApiError::new(
+                413,
+                "payload_too_large",
+                format!("Batch exceeds maximum of {} barcodes", BATCH_MAX_BARCODES),
+            ),
             &tracing_ctx,
         )
         .into_response();
@@ -265,10 +270,14 @@ pub async fn post_resolve_barcode_batch(
     for barcode in &req.barcodes {
         if barcode.len() > BARCODE_MAX_LEN {
             return with_request_id(
-                ApiError::new(413, "payload_too_large", format!(
-                    "A barcode in the batch exceeds maximum length of {} characters",
-                    BARCODE_MAX_LEN
-                )),
+                ApiError::new(
+                    413,
+                    "payload_too_large",
+                    format!(
+                        "A barcode in the batch exceeds maximum length of {} characters",
+                        BARCODE_MAX_LEN
+                    ),
+                ),
                 &tracing_ctx,
             )
             .into_response();

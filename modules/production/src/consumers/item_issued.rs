@@ -60,15 +60,7 @@ pub async fn handle_item_issued(
         posted_by: "system:inventory-item-issued-consumer".to_string(),
     };
 
-    match CostRepo::post_cost(
-        pool,
-        &req,
-        &payload.tenant_id,
-        &event_id.to_string(),
-        None,
-    )
-    .await
-    {
+    match CostRepo::post_cost(pool, &req, &payload.tenant_id, &event_id.to_string(), None).await {
         Ok(_) => {
             tracing::info!(
                 issue_line_id = %payload.issue_line_id,
@@ -104,7 +96,10 @@ pub fn start_item_issued_consumer(bus: Arc<dyn EventBus>, pool: PgPool) {
             }
         };
 
-        tracing::info!(subject, "production: subscribed to inventory.item_issued for material costing");
+        tracing::info!(
+            subject,
+            "production: subscribed to inventory.item_issued for material costing"
+        );
 
         while let Some(msg) = stream.next().await {
             if let Err(e) = process_message(&pool, &msg).await {

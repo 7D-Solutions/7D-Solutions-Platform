@@ -916,7 +916,11 @@ pub(crate) fn build_observability_routes(
 
                     let extended = if let Some(ref prov) = custom_provider {
                         let val = prov.collect_extended(&vitals_pool, tenant_id).await;
-                        if val.is_null() { None } else { Some(val) }
+                        if val.is_null() {
+                            None
+                        } else {
+                            Some(val)
+                        }
                     } else {
                         None
                     };

@@ -10,13 +10,13 @@ use sqlx::PgPool;
 use uuid::Uuid;
 
 use super::{
-    repo, ConvertLeadRequest, ConvertLeadResponse, CreateLeadRequest, DisqualifyLeadRequest,
-    Lead, LeadError, LeadStatus, ListLeadsQuery, UpdateLeadRequest,
+    repo, ConvertLeadRequest, ConvertLeadResponse, CreateLeadRequest, DisqualifyLeadRequest, Lead,
+    LeadError, LeadStatus, ListLeadsQuery, UpdateLeadRequest,
 };
 use crate::events::{
     build_lead_converted_envelope, build_lead_created_envelope, build_lead_status_changed_envelope,
-    LeadConvertedPayload, LeadCreatedPayload, LeadStatusChangedPayload,
-    EVENT_TYPE_LEAD_CONVERTED, EVENT_TYPE_LEAD_CREATED, EVENT_TYPE_LEAD_STATUS_CHANGED,
+    LeadConvertedPayload, LeadCreatedPayload, LeadStatusChangedPayload, EVENT_TYPE_LEAD_CONVERTED,
+    EVENT_TYPE_LEAD_CREATED, EVENT_TYPE_LEAD_STATUS_CHANGED,
 };
 use crate::outbox;
 
@@ -74,11 +74,20 @@ pub async fn create_lead(
         created_at: created.created_at,
     };
     let envelope = build_lead_created_envelope(
-        Uuid::new_v4(), tenant_id.to_string(), Uuid::new_v4().to_string(), payload,
+        Uuid::new_v4(),
+        tenant_id.to_string(),
+        Uuid::new_v4().to_string(),
+        payload,
     );
     outbox::enqueue_event_tx(
-        &mut tx, Uuid::new_v4(), EVENT_TYPE_LEAD_CREATED, "lead", &created.id.to_string(), &envelope,
-    ).await?;
+        &mut tx,
+        Uuid::new_v4(),
+        EVENT_TYPE_LEAD_CREATED,
+        "lead",
+        &created.id.to_string(),
+        &envelope,
+    )
+    .await?;
 
     tx.commit().await?;
     Ok(created)
@@ -127,7 +136,18 @@ pub async fn mark_contacted(
     id: Uuid,
     actor: String,
 ) -> Result<Lead, LeadError> {
-    transition(pool, tenant_id, id, LeadStatus::Contacted, None, None, None, None, actor).await
+    transition(
+        pool,
+        tenant_id,
+        id,
+        LeadStatus::Contacted,
+        None,
+        None,
+        None,
+        None,
+        actor,
+    )
+    .await
 }
 
 /// Advance lead to "qualifying".
@@ -137,7 +157,18 @@ pub async fn mark_qualifying(
     id: Uuid,
     actor: String,
 ) -> Result<Lead, LeadError> {
-    transition(pool, tenant_id, id, LeadStatus::Qualifying, None, None, None, None, actor).await
+    transition(
+        pool,
+        tenant_id,
+        id,
+        LeadStatus::Qualifying,
+        None,
+        None,
+        None,
+        None,
+        actor,
+    )
+    .await
 }
 
 /// Advance lead to "qualified".
@@ -147,7 +178,18 @@ pub async fn mark_qualified(
     id: Uuid,
     actor: String,
 ) -> Result<Lead, LeadError> {
-    transition(pool, tenant_id, id, LeadStatus::Qualified, None, None, None, None, actor).await
+    transition(
+        pool,
+        tenant_id,
+        id,
+        LeadStatus::Qualified,
+        None,
+        None,
+        None,
+        None,
+        actor,
+    )
+    .await
 }
 
 /// Convert a qualified lead.
@@ -184,7 +226,9 @@ pub async fn convert_lead(
                     legal_name: lead.company_name.clone(),
                     ..Default::default()
                 };
-                let party_view = client.create_company(&claims, &body).await
+                let party_view = client
+                    .create_company(&claims, &body)
+                    .await
                     .map_err(|e| LeadError::PartyApiError(e.to_string()))?;
                 party_view.party.id
             }
@@ -214,11 +258,20 @@ pub async fn convert_lead(
         converted_at: Utc::now(),
     };
     let envelope = build_lead_converted_envelope(
-        Uuid::new_v4(), tenant_id.to_string(), Uuid::new_v4().to_string(), payload,
+        Uuid::new_v4(),
+        tenant_id.to_string(),
+        Uuid::new_v4().to_string(),
+        payload,
     );
     outbox::enqueue_event_tx(
-        &mut tx, Uuid::new_v4(), EVENT_TYPE_LEAD_CONVERTED, "lead", &updated.id.to_string(), &envelope,
-    ).await?;
+        &mut tx,
+        Uuid::new_v4(),
+        EVENT_TYPE_LEAD_CONVERTED,
+        "lead",
+        &updated.id.to_string(),
+        &envelope,
+    )
+    .await?;
 
     tx.commit().await?;
     Ok(ConvertLeadResponse {
@@ -250,7 +303,9 @@ pub async fn disqualify_lead(
         tenant_id,
         id,
         LeadStatus::Disqualified.as_str(),
-        None, None, None,
+        None,
+        None,
+        None,
         Some(&req.reason),
     )
     .await?;
@@ -265,22 +320,27 @@ pub async fn disqualify_lead(
         changed_at: Utc::now(),
     };
     let envelope = build_lead_status_changed_envelope(
-        Uuid::new_v4(), tenant_id.to_string(), Uuid::new_v4().to_string(), payload,
+        Uuid::new_v4(),
+        tenant_id.to_string(),
+        Uuid::new_v4().to_string(),
+        payload,
     );
     outbox::enqueue_event_tx(
-        &mut tx, Uuid::new_v4(), EVENT_TYPE_LEAD_STATUS_CHANGED, "lead", &updated.id.to_string(), &envelope,
-    ).await?;
+        &mut tx,
+        Uuid::new_v4(),
+        EVENT_TYPE_LEAD_STATUS_CHANGED,
+        "lead",
+        &updated.id.to_string(),
+        &envelope,
+    )
+    .await?;
 
     tx.commit().await?;
     Ok(updated)
 }
 
 /// Mark a lead as dead (no further activity expected).
-pub async fn mark_dead(
-    pool: &PgPool,
-    tenant_id: &str,
-    id: Uuid,
-) -> Result<Lead, LeadError> {
+pub async fn mark_dead(pool: &PgPool, tenant_id: &str, id: Uuid) -> Result<Lead, LeadError> {
     let lead = get_lead(pool, tenant_id, id).await?;
     let current = LeadStatus::from_str(&lead.status)
         .ok_or_else(|| LeadError::Validation(format!("Unknown status: {}", lead.status)))?;
@@ -290,7 +350,14 @@ pub async fn mark_dead(
 
     let mut tx = pool.begin().await?;
     let updated = repo::update_lead_status(
-        &mut *tx, tenant_id, id, LeadStatus::Dead.as_str(), None, None, None, None,
+        &mut *tx,
+        tenant_id,
+        id,
+        LeadStatus::Dead.as_str(),
+        None,
+        None,
+        None,
+        None,
     )
     .await?;
 
@@ -304,11 +371,20 @@ pub async fn mark_dead(
         changed_at: Utc::now(),
     };
     let envelope = build_lead_status_changed_envelope(
-        Uuid::new_v4(), tenant_id.to_string(), Uuid::new_v4().to_string(), payload,
+        Uuid::new_v4(),
+        tenant_id.to_string(),
+        Uuid::new_v4().to_string(),
+        payload,
     );
     outbox::enqueue_event_tx(
-        &mut tx, Uuid::new_v4(), EVENT_TYPE_LEAD_STATUS_CHANGED, "lead", &updated.id.to_string(), &envelope,
-    ).await?;
+        &mut tx,
+        Uuid::new_v4(),
+        EVENT_TYPE_LEAD_STATUS_CHANGED,
+        "lead",
+        &updated.id.to_string(),
+        &envelope,
+    )
+    .await?;
 
     tx.commit().await?;
     Ok(updated)
@@ -363,11 +439,20 @@ async fn transition(
         changed_at: Utc::now(),
     };
     let envelope = build_lead_status_changed_envelope(
-        Uuid::new_v4(), tenant_id.to_string(), Uuid::new_v4().to_string(), payload,
+        Uuid::new_v4(),
+        tenant_id.to_string(),
+        Uuid::new_v4().to_string(),
+        payload,
     );
     outbox::enqueue_event_tx(
-        &mut tx, Uuid::new_v4(), EVENT_TYPE_LEAD_STATUS_CHANGED, "lead", &updated.id.to_string(), &envelope,
-    ).await?;
+        &mut tx,
+        Uuid::new_v4(),
+        EVENT_TYPE_LEAD_STATUS_CHANGED,
+        "lead",
+        &updated.id.to_string(),
+        &envelope,
+    )
+    .await?;
 
     tx.commit().await?;
     Ok(updated)

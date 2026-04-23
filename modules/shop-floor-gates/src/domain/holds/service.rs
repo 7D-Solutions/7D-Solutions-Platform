@@ -6,11 +6,20 @@ use crate::events::{self, HoldCancelledPayload, HoldPlacedPayload, HoldReleasedP
 use crate::outbox::enqueue_event_tx;
 use platform_http_contracts::ApiError;
 
-use super::{repo, CancelHoldRequest, ListHoldsQuery, PlaceHoldRequest, ReleaseHoldRequest, TravelerHold};
+use super::{
+    repo, CancelHoldRequest, ListHoldsQuery, PlaceHoldRequest, ReleaseHoldRequest, TravelerHold,
+};
 
 const VALID_HOLD_TYPES: &[&str] = &["quality", "engineering", "material", "customer", "other"];
 const VALID_SCOPES: &[&str] = &["work_order", "operation"];
-const VALID_RELEASE_AUTHORITIES: &[&str] = &["quality", "engineering", "planner", "supervisor", "owner_only", "any_with_role"];
+const VALID_RELEASE_AUTHORITIES: &[&str] = &[
+    "quality",
+    "engineering",
+    "planner",
+    "supervisor",
+    "owner_only",
+    "any_with_role",
+];
 
 // System actor for auto-transitions triggered by production events
 pub const SYSTEM_ACTOR: Uuid = Uuid::from_bytes([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1]);
@@ -26,17 +35,28 @@ pub async fn place_hold(
     req: PlaceHoldRequest,
 ) -> Result<TravelerHold, ApiError> {
     if !VALID_HOLD_TYPES.contains(&req.hold_type.as_str()) {
-        return Err(ApiError::bad_request(format!("Invalid hold_type: {}", req.hold_type)));
+        return Err(ApiError::bad_request(format!(
+            "Invalid hold_type: {}",
+            req.hold_type
+        )));
     }
     if !VALID_SCOPES.contains(&req.scope.as_str()) {
-        return Err(ApiError::bad_request(format!("Invalid scope: {}", req.scope)));
+        return Err(ApiError::bad_request(format!(
+            "Invalid scope: {}",
+            req.scope
+        )));
     }
     if req.scope == "operation" && req.operation_id.is_none() {
-        return Err(ApiError::bad_request("operation_id required when scope is 'operation'"));
+        return Err(ApiError::bad_request(
+            "operation_id required when scope is 'operation'",
+        ));
     }
     let release_authority = req.release_authority.as_deref().unwrap_or("any_with_role");
     if !VALID_RELEASE_AUTHORITIES.contains(&release_authority) {
-        return Err(ApiError::bad_request(format!("Invalid release_authority: {}", release_authority)));
+        return Err(ApiError::bad_request(format!(
+            "Invalid release_authority: {}",
+            release_authority
+        )));
     }
 
     let now = Utc::now();
@@ -63,7 +83,10 @@ pub async fn place_hold(
         updated_at: now,
     };
 
-    let mut tx = pool.begin().await.map_err(|e| ApiError::internal(e.to_string()))?;
+    let mut tx = pool
+        .begin()
+        .await
+        .map_err(|e| ApiError::internal(e.to_string()))?;
 
     sqlx::query(
         r#"INSERT INTO traveler_holds
@@ -102,11 +125,20 @@ pub async fn place_hold(
     })
     .map_err(|e| ApiError::internal(e.to_string()))?;
 
-    enqueue_event_tx(&mut *tx, Uuid::new_v4(), events::HOLD_PLACED, "traveler_hold", &hold.id.to_string(), &payload)
+    enqueue_event_tx(
+        &mut *tx,
+        Uuid::new_v4(),
+        events::HOLD_PLACED,
+        "traveler_hold",
+        &hold.id.to_string(),
+        &payload,
+    )
+    .await
+    .map_err(|e| ApiError::internal(e.to_string()))?;
+
+    tx.commit()
         .await
         .map_err(|e| ApiError::internal(e.to_string()))?;
-
-    tx.commit().await.map_err(|e| ApiError::internal(e.to_string()))?;
     Ok(hold)
 }
 
@@ -126,7 +158,10 @@ pub async fn release_hold(
         .ok_or_else(|| ApiError::not_found("Hold not found"))?;
 
     if hold.status != "active" {
-        return Err(ApiError::bad_request(format!("Hold is already {}", hold.status)));
+        return Err(ApiError::bad_request(format!(
+            "Hold is already {}",
+            hold.status
+        )));
     }
 
     // Enforce release authority — system bypasses
@@ -137,11 +172,16 @@ pub async fn release_hold(
             authority => user_role == authority,
         };
         if !ok {
-            return Err(ApiError::forbidden("Insufficient authority to release this hold"));
+            return Err(ApiError::forbidden(
+                "Insufficient authority to release this hold",
+            ));
         }
     }
 
-    let mut tx = pool.begin().await.map_err(|e| ApiError::internal(e.to_string()))?;
+    let mut tx = pool
+        .begin()
+        .await
+        .map_err(|e| ApiError::internal(e.to_string()))?;
 
     let updated = sqlx::query_as::<_, TravelerHold>(
         r#"UPDATE traveler_holds
@@ -170,11 +210,20 @@ pub async fn release_hold(
     })
     .map_err(|e| ApiError::internal(e.to_string()))?;
 
-    enqueue_event_tx(&mut *tx, Uuid::new_v4(), events::HOLD_RELEASED, "traveler_hold", &updated.id.to_string(), &payload)
+    enqueue_event_tx(
+        &mut *tx,
+        Uuid::new_v4(),
+        events::HOLD_RELEASED,
+        "traveler_hold",
+        &updated.id.to_string(),
+        &payload,
+    )
+    .await
+    .map_err(|e| ApiError::internal(e.to_string()))?;
+
+    tx.commit()
         .await
         .map_err(|e| ApiError::internal(e.to_string()))?;
-
-    tx.commit().await.map_err(|e| ApiError::internal(e.to_string()))?;
     Ok(updated)
 }
 
@@ -191,10 +240,16 @@ pub async fn cancel_hold(
         .ok_or_else(|| ApiError::not_found("Hold not found"))?;
 
     if hold.status != "active" {
-        return Err(ApiError::bad_request(format!("Hold is already {}", hold.status)));
+        return Err(ApiError::bad_request(format!(
+            "Hold is already {}",
+            hold.status
+        )));
     }
 
-    let mut tx = pool.begin().await.map_err(|e| ApiError::internal(e.to_string()))?;
+    let mut tx = pool
+        .begin()
+        .await
+        .map_err(|e| ApiError::internal(e.to_string()))?;
 
     let updated = sqlx::query_as::<_, TravelerHold>(
         r#"UPDATE traveler_holds
@@ -223,19 +278,38 @@ pub async fn cancel_hold(
     })
     .map_err(|e| ApiError::internal(e.to_string()))?;
 
-    enqueue_event_tx(&mut *tx, Uuid::new_v4(), events::HOLD_CANCELLED, "traveler_hold", &updated.id.to_string(), &payload)
+    enqueue_event_tx(
+        &mut *tx,
+        Uuid::new_v4(),
+        events::HOLD_CANCELLED,
+        "traveler_hold",
+        &updated.id.to_string(),
+        &payload,
+    )
+    .await
+    .map_err(|e| ApiError::internal(e.to_string()))?;
+
+    tx.commit()
         .await
         .map_err(|e| ApiError::internal(e.to_string()))?;
-
-    tx.commit().await.map_err(|e| ApiError::internal(e.to_string()))?;
     Ok(updated)
 }
 
-pub async fn list_holds(pool: &PgPool, tenant_id: &str, q: ListHoldsQuery) -> Result<Vec<TravelerHold>, ApiError> {
-    repo::list_holds(pool, tenant_id, &q).await.map_err(|e| ApiError::internal(e.to_string()))
+pub async fn list_holds(
+    pool: &PgPool,
+    tenant_id: &str,
+    q: ListHoldsQuery,
+) -> Result<Vec<TravelerHold>, ApiError> {
+    repo::list_holds(pool, tenant_id, &q)
+        .await
+        .map_err(|e| ApiError::internal(e.to_string()))
 }
 
-pub async fn get_hold(pool: &PgPool, hold_id: Uuid, tenant_id: &str) -> Result<TravelerHold, ApiError> {
+pub async fn get_hold(
+    pool: &PgPool,
+    hold_id: Uuid,
+    tenant_id: &str,
+) -> Result<TravelerHold, ApiError> {
     repo::fetch_hold(pool, hold_id, tenant_id)
         .await
         .map_err(|e| ApiError::internal(e.to_string()))?

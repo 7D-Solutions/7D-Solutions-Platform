@@ -11,7 +11,9 @@ use platform_http_contracts::ApiError;
 use security::VerifiedClaims;
 use std::sync::Arc;
 
-use crate::domain::pipeline_stages::{service, CreateStageRequest, ReorderStagesRequest, UpdateStageRequest};
+use crate::domain::pipeline_stages::{
+    service, CreateStageRequest, ReorderStagesRequest, UpdateStageRequest,
+};
 use crate::http::tenant::with_request_id;
 use crate::AppState;
 use platform_sdk::extract_tenant;
@@ -52,7 +54,10 @@ pub async fn create_stage(
         Ok(id) => id,
         Err(e) => return with_request_id(e, &tracing_ctx).into_response(),
     };
-    let actor = claims.as_ref().map(|c| c.user_id.to_string()).unwrap_or_else(|| "unknown".to_string());
+    let actor = claims
+        .as_ref()
+        .map(|c| c.user_id.to_string())
+        .unwrap_or_else(|| "unknown".to_string());
     match service::create_stage(&state.pool, &tenant_id, &req, &actor).await {
         Ok(stage) => (StatusCode::CREATED, Json(stage)).into_response(),
         Err(e) => with_request_id(ApiError::from(e), &tracing_ctx).into_response(),
@@ -76,7 +81,10 @@ pub async fn update_stage(
         Ok(id) => id,
         Err(e) => return with_request_id(e, &tracing_ctx).into_response(),
     };
-    let actor = claims.as_ref().map(|c| c.user_id.to_string()).unwrap_or_else(|| "unknown".to_string());
+    let actor = claims
+        .as_ref()
+        .map(|c| c.user_id.to_string())
+        .unwrap_or_else(|| "unknown".to_string());
     match service::update_stage(&state.pool, &tenant_id, &code, &req, &actor).await {
         Ok(stage) => Json(stage).into_response(),
         Err(e) => with_request_id(ApiError::from(e), &tracing_ctx).into_response(),
@@ -98,7 +106,10 @@ pub async fn deactivate_stage(
         Ok(id) => id,
         Err(e) => return with_request_id(e, &tracing_ctx).into_response(),
     };
-    let actor = claims.as_ref().map(|c| c.user_id.to_string()).unwrap_or_else(|| "unknown".to_string());
+    let actor = claims
+        .as_ref()
+        .map(|c| c.user_id.to_string())
+        .unwrap_or_else(|| "unknown".to_string());
     match service::deactivate_stage(&state.pool, &tenant_id, &code, &actor).await {
         Ok(stage) => Json(stage).into_response(),
         Err(e) => with_request_id(ApiError::from(e), &tracing_ctx).into_response(),
@@ -121,7 +132,10 @@ pub async fn reorder_stages(
         Ok(id) => id,
         Err(e) => return with_request_id(e, &tracing_ctx).into_response(),
     };
-    let actor = claims.as_ref().map(|c| c.user_id.to_string()).unwrap_or_else(|| "unknown".to_string());
+    let actor = claims
+        .as_ref()
+        .map(|c| c.user_id.to_string())
+        .unwrap_or_else(|| "unknown".to_string());
     match service::reorder_stages(&state.pool, &tenant_id, &req, &actor).await {
         Ok(stages) => Json(stages).into_response(),
         Err(e) => with_request_id(ApiError::from(e), &tracing_ctx).into_response(),

@@ -83,10 +83,7 @@ async fn main() {
                 // Signoffs
                 .route("/api/sfg/signoffs", post(http::signoffs::record_signoff))
                 // Labels
-                .route(
-                    "/api/sfg/labels/{table}",
-                    put(http::labels::upsert_label),
-                )
+                .route("/api/sfg/labels/{table}", put(http::labels::upsert_label))
                 .route(
                     "/api/sfg/labels/{table}/{id}",
                     delete(http::labels::delete_label),

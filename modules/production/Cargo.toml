@@ -1,6 +1,6 @@
 [package]
 name = "production-rs"
-version = "3.7.0"
+version = "3.7.1"
 edition = "2021"
 description = "Production execution: work orders, operations, workcenters, routing, and component issue/receipt workflows"
 

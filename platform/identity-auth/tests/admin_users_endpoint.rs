@@ -160,10 +160,7 @@ async fn admin_users_returns_roles_and_permissions() {
         user.3.contains(&"test_viewer".to_string()),
         "role should be returned"
     );
-    assert!(
-        user.4.contains(&perm_key),
-        "permission should be returned"
-    );
+    assert!(user.4.contains(&perm_key), "permission should be returned");
 }
 
 // ─── Test 2: tenant isolation ────────────────────────────────────────────────

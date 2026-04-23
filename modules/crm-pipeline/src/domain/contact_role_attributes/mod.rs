@@ -24,7 +24,9 @@ pub enum ContactRoleError {
 impl From<ContactRoleError> for platform_http_contracts::ApiError {
     fn from(err: ContactRoleError) -> Self {
         match err {
-            ContactRoleError::NotFound(id) => Self::not_found(format!("Contact role attributes for {} not found", id)),
+            ContactRoleError::NotFound(id) => {
+                Self::not_found(format!("Contact role attributes for {} not found", id))
+            }
             ContactRoleError::Validation(msg) => Self::new(422, "validation_error", msg),
             ContactRoleError::Database(e) => {
                 tracing::error!("CRM contact_role_attributes DB error: {}", e);

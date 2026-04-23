@@ -175,10 +175,14 @@ fn validate_entity_type(entity_type: &str) -> Result<(), BarcodeError> {
 
 fn validate_create_rule(req: &CreateRuleRequest) -> Result<Regex, BarcodeError> {
     if req.tenant_id.trim().is_empty() {
-        return Err(BarcodeError::Validation("tenant_id is required".to_string()));
+        return Err(BarcodeError::Validation(
+            "tenant_id is required".to_string(),
+        ));
     }
     if req.rule_name.trim().is_empty() {
-        return Err(BarcodeError::Validation("rule_name is required".to_string()));
+        return Err(BarcodeError::Validation(
+            "rule_name is required".to_string(),
+        ));
     }
     validate_entity_type(&req.entity_type_when_matched)?;
     if req.capture_group_index < 0 {
@@ -191,7 +195,9 @@ fn validate_create_rule(req: &CreateRuleRequest) -> Result<Regex, BarcodeError> 
 
 fn validate_update_rule(req: &UpdateRuleRequest) -> Result<Regex, BarcodeError> {
     if req.rule_name.trim().is_empty() {
-        return Err(BarcodeError::Validation("rule_name is required".to_string()));
+        return Err(BarcodeError::Validation(
+            "rule_name is required".to_string(),
+        ));
     }
     validate_entity_type(&req.entity_type_when_matched)?;
     if req.capture_group_index < 0 {
@@ -267,8 +273,7 @@ pub async fn deactivate_rule(
     rule_id: Uuid,
     updated_by: Option<&str>,
 ) -> Result<BarcodeFormatRule, BarcodeError> {
-    let rule =
-        barcode_resolver_repo::deactivate_rule(pool, tenant_id, rule_id, updated_by).await?;
+    let rule = barcode_resolver_repo::deactivate_rule(pool, tenant_id, rule_id, updated_by).await?;
     rule.ok_or(BarcodeError::RuleNotFound)
 }
 
@@ -291,27 +296,19 @@ pub async fn list_rules(
 /// 3. On first match, for Inventory-native types, verifies the entity exists.
 /// 4. Emits an outbox event.
 /// 5. Returns the resolution result.
-pub async fn resolve(
-    pool: &PgPool,
-    req: &ResolveRequest,
-) -> Result<ResolveResult, BarcodeError> {
+pub async fn resolve(pool: &PgPool, req: &ResolveRequest) -> Result<ResolveResult, BarcodeError> {
     let rules = barcode_resolver_repo::list_active_rules(pool, &req.tenant_id).await?;
 
     let mut result = evaluate_rules(&rules, &req.barcode_raw);
 
     // For Inventory-native types, verify the entity exists
     if result.resolved {
-        if let (Some(entity_type), Some(ref entity_ref)) =
-            (&result.entity_type, &result.entity_ref)
+        if let (Some(entity_type), Some(ref entity_ref)) = (&result.entity_type, &result.entity_ref)
         {
             match entity_type.as_str() {
                 ENTITY_TYPE_ITEM => {
-                    match barcode_resolver_repo::find_item_by_sku(
-                        pool,
-                        &req.tenant_id,
-                        entity_ref,
-                    )
-                    .await?
+                    match barcode_resolver_repo::find_item_by_sku(pool, &req.tenant_id, entity_ref)
+                        .await?
                     {
                         Some(row) => {
                             result.entity_id = Some(row.id);
@@ -327,12 +324,8 @@ pub async fn resolve(
                     }
                 }
                 ENTITY_TYPE_LOT => {
-                    match barcode_resolver_repo::find_lot_by_code(
-                        pool,
-                        &req.tenant_id,
-                        entity_ref,
-                    )
-                    .await?
+                    match barcode_resolver_repo::find_lot_by_code(pool, &req.tenant_id, entity_ref)
+                        .await?
                     {
                         Some(row) => {
                             result.entity_id = Some(row.id);
@@ -684,7 +677,10 @@ mod tests {
             priority: 10,
             updated_by: None,
         };
-        assert!(matches!(validate_create_rule(&req), Err(BarcodeError::InvalidRegex(_))));
+        assert!(matches!(
+            validate_create_rule(&req),
+            Err(BarcodeError::InvalidRegex(_))
+        ));
     }
 
     #[test]
@@ -698,7 +694,10 @@ mod tests {
             priority: 10,
             updated_by: None,
         };
-        assert!(matches!(validate_create_rule(&req), Err(BarcodeError::Validation(_))));
+        assert!(matches!(
+            validate_create_rule(&req),
+            Err(BarcodeError::Validation(_))
+        ));
     }
 
     #[test]

@@ -25,24 +25,28 @@ pub async fn check(
     causation_id: Option<&str>,
 ) -> Result<KitReadinessResult, BomError> {
     if req.required_quantity <= 0.0 {
-        return Err(GuardError::Validation("required_quantity must be positive".to_string()).into());
+        return Err(
+            GuardError::Validation("required_quantity must be positive".to_string()).into(),
+        );
     }
 
     // Fetch the root assembly's part_id to seed demand propagation
-    let root_part_id: Uuid = sqlx::query_scalar(
-        "SELECT part_id FROM bom_headers WHERE id = $1 AND tenant_id = $2",
-    )
-    .bind(req.bom_id)
-    .bind(tenant_id)
-    .fetch_optional(pool)
-    .await?
-    .ok_or_else(|| GuardError::NotFound(format!("BOM {} not found", req.bom_id)))?;
+    let root_part_id: Uuid =
+        sqlx::query_scalar("SELECT part_id FROM bom_headers WHERE id = $1 AND tenant_id = $2")
+            .bind(req.bom_id)
+            .bind(tenant_id)
+            .fetch_optional(pool)
+            .await?
+            .ok_or_else(|| GuardError::NotFound(format!("BOM {} not found", req.bom_id)))?;
 
     let explosion_rows = bom_queries::explode(
         pool,
         tenant_id,
         req.bom_id,
-        &ExplosionQuery { date: Some(req.check_date), max_depth: None },
+        &ExplosionQuery {
+            date: Some(req.check_date),
+            max_depth: None,
+        },
     )
     .await?;
 
@@ -198,7 +202,10 @@ pub async fn check(
 
     tx.commit().await?;
 
-    Ok(KitReadinessResult { snapshot, lines: kit_lines })
+    Ok(KitReadinessResult {
+        snapshot,
+        lines: kit_lines,
+    })
 }
 
 pub async fn get_snapshot(
@@ -206,14 +213,15 @@ pub async fn get_snapshot(
     tenant_id: &str,
     snapshot_id: Uuid,
 ) -> Result<KitReadinessResult, BomError> {
-    let snapshot: KitReadinessSnapshot = sqlx::query_as(
-        "SELECT * FROM kit_readiness_snapshots WHERE id = $1 AND tenant_id = $2",
-    )
-    .bind(snapshot_id)
-    .bind(tenant_id)
-    .fetch_optional(pool)
-    .await?
-    .ok_or_else(|| GuardError::NotFound(format!("Kit readiness snapshot {} not found", snapshot_id)))?;
+    let snapshot: KitReadinessSnapshot =
+        sqlx::query_as("SELECT * FROM kit_readiness_snapshots WHERE id = $1 AND tenant_id = $2")
+            .bind(snapshot_id)
+            .bind(tenant_id)
+            .fetch_optional(pool)
+            .await?
+            .ok_or_else(|| {
+                GuardError::NotFound(format!("Kit readiness snapshot {} not found", snapshot_id))
+            })?;
 
     // Lines are stored in kit_readiness_lines but KitReadinessLine doesn't derive FromRow
     // (it omits the id and snapshot_id PK). Query the fields explicitly.
@@ -227,9 +235,18 @@ pub async fn get_snapshot(
 
     let lines = rows
         .into_iter()
-        .map(|(component_item_id, required_qty, on_hand_qty, expired_qty, available_qty, status)| {
-            KitReadinessLine { component_item_id, required_qty, on_hand_qty, expired_qty, available_qty, status }
-        })
+        .map(
+            |(component_item_id, required_qty, on_hand_qty, expired_qty, available_qty, status)| {
+                KitReadinessLine {
+                    component_item_id,
+                    required_qty,
+                    on_hand_qty,
+                    expired_qty,
+                    available_qty,
+                    status,
+                }
+            },
+        )
         .collect();
 
     Ok(KitReadinessResult { snapshot, lines })

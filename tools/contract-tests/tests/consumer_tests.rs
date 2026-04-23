@@ -56,7 +56,10 @@ fn consumer_contracts_pass() {
         validated += 1;
     }
 
-    assert!(validated > 0, "No consumer contracts found under contracts/consumers/");
+    assert!(
+        validated > 0,
+        "No consumer contracts found under contracts/consumers/"
+    );
 }
 
 #[test]
@@ -74,8 +77,7 @@ fn consumer_contract_fails_on_missing_field() {
         .expect("FormTemplate.properties not found in spec")
         .remove("name");
 
-    let consumer_path =
-        contracts_dir().join("consumers/pdf-creation/pdf-editor-get-template.json");
+    let consumer_path = contracts_dir().join("consumers/pdf-creation/pdf-editor-get-template.json");
     let contents =
         std::fs::read_to_string(&consumer_path).expect("Failed to read seed consumer schema");
     let consumer: ConsumerSchema =

@@ -88,9 +88,6 @@ pub fn read_cookie_from_header(raw: &str, name: &str) -> Option<String> {
 
 /// Extract a named cookie from request headers.
 pub fn read_cookie(headers: &axum::http::HeaderMap, name: &str) -> Option<String> {
-    let raw = headers
-        .get(axum::http::header::COOKIE)?
-        .to_str()
-        .ok()?;
+    let raw = headers.get(axum::http::header::COOKIE)?.to_str().ok()?;
     read_cookie_from_header(raw, name)
 }

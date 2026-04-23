@@ -39,7 +39,10 @@ pub async fn handle_party_deactivated(pool: &PgPool, payload: &PartyDeactivatedP
             );
         }
         Ok(_) => {}
-        Err(e) => tracing::error!("Failed to query open opportunities for deactivated party: {}", e),
+        Err(e) => tracing::error!(
+            "Failed to query open opportunities for deactivated party: {}",
+            e
+        ),
     }
 }
 
@@ -60,7 +63,10 @@ pub fn start_party_deactivated_consumer(bus: Arc<dyn EventBus>, pool: PgPool) {
                     handle_party_deactivated(&pool, &envelope.payload).await;
                 }
                 Err(e) => {
-                    tracing::warn!("CRM: failed to deserialize party.party.deactivated payload: {}", e);
+                    tracing::warn!(
+                        "CRM: failed to deserialize party.party.deactivated payload: {}",
+                        e
+                    );
                 }
             }
         }

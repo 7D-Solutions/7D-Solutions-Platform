@@ -1,12 +1,15 @@
 //! Activity repository.
 
+use chrono::Utc;
 use sqlx::PgPool;
 use uuid::Uuid;
-use chrono::Utc;
 
 use super::{Activity, ActivityError, ListActivitiesQuery};
 
-pub async fn insert_activity(conn: &mut sqlx::PgConnection, act: &Activity) -> Result<Activity, ActivityError> {
+pub async fn insert_activity(
+    conn: &mut sqlx::PgConnection,
+    act: &Activity,
+) -> Result<Activity, ActivityError> {
     let row = sqlx::query_as::<_, Activity>(
         r#"
         INSERT INTO activities (
@@ -40,14 +43,17 @@ pub async fn insert_activity(conn: &mut sqlx::PgConnection, act: &Activity) -> R
     Ok(row)
 }
 
-pub async fn fetch_activity(pool: &PgPool, tenant_id: &str, id: Uuid) -> Result<Option<Activity>, ActivityError> {
-    let row = sqlx::query_as::<_, Activity>(
-        "SELECT * FROM activities WHERE id = $1 AND tenant_id = $2",
-    )
-    .bind(id)
-    .bind(tenant_id)
-    .fetch_optional(pool)
-    .await?;
+pub async fn fetch_activity(
+    pool: &PgPool,
+    tenant_id: &str,
+    id: Uuid,
+) -> Result<Option<Activity>, ActivityError> {
+    let row =
+        sqlx::query_as::<_, Activity>("SELECT * FROM activities WHERE id = $1 AND tenant_id = $2")
+            .bind(id)
+            .bind(tenant_id)
+            .fetch_optional(pool)
+            .await?;
     Ok(row)
 }
 
@@ -82,7 +88,11 @@ pub async fn list_activities(
     Ok(rows)
 }
 
-pub async fn complete_activity(conn: &mut sqlx::PgConnection, tenant_id: &str, id: Uuid) -> Result<Activity, ActivityError> {
+pub async fn complete_activity(
+    conn: &mut sqlx::PgConnection,
+    tenant_id: &str,
+    id: Uuid,
+) -> Result<Activity, ActivityError> {
     let row = sqlx::query_as::<_, Activity>(
         r#"
         UPDATE activities SET is_completed = TRUE, completed_at = NOW(), updated_at = NOW()

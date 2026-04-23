@@ -10,8 +10,8 @@ use std::sync::Arc;
 use uuid::Uuid;
 
 use crate::domain::handoffs::{
-    service, AcceptHandoffRequest, CancelHandoffRequest, InitiateHandoffRequest,
-    ListHandoffsQuery, RejectHandoffRequest,
+    service, AcceptHandoffRequest, CancelHandoffRequest, InitiateHandoffRequest, ListHandoffsQuery,
+    RejectHandoffRequest,
 };
 use crate::AppState;
 

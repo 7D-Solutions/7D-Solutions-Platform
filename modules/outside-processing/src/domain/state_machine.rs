@@ -31,9 +31,9 @@ pub fn transition_on_ship_event(current: &str) -> Result<OpOrderStatus, OpError>
 /// Status after recording a return event (first return → returned; subsequent returns stay returned).
 pub fn transition_on_return_event(current: &str) -> Result<OpOrderStatus, OpError> {
     match OpOrderStatus::from_str(current) {
-        Some(OpOrderStatus::ShippedToVendor) | Some(OpOrderStatus::AtVendor) | Some(OpOrderStatus::Returned) => {
-            Ok(OpOrderStatus::Returned)
-        }
+        Some(OpOrderStatus::ShippedToVendor)
+        | Some(OpOrderStatus::AtVendor)
+        | Some(OpOrderStatus::Returned) => Ok(OpOrderStatus::Returned),
         _ => Err(OpError::InvalidTransition {
             from: current.to_string(),
             to: "returned".to_string(),
@@ -153,7 +153,8 @@ mod tests {
     #[test]
     fn review_accepted_closes_order() {
         assert_eq!(
-            transition_on_review_outcome("review_in_progress", ReviewOutcome::Accepted, false).unwrap(),
+            transition_on_review_outcome("review_in_progress", ReviewOutcome::Accepted, false)
+                .unwrap(),
             OpOrderStatus::Closed
         );
     }
@@ -161,7 +162,8 @@ mod tests {
     #[test]
     fn review_rejected_rework_returns_to_at_vendor() {
         assert_eq!(
-            transition_on_review_outcome("review_in_progress", ReviewOutcome::Rejected, true).unwrap(),
+            transition_on_review_outcome("review_in_progress", ReviewOutcome::Rejected, true)
+                .unwrap(),
             OpOrderStatus::AtVendor
         );
     }
@@ -169,7 +171,8 @@ mod tests {
     #[test]
     fn review_rejected_no_rework_stays_review_in_progress() {
         assert_eq!(
-            transition_on_review_outcome("review_in_progress", ReviewOutcome::Rejected, false).unwrap(),
+            transition_on_review_outcome("review_in_progress", ReviewOutcome::Rejected, false)
+                .unwrap(),
             OpOrderStatus::ReviewInProgress
         );
     }
@@ -182,7 +185,14 @@ mod tests {
 
     #[test]
     fn cancel_from_any_non_terminal_succeeds() {
-        for status in &["draft", "issued", "shipped_to_vendor", "at_vendor", "returned", "review_in_progress"] {
+        for status in &[
+            "draft",
+            "issued",
+            "shipped_to_vendor",
+            "at_vendor",
+            "returned",
+            "review_in_progress",
+        ] {
             assert_eq!(transition_cancel(status).unwrap(), OpOrderStatus::Cancelled);
         }
     }

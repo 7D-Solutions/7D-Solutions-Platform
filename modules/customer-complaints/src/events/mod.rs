@@ -13,5 +13,5 @@ pub const SOURCE_MODULE: &str = "customer-complaints";
 pub const MUTATION_DATA: &str = "DATA_MUTATION";
 pub const MUTATION_LIFECYCLE: &str = "LIFECYCLE";
 
-pub use produced::*;
 pub use envelope::create_cc_envelope;
+pub use produced::*;

@@ -4,9 +4,14 @@ use chrono::Utc;
 use sqlx::PgPool;
 use uuid::Uuid;
 
-use super::{ActivityType, ActivityTypeError, CreateActivityTypeRequest, UpdateActivityTypeRequest};
+use super::{
+    ActivityType, ActivityTypeError, CreateActivityTypeRequest, UpdateActivityTypeRequest,
+};
 
-pub async fn list_activity_types(pool: &PgPool, tenant_id: &str) -> Result<Vec<ActivityType>, ActivityTypeError> {
+pub async fn list_activity_types(
+    pool: &PgPool,
+    tenant_id: &str,
+) -> Result<Vec<ActivityType>, ActivityTypeError> {
     let rows = sqlx::query_as::<_, ActivityType>(
         "SELECT * FROM activity_types WHERE tenant_id = $1 AND active = TRUE ORDER BY display_label ASC",
     )
@@ -23,10 +28,14 @@ pub async fn create_activity_type(
     actor: &str,
 ) -> Result<ActivityType, ActivityTypeError> {
     if req.activity_type_code.trim().is_empty() {
-        return Err(ActivityTypeError::Validation("activity_type_code is required".into()));
+        return Err(ActivityTypeError::Validation(
+            "activity_type_code is required".into(),
+        ));
     }
     if req.display_label.trim().is_empty() {
-        return Err(ActivityTypeError::Validation("display_label is required".into()));
+        return Err(ActivityTypeError::Validation(
+            "display_label is required".into(),
+        ));
     }
 
     let now = Utc::now();

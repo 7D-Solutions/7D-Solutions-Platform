@@ -4,10 +4,10 @@
 //! All new fields must be `Option` or `Vec` to preserve forward compatibility —
 //! consumers that haven't upgraded must still receive a valid response.
 
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
 /// Dead-letter queue statistics.
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DlqVitals {
     /// Total messages currently in the DLQ.
     pub total: u64,
@@ -20,7 +20,7 @@ pub struct DlqVitals {
 }
 
 /// Transactional outbox health.
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct OutboxVitals {
     /// Number of outbox rows not yet published.
     pub pending: u64,
@@ -30,7 +30,7 @@ pub struct OutboxVitals {
 }
 
 /// Freshness of a single read-model projection.
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ProjectionVitals {
     /// Projection identifier (e.g. `"tenant_summary"`).
     pub name: String,
@@ -43,7 +43,7 @@ pub struct ProjectionVitals {
 }
 
 /// Runtime counters for a single event consumer.
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ConsumerVitals {
     /// Consumer identifier (e.g. `"tenant_provisioned_consumer"`).
     pub name: String,
@@ -58,7 +58,7 @@ pub struct ConsumerVitals {
 }
 
 /// Top-level vitals response returned by `GET /api/vitals`.
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct VitalsResponse {
     /// Identifying name of the reporting service (e.g. `"ar"`).
     pub service_name: String,
@@ -139,7 +139,10 @@ mod tests {
         assert_eq!(json["projections"][0]["lag_ms"], 120);
         assert_eq!(json["consumers"][0]["name"], "tenant_provisioned_consumer");
         assert_eq!(json["consumers"][0]["running"], true);
-        assert!(json["timestamp"].as_str().is_some(), "timestamp must be present");
+        assert!(
+            json["timestamp"].as_str().is_some(),
+            "timestamp must be present"
+        );
     }
 
     #[test]
@@ -151,7 +154,10 @@ mod tests {
 
         let json = serde_json::to_value(&v).expect("serialize");
 
-        assert!(json.get("tenant_ready").is_none(), "tenant_ready must be absent");
+        assert!(
+            json.get("tenant_ready").is_none(),
+            "tenant_ready must be absent"
+        );
         assert!(
             json["outbox"].get("oldest_pending_secs").is_none(),
             "oldest_pending_secs must be absent"
@@ -163,8 +169,7 @@ mod tests {
     fn timestamp_is_rfc3339() {
         let v = sample_vitals();
         let ts = v.timestamp.clone();
-        chrono::DateTime::parse_from_rfc3339(&ts)
-            .expect("timestamp must be valid RFC-3339");
+        chrono::DateTime::parse_from_rfc3339(&ts).expect("timestamp must be valid RFC-3339");
     }
 
     #[test]

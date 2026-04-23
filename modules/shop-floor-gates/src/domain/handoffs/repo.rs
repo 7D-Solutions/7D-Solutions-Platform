@@ -33,7 +33,11 @@ pub async fn insert_handoff(pool: &PgPool, h: &OperationHandoff) -> Result<(), s
     Ok(())
 }
 
-pub async fn fetch_handoff(pool: &PgPool, id: Uuid, tenant_id: &str) -> Result<Option<OperationHandoff>, sqlx::Error> {
+pub async fn fetch_handoff(
+    pool: &PgPool,
+    id: Uuid,
+    tenant_id: &str,
+) -> Result<Option<OperationHandoff>, sqlx::Error> {
     let sql = r#"SELECT id, tenant_id, handoff_number, work_order_id, source_operation_id, dest_operation_id,
         initiation_type, status, quantity::float8 AS quantity, unit_of_measure, lot_number, serial_numbers, notes,
         initiated_by, initiated_at, accepted_by, accepted_at, rejected_by, rejected_at, rejection_reason,
@@ -46,7 +50,11 @@ pub async fn fetch_handoff(pool: &PgPool, id: Uuid, tenant_id: &str) -> Result<O
         .await
 }
 
-pub async fn list_handoffs(pool: &PgPool, tenant_id: &str, q: &ListHandoffsQuery) -> Result<Vec<OperationHandoff>, sqlx::Error> {
+pub async fn list_handoffs(
+    pool: &PgPool,
+    tenant_id: &str,
+    q: &ListHandoffsQuery,
+) -> Result<Vec<OperationHandoff>, sqlx::Error> {
     let limit = q.limit.unwrap_or(50).min(200);
     let offset = q.offset.unwrap_or(0);
     let sql = r#"SELECT id, tenant_id, handoff_number, work_order_id, source_operation_id, dest_operation_id,

@@ -117,9 +117,8 @@ async fn process_party_deactivated_message(
     pool: &PgPool,
     msg: &BusMessage,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    let envelope: EventEnvelope<PartyDeactivatedPayload> =
-        serde_json::from_slice(&msg.payload)
-            .map_err(|e| format!("Failed to parse party.deactivated envelope: {}", e))?;
+    let envelope: EventEnvelope<PartyDeactivatedPayload> = serde_json::from_slice(&msg.payload)
+        .map_err(|e| format!("Failed to parse party.deactivated envelope: {}", e))?;
 
     tracing::info!(
         event_id = %envelope.event_id,
@@ -256,7 +255,10 @@ mod tests {
         .await
         .expect("count query failed");
 
-        assert_eq!(count, 1, "Redelivery must not duplicate activity log entries");
+        assert_eq!(
+            count, 1,
+            "Redelivery must not duplicate activity log entries"
+        );
 
         cleanup(&pool, &tid).await;
     }
@@ -289,15 +291,17 @@ mod tests {
             .await
             .expect("handle failed");
 
-        let (count,): (i64,) = sqlx::query_as(
-            "SELECT COUNT(*) FROM complaint_activity_log WHERE tenant_id = $1",
-        )
-        .bind(&tid)
-        .fetch_one(&pool)
-        .await
-        .expect("count query failed");
+        let (count,): (i64,) =
+            sqlx::query_as("SELECT COUNT(*) FROM complaint_activity_log WHERE tenant_id = $1")
+                .bind(&tid)
+                .fetch_one(&pool)
+                .await
+                .expect("count query failed");
 
-        assert_eq!(count, 0, "Closed complaints must not receive activity log entries");
+        assert_eq!(
+            count, 0,
+            "Closed complaints must not receive activity log entries"
+        );
 
         cleanup(&pool, &tid).await;
     }

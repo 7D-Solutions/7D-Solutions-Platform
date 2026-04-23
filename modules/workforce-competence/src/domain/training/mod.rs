@@ -16,8 +16,8 @@ pub use core::{
     transition_assignment_status,
 };
 pub use queries::{
-    get_training_assignment, get_training_plan, list_training_assignments, list_training_completions,
-    list_training_plans,
+    get_training_assignment, get_training_plan, list_training_assignments,
+    list_training_completions, list_training_plans,
 };
 
 // ============================================================================

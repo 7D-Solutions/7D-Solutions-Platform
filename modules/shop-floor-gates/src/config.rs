@@ -9,7 +9,8 @@ pub struct Config {
 }
 
 fn default_database_url() -> String {
-    std::env::var("DATABASE_URL").unwrap_or_else(|_| "postgres://localhost/shop_floor_gates".to_string())
+    std::env::var("DATABASE_URL")
+        .unwrap_or_else(|_| "postgres://localhost/shop_floor_gates".to_string())
 }
 
 fn default_port() -> u16 {

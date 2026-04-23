@@ -29,8 +29,11 @@ pub async fn handle(
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let payload: LotSplitPayload = serde_json::from_slice(&msg.payload)?;
 
-    let (Some(parent_lot_id), Some(child_lot_id), Some(event_id)) =
-        (payload.parent_lot_id, payload.child_lot_id, payload.event_id) else {
+    let (Some(parent_lot_id), Some(child_lot_id), Some(event_id)) = (
+        payload.parent_lot_id,
+        payload.child_lot_id,
+        payload.event_id,
+    ) else {
         return Ok(());
     };
 

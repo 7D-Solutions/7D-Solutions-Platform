@@ -411,10 +411,6 @@ pub struct PoLineRecord {
     pub created_at: chrono::DateTime<chrono::Utc>,
     pub description: String,
     pub gl_account_code: String,
-    /// Inventory item reference — opaque UUID echoed from the create request.
-    /// None for description-only lines.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub item_id: Option<uuid::Uuid>,
     pub line_id: uuid::Uuid,
     pub line_total_minor: i64,
     pub po_id: uuid::Uuid,

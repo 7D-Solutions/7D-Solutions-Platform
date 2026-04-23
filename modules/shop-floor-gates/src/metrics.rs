@@ -19,22 +19,34 @@ impl SfgMetrics {
     pub fn new() -> Result<Self, Box<dyn std::error::Error>> {
         let registry = Registry::new();
 
-        let holds_placed = IntCounter::new("sfg_holds_placed_total", "Total traveler holds placed")?;
+        let holds_placed =
+            IntCounter::new("sfg_holds_placed_total", "Total traveler holds placed")?;
         registry.register(Box::new(holds_placed.clone()))?;
 
-        let holds_released = IntCounter::new("sfg_holds_released_total", "Total traveler holds released")?;
+        let holds_released =
+            IntCounter::new("sfg_holds_released_total", "Total traveler holds released")?;
         registry.register(Box::new(holds_released.clone()))?;
 
-        let handoffs_initiated = IntCounter::new("sfg_handoffs_initiated_total", "Total operation handoffs initiated")?;
+        let handoffs_initiated = IntCounter::new(
+            "sfg_handoffs_initiated_total",
+            "Total operation handoffs initiated",
+        )?;
         registry.register(Box::new(handoffs_initiated.clone()))?;
 
-        let handoffs_accepted = IntCounter::new("sfg_handoffs_accepted_total", "Total operation handoffs accepted")?;
+        let handoffs_accepted = IntCounter::new(
+            "sfg_handoffs_accepted_total",
+            "Total operation handoffs accepted",
+        )?;
         registry.register(Box::new(handoffs_accepted.clone()))?;
 
-        let verifications_completed = IntCounter::new("sfg_verifications_completed_total", "Total start verifications completed")?;
+        let verifications_completed = IntCounter::new(
+            "sfg_verifications_completed_total",
+            "Total start verifications completed",
+        )?;
         registry.register(Box::new(verifications_completed.clone()))?;
 
-        let signoffs_recorded = IntCounter::new("sfg_signoffs_recorded_total", "Total signoffs recorded")?;
+        let signoffs_recorded =
+            IntCounter::new("sfg_signoffs_recorded_total", "Total signoffs recorded")?;
         registry.register(Box::new(signoffs_recorded.clone()))?;
 
         let events_published = IntCounterVec::new(
@@ -64,10 +76,15 @@ impl SfgMetrics {
     }
 }
 
-pub async fn metrics_handler(State(state): State<Arc<AppState>>) -> impl axum::response::IntoResponse {
+pub async fn metrics_handler(
+    State(state): State<Arc<AppState>>,
+) -> impl axum::response::IntoResponse {
     (
         StatusCode::OK,
-        [(axum::http::header::CONTENT_TYPE, "text/plain; version=0.0.4")],
+        [(
+            axum::http::header::CONTENT_TYPE,
+            "text/plain; version=0.0.4",
+        )],
         state.metrics.export(),
     )
 }

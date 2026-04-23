@@ -19,8 +19,11 @@ impl OutsideProcessingClient {
         claims: &VerifiedClaims,
         body: &CreateOpOrderRequest,
     ) -> Result<OpOrder, ClientError> {
-        let resp = self.client.post("/api/outside-processing/orders", body, claims)
-            .await.map_err(ClientError::Network)?;
+        let resp = self
+            .client
+            .post("/api/outside-processing/orders", body, claims)
+            .await
+            .map_err(ClientError::Network)?;
         parse_response(resp).await
     }
 
@@ -29,17 +32,23 @@ impl OutsideProcessingClient {
         claims: &VerifiedClaims,
         order_id: Uuid,
     ) -> Result<OpOrderDetail, ClientError> {
-        let resp = self.client.get(&format!("/api/outside-processing/orders/{}", order_id), claims)
-            .await.map_err(ClientError::Network)?;
+        let resp = self
+            .client
+            .get(
+                &format!("/api/outside-processing/orders/{}", order_id),
+                claims,
+            )
+            .await
+            .map_err(ClientError::Network)?;
         parse_response(resp).await
     }
 
-    pub async fn list_orders(
-        &self,
-        claims: &VerifiedClaims,
-    ) -> Result<Vec<OpOrder>, ClientError> {
-        let resp = self.client.get("/api/outside-processing/orders", claims)
-            .await.map_err(ClientError::Network)?;
+    pub async fn list_orders(&self, claims: &VerifiedClaims) -> Result<Vec<OpOrder>, ClientError> {
+        let resp = self
+            .client
+            .get("/api/outside-processing/orders", claims)
+            .await
+            .map_err(ClientError::Network)?;
         parse_response(resp).await
     }
 
@@ -49,8 +58,15 @@ impl OutsideProcessingClient {
         order_id: Uuid,
         body: &UpdateOpOrderRequest,
     ) -> Result<OpOrder, ClientError> {
-        let resp = self.client.put(&format!("/api/outside-processing/orders/{}", order_id), body, claims)
-            .await.map_err(ClientError::Network)?;
+        let resp = self
+            .client
+            .put(
+                &format!("/api/outside-processing/orders/{}", order_id),
+                body,
+                claims,
+            )
+            .await
+            .map_err(ClientError::Network)?;
         parse_response(resp).await
     }
 
@@ -60,8 +76,15 @@ impl OutsideProcessingClient {
         order_id: Uuid,
         body: &IssueOpOrderRequest,
     ) -> Result<OpOrder, ClientError> {
-        let resp = self.client.post(&format!("/api/outside-processing/orders/{}/issue", order_id), body, claims)
-            .await.map_err(ClientError::Network)?;
+        let resp = self
+            .client
+            .post(
+                &format!("/api/outside-processing/orders/{}/issue", order_id),
+                body,
+                claims,
+            )
+            .await
+            .map_err(ClientError::Network)?;
         parse_response(resp).await
     }
 
@@ -71,8 +94,15 @@ impl OutsideProcessingClient {
         order_id: Uuid,
         body: &CancelOpOrderRequest,
     ) -> Result<OpOrder, ClientError> {
-        let resp = self.client.post(&format!("/api/outside-processing/orders/{}/cancel", order_id), body, claims)
-            .await.map_err(ClientError::Network)?;
+        let resp = self
+            .client
+            .post(
+                &format!("/api/outside-processing/orders/{}/cancel", order_id),
+                body,
+                claims,
+            )
+            .await
+            .map_err(ClientError::Network)?;
         parse_response(resp).await
     }
 
@@ -82,8 +112,15 @@ impl OutsideProcessingClient {
         order_id: Uuid,
     ) -> Result<OpOrder, ClientError> {
         let body = serde_json::json!({});
-        let resp = self.client.post(&format!("/api/outside-processing/orders/{}/close", order_id), &body, claims)
-            .await.map_err(ClientError::Network)?;
+        let resp = self
+            .client
+            .post(
+                &format!("/api/outside-processing/orders/{}/close", order_id),
+                &body,
+                claims,
+            )
+            .await
+            .map_err(ClientError::Network)?;
         parse_response(resp).await
     }
 
@@ -95,8 +132,15 @@ impl OutsideProcessingClient {
         order_id: Uuid,
         body: &CreateShipEventRequest,
     ) -> Result<OpShipEvent, ClientError> {
-        let resp = self.client.post(&format!("/api/outside-processing/orders/{}/ship-events", order_id), body, claims)
-            .await.map_err(ClientError::Network)?;
+        let resp = self
+            .client
+            .post(
+                &format!("/api/outside-processing/orders/{}/ship-events", order_id),
+                body,
+                claims,
+            )
+            .await
+            .map_err(ClientError::Network)?;
         parse_response(resp).await
     }
 
@@ -105,8 +149,14 @@ impl OutsideProcessingClient {
         claims: &VerifiedClaims,
         order_id: Uuid,
     ) -> Result<Vec<OpShipEvent>, ClientError> {
-        let resp = self.client.get(&format!("/api/outside-processing/orders/{}/ship-events", order_id), claims)
-            .await.map_err(ClientError::Network)?;
+        let resp = self
+            .client
+            .get(
+                &format!("/api/outside-processing/orders/{}/ship-events", order_id),
+                claims,
+            )
+            .await
+            .map_err(ClientError::Network)?;
         parse_response(resp).await
     }
 
@@ -118,8 +168,15 @@ impl OutsideProcessingClient {
         order_id: Uuid,
         body: &CreateReturnEventRequest,
     ) -> Result<OpReturnEvent, ClientError> {
-        let resp = self.client.post(&format!("/api/outside-processing/orders/{}/return-events", order_id), body, claims)
-            .await.map_err(ClientError::Network)?;
+        let resp = self
+            .client
+            .post(
+                &format!("/api/outside-processing/orders/{}/return-events", order_id),
+                body,
+                claims,
+            )
+            .await
+            .map_err(ClientError::Network)?;
         parse_response(resp).await
     }
 
@@ -128,8 +185,14 @@ impl OutsideProcessingClient {
         claims: &VerifiedClaims,
         order_id: Uuid,
     ) -> Result<Vec<OpReturnEvent>, ClientError> {
-        let resp = self.client.get(&format!("/api/outside-processing/orders/{}/return-events", order_id), claims)
-            .await.map_err(ClientError::Network)?;
+        let resp = self
+            .client
+            .get(
+                &format!("/api/outside-processing/orders/{}/return-events", order_id),
+                claims,
+            )
+            .await
+            .map_err(ClientError::Network)?;
         parse_response(resp).await
     }
 
@@ -141,8 +204,15 @@ impl OutsideProcessingClient {
         order_id: Uuid,
         body: &CreateReviewRequest,
     ) -> Result<OpVendorReview, ClientError> {
-        let resp = self.client.post(&format!("/api/outside-processing/orders/{}/reviews", order_id), body, claims)
-            .await.map_err(ClientError::Network)?;
+        let resp = self
+            .client
+            .post(
+                &format!("/api/outside-processing/orders/{}/reviews", order_id),
+                body,
+                claims,
+            )
+            .await
+            .map_err(ClientError::Network)?;
         parse_response(resp).await
     }
 
@@ -151,8 +221,14 @@ impl OutsideProcessingClient {
         claims: &VerifiedClaims,
         order_id: Uuid,
     ) -> Result<Vec<OpVendorReview>, ClientError> {
-        let resp = self.client.get(&format!("/api/outside-processing/orders/{}/reviews", order_id), claims)
-            .await.map_err(ClientError::Network)?;
+        let resp = self
+            .client
+            .get(
+                &format!("/api/outside-processing/orders/{}/reviews", order_id),
+                claims,
+            )
+            .await
+            .map_err(ClientError::Network)?;
         parse_response(resp).await
     }
 
@@ -164,8 +240,18 @@ impl OutsideProcessingClient {
         order_id: Uuid,
         body: &CreateReIdentificationRequest,
     ) -> Result<OpReIdentification, ClientError> {
-        let resp = self.client.post(&format!("/api/outside-processing/orders/{}/re-identifications", order_id), body, claims)
-            .await.map_err(ClientError::Network)?;
+        let resp = self
+            .client
+            .post(
+                &format!(
+                    "/api/outside-processing/orders/{}/re-identifications",
+                    order_id
+                ),
+                body,
+                claims,
+            )
+            .await
+            .map_err(ClientError::Network)?;
         parse_response(resp).await
     }
 
@@ -174,8 +260,17 @@ impl OutsideProcessingClient {
         claims: &VerifiedClaims,
         order_id: Uuid,
     ) -> Result<Vec<OpReIdentification>, ClientError> {
-        let resp = self.client.get(&format!("/api/outside-processing/orders/{}/re-identifications", order_id), claims)
-            .await.map_err(ClientError::Network)?;
+        let resp = self
+            .client
+            .get(
+                &format!(
+                    "/api/outside-processing/orders/{}/re-identifications",
+                    order_id
+                ),
+                claims,
+            )
+            .await
+            .map_err(ClientError::Network)?;
         parse_response(resp).await
     }
 
@@ -185,8 +280,11 @@ impl OutsideProcessingClient {
         &self,
         claims: &VerifiedClaims,
     ) -> Result<Vec<OpStatusLabel>, ClientError> {
-        let resp = self.client.get("/api/outside-processing/status-labels", claims)
-            .await.map_err(ClientError::Network)?;
+        let resp = self
+            .client
+            .get("/api/outside-processing/status-labels", claims)
+            .await
+            .map_err(ClientError::Network)?;
         parse_response(resp).await
     }
 
@@ -196,8 +294,15 @@ impl OutsideProcessingClient {
         canonical_status: &str,
         body: &UpsertStatusLabelRequest,
     ) -> Result<OpStatusLabel, ClientError> {
-        let resp = self.client.put(&format!("/api/outside-processing/status-labels/{}", canonical_status), body, claims)
-            .await.map_err(ClientError::Network)?;
+        let resp = self
+            .client
+            .put(
+                &format!("/api/outside-processing/status-labels/{}", canonical_status),
+                body,
+                claims,
+            )
+            .await
+            .map_err(ClientError::Network)?;
         parse_response(resp).await
     }
 
@@ -205,8 +310,11 @@ impl OutsideProcessingClient {
         &self,
         claims: &VerifiedClaims,
     ) -> Result<Vec<OpServiceTypeLabel>, ClientError> {
-        let resp = self.client.get("/api/outside-processing/service-type-labels", claims)
-            .await.map_err(ClientError::Network)?;
+        let resp = self
+            .client
+            .get("/api/outside-processing/service-type-labels", claims)
+            .await
+            .map_err(ClientError::Network)?;
         parse_response(resp).await
     }
 
@@ -216,8 +324,18 @@ impl OutsideProcessingClient {
         service_type: &str,
         body: &UpsertServiceTypeLabelRequest,
     ) -> Result<OpServiceTypeLabel, ClientError> {
-        let resp = self.client.put(&format!("/api/outside-processing/service-type-labels/{}", service_type), body, claims)
-            .await.map_err(ClientError::Network)?;
+        let resp = self
+            .client
+            .put(
+                &format!(
+                    "/api/outside-processing/service-type-labels/{}",
+                    service_type
+                ),
+                body,
+                claims,
+            )
+            .await
+            .map_err(ClientError::Network)?;
         parse_response(resp).await
     }
 }

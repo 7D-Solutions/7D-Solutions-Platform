@@ -140,16 +140,28 @@ async fn list_flags_for_tenant_returns_per_tenant_and_global_flags() {
 
     // Set a global flag and a per-tenant override
     set_flag(&pool, &global_flag, None, true).await.unwrap();
-    set_flag(&pool, &tenant_flag, Some(tenant), false).await.unwrap();
+    set_flag(&pool, &tenant_flag, Some(tenant), false)
+        .await
+        .unwrap();
 
     let flags = list_flags_for_tenant(&pool, tenant).await.unwrap();
 
-    assert_eq!(flags.get(&global_flag), Some(&true), "global flag must appear");
-    assert_eq!(flags.get(&tenant_flag), Some(&false), "per-tenant flag must appear");
+    assert_eq!(
+        flags.get(&global_flag),
+        Some(&true),
+        "global flag must appear"
+    );
+    assert_eq!(
+        flags.get(&tenant_flag),
+        Some(&false),
+        "per-tenant flag must appear"
+    );
 
     // Cleanup
     delete_flag(&pool, &global_flag, None).await.unwrap();
-    delete_flag(&pool, &tenant_flag, Some(tenant)).await.unwrap();
+    delete_flag(&pool, &tenant_flag, Some(tenant))
+        .await
+        .unwrap();
 }
 
 /// list_flags_for_tenant: per-tenant row overrides global when both exist.
@@ -164,7 +176,11 @@ async fn list_flags_for_tenant_per_tenant_overrides_global() {
     set_flag(&pool, &flag, Some(tenant), false).await.unwrap();
 
     let flags = list_flags_for_tenant(&pool, tenant).await.unwrap();
-    assert_eq!(flags.get(&flag), Some(&false), "per-tenant override must win");
+    assert_eq!(
+        flags.get(&flag),
+        Some(&false),
+        "per-tenant override must win"
+    );
 
     // Cleanup
     delete_flag(&pool, &flag, None).await.unwrap();

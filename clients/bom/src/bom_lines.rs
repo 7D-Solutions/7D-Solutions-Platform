@@ -93,60 +93,6 @@ impl BomLinesClient {
         Ok(all_data)
     }
 
-    /// GET `/api/bom/revisions/{revision_id}/lines?include=item_details`
-    ///
-    /// Each line includes an embedded `item` object with sku, name, description,
-    /// and unit_cost_minor. `item` is `null` when the component_item_id does not
-    /// resolve in inventory.
-    pub async fn get_lines_enriched(
-        &self,
-        claims: &VerifiedClaims,
-        revision_id: uuid::Uuid,
-        page: i64,
-        page_size: i64,
-    ) -> Result<PaginatedResponse<BomLineEnriched>, ClientError> {
-        let path = format!("/api/bom/revisions/{}/lines", revision_id);
-        #[derive(serde::Serialize)]
-        struct Query {
-            page: i64,
-            page_size: i64,
-            include: &'static str,
-        }
-        let query = Query {
-            page,
-            page_size,
-            include: "item_details",
-        };
-        let url = build_query_url(&path, &query)?;
-        let resp = self
-            .client
-            .get(&url, claims)
-            .await
-            .map_err(ClientError::Network)?;
-        parse_response(resp).await
-    }
-
-    /// Like [`get_lines_enriched`] but fetches all pages into a single `Vec`.
-    pub async fn get_lines_enriched_all(
-        &self,
-        claims: &VerifiedClaims,
-        revision_id: uuid::Uuid,
-    ) -> Result<Vec<BomLineEnriched>, ClientError> {
-        let mut all_data = Vec::new();
-        let mut page: i64 = 1;
-        loop {
-            let resp = self
-                .get_lines_enriched(claims, revision_id, page, 100)
-                .await?;
-            all_data.extend(resp.data);
-            if page >= resp.pagination.total_pages {
-                break;
-            }
-            page += 1;
-        }
-        Ok(all_data)
-    }
-
     /// POST `/api/bom/revisions/{revision_id}/lines`
     pub async fn post_line(
         &self,

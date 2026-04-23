@@ -75,7 +75,11 @@ pub async fn tenant_features(
     let flags = feature_flags::list_flags_for_tenant(&state.pool, tenant_id)
         .await
         .map_err(|e| {
-            tracing::error!("Failed to list feature flags for tenant {}: {}", tenant_id, e);
+            tracing::error!(
+                "Failed to list feature flags for tenant {}: {}",
+                tenant_id,
+                e
+            );
             (
                 StatusCode::INTERNAL_SERVER_ERROR,
                 Json(ErrorBody {

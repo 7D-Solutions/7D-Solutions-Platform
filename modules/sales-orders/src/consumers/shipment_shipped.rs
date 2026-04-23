@@ -91,7 +91,11 @@ async fn process_message(
 
     for (so_id, shipped_lines) in so_groups {
         if let Err(e) = process_so_lines(pool, &payload.tenant_id, so_id, &shipped_lines).await {
-            tracing::error!("SO: failed processing outbound_shipped for SO {}: {}", so_id, e);
+            tracing::error!(
+                "SO: failed processing outbound_shipped for SO {}: {}",
+                so_id,
+                e
+            );
         }
     }
 

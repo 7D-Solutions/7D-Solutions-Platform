@@ -271,21 +271,26 @@ pub async fn pipeline_summary(
 
     let items = rows
         .into_iter()
-        .map(|(stage_code, display_label, order_rank, count, total_value_cents)| {
-            PipelineSummaryItem {
-                stage_code,
-                display_label,
-                order_rank,
-                count,
-                total_value_cents,
-                weighted_value_cents: 0, // caller can compute from probability_pct if needed
-            }
-        })
+        .map(
+            |(stage_code, display_label, order_rank, count, total_value_cents)| {
+                PipelineSummaryItem {
+                    stage_code,
+                    display_label,
+                    order_rank,
+                    count,
+                    total_value_cents,
+                    weighted_value_cents: 0, // caller can compute from probability_pct if needed
+                }
+            },
+        )
         .collect();
     Ok(items)
 }
 
-pub async fn next_opp_number(conn: &mut PgConnection, tenant_id: &str) -> Result<String, OpportunityError> {
+pub async fn next_opp_number(
+    conn: &mut PgConnection,
+    tenant_id: &str,
+) -> Result<String, OpportunityError> {
     let count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM opportunities WHERE tenant_id = $1")
         .bind(tenant_id)
         .fetch_one(&mut *conn)

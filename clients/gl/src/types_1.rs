@@ -79,6 +79,18 @@ pub enum AccountType {
     Expense,
 }
 
+impl AccountType {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            AccountType::Asset => "Asset",
+            AccountType::Liability => "Liability",
+            AccountType::Equity => "Equity",
+            AccountType::Revenue => "Revenue",
+            AccountType::Expense => "Expense",
+        }
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AccrualResult {
     pub accrual_id: uuid::Uuid,
@@ -431,19 +443,4 @@ pub struct CreateTemplateRequest {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub reversal_policy: Option<ReversalPolicy>,
     pub tenant_id: String,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ExecuteReversalsRequest {
-    pub reversal_date: String,
-    pub target_period: String,
-    pub tenant_id: String,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ExecuteReversalsResult {
-    pub results: Vec<ReversalResult>,
-    pub reversals_executed: i64,
-    pub reversals_skipped: i64,
-    pub target_period: String,
 }

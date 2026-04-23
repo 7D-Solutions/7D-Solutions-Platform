@@ -4,11 +4,7 @@
 //! All tests use unique tenant IDs to avoid cross-test interference.
 
 use chrono::{NaiveDate, Utc};
-use outside_processing_rs::domain::{
-    models::*,
-    repo,
-    state_machine,
-};
+use outside_processing_rs::domain::{models::*, repo, state_machine};
 use serial_test::serial;
 use sqlx::postgres::PgPoolOptions;
 use uuid::Uuid;
@@ -106,7 +102,9 @@ async fn test_issue_without_vendor_fails() {
     create_req.vendor_id = None;
 
     let mut ctx = pool.begin().await.unwrap();
-    let order = repo::create_order(&mut ctx, &tid, &create_req, "OP-000001").await.unwrap();
+    let order = repo::create_order(&mut ctx, &tid, &create_req, "OP-000001")
+        .await
+        .unwrap();
     ctx.commit().await.unwrap();
 
     let mut tx = pool.begin().await.unwrap();
@@ -126,12 +124,17 @@ async fn test_issue_without_quantity_fails() {
     create_req.quantity_sent = 0;
 
     let mut ctx = pool.begin().await.unwrap();
-    let order = repo::create_order(&mut ctx, &tid, &create_req, "OP-000002").await.unwrap();
+    let order = repo::create_order(&mut ctx, &tid, &create_req, "OP-000002")
+        .await
+        .unwrap();
     ctx.commit().await.unwrap();
 
     let mut tx = pool.begin().await.unwrap();
     let result = repo::issue_order(&mut tx, &tid, order.op_order_id, None).await;
-    assert!(result.is_err(), "Expected error issuing with quantity_sent=0");
+    assert!(
+        result.is_err(),
+        "Expected error issuing with quantity_sent=0"
+    );
 }
 
 // ── 3. Issue with all required fields → status=issued ───────────────────────
@@ -143,12 +146,16 @@ async fn test_issue_happy_path() {
     let tid = unique_tenant();
 
     let mut ctx = pool.begin().await.unwrap();
-    let order = repo::create_order(&mut ctx, &tid, &base_create_req("alice"), "OP-000003").await.unwrap();
+    let order = repo::create_order(&mut ctx, &tid, &base_create_req("alice"), "OP-000003")
+        .await
+        .unwrap();
     ctx.commit().await.unwrap();
     assert_eq!(order.status, "draft");
 
     let mut tx = pool.begin().await.unwrap();
-    let issued = repo::issue_order(&mut tx, &tid, order.op_order_id, None).await.unwrap();
+    let issued = repo::issue_order(&mut tx, &tid, order.op_order_id, None)
+        .await
+        .unwrap();
     tx.commit().await.unwrap();
 
     assert_eq!(issued.status, "issued");
@@ -163,21 +170,35 @@ async fn test_ship_event_advances_status() {
     let tid = unique_tenant();
 
     let mut ctx = pool.begin().await.unwrap();
-    let order = repo::create_order(&mut ctx, &tid, &base_create_req("alice"), "OP-000004").await.unwrap();
+    let order = repo::create_order(&mut ctx, &tid, &base_create_req("alice"), "OP-000004")
+        .await
+        .unwrap();
     ctx.commit().await.unwrap();
     let mut tx = pool.begin().await.unwrap();
-    repo::issue_order(&mut tx, &tid, order.op_order_id, None).await.unwrap();
+    repo::issue_order(&mut tx, &tid, order.op_order_id, None)
+        .await
+        .unwrap();
     tx.commit().await.unwrap();
 
     let mut tx2 = pool.begin().await.unwrap();
-    let (locked_order, sum_shipped, _) = repo::lock_order_for_quantity_check(&mut tx2, &tid, order.op_order_id).await.unwrap();
+    let (locked_order, sum_shipped, _) =
+        repo::lock_order_for_quantity_check(&mut tx2, &tid, order.op_order_id)
+            .await
+            .unwrap();
 
     let new_status = state_machine::transition_on_ship_event(&locked_order.status).unwrap();
-    repo::create_ship_event_tx(&mut tx2, &tid, order.op_order_id, &ship_req(5)).await.unwrap();
-    repo::set_order_status(&mut tx2, &tid, order.op_order_id, new_status.as_str()).await.unwrap();
+    repo::create_ship_event_tx(&mut tx2, &tid, order.op_order_id, &ship_req(5))
+        .await
+        .unwrap();
+    repo::set_order_status(&mut tx2, &tid, order.op_order_id, new_status.as_str())
+        .await
+        .unwrap();
     tx2.commit().await.unwrap();
 
-    let updated = repo::get_order(&pool, &tid, order.op_order_id).await.unwrap().unwrap();
+    let updated = repo::get_order(&pool, &tid, order.op_order_id)
+        .await
+        .unwrap()
+        .unwrap();
     assert_eq!(updated.status, "shipped_to_vendor");
 }
 
@@ -190,23 +211,36 @@ async fn test_ship_quantity_bound_enforced() {
     let tid = unique_tenant();
 
     let mut ctx = pool.begin().await.unwrap();
-    let order = repo::create_order(&mut ctx, &tid, &base_create_req("alice"), "OP-000005").await.unwrap();
+    let order = repo::create_order(&mut ctx, &tid, &base_create_req("alice"), "OP-000005")
+        .await
+        .unwrap();
     ctx.commit().await.unwrap();
     let mut tx = pool.begin().await.unwrap();
-    repo::issue_order(&mut tx, &tid, order.op_order_id, None).await.unwrap();
+    repo::issue_order(&mut tx, &tid, order.op_order_id, None)
+        .await
+        .unwrap();
     tx.commit().await.unwrap();
 
     // First ship — 7 (ok)
     let mut tx2 = pool.begin().await.unwrap();
-    let (_, sum_shipped, _) = repo::lock_order_for_quantity_check(&mut tx2, &tid, order.op_order_id).await.unwrap();
+    let (_, sum_shipped, _) =
+        repo::lock_order_for_quantity_check(&mut tx2, &tid, order.op_order_id)
+            .await
+            .unwrap();
     assert!(sum_shipped + 7 <= order.quantity_sent as i64);
-    repo::create_ship_event_tx(&mut tx2, &tid, order.op_order_id, &ship_req(7)).await.unwrap();
-    repo::set_order_status(&mut tx2, &tid, order.op_order_id, "shipped_to_vendor").await.unwrap();
+    repo::create_ship_event_tx(&mut tx2, &tid, order.op_order_id, &ship_req(7))
+        .await
+        .unwrap();
+    repo::set_order_status(&mut tx2, &tid, order.op_order_id, "shipped_to_vendor")
+        .await
+        .unwrap();
     tx2.commit().await.unwrap();
 
     // Second ship — 5 (7+5=12 > 10, should be caught by caller)
     let mut tx3 = pool.begin().await.unwrap();
-    let (order3, sum3, _) = repo::lock_order_for_quantity_check(&mut tx3, &tid, order.op_order_id).await.unwrap();
+    let (order3, sum3, _) = repo::lock_order_for_quantity_check(&mut tx3, &tid, order.op_order_id)
+        .await
+        .unwrap();
     assert_eq!(sum3, 7);
     let would_exceed = sum3 + 5 > order3.quantity_sent as i64;
     assert!(would_exceed, "Should detect quantity exceeded");
@@ -222,21 +256,33 @@ async fn test_return_before_ship_event_fails() {
     let tid = unique_tenant();
 
     let mut ctx = pool.begin().await.unwrap();
-    let order = repo::create_order(&mut ctx, &tid, &base_create_req("alice"), "OP-000006").await.unwrap();
+    let order = repo::create_order(&mut ctx, &tid, &base_create_req("alice"), "OP-000006")
+        .await
+        .unwrap();
     ctx.commit().await.unwrap();
     let mut tx = pool.begin().await.unwrap();
-    repo::issue_order(&mut tx, &tid, order.op_order_id, None).await.unwrap();
+    repo::issue_order(&mut tx, &tid, order.op_order_id, None)
+        .await
+        .unwrap();
     tx.commit().await.unwrap();
 
     // Advance to shipped_to_vendor
     let mut tx2 = pool.begin().await.unwrap();
-    repo::set_order_status(&mut tx2, &tid, order.op_order_id, "shipped_to_vendor").await.unwrap();
+    repo::set_order_status(&mut tx2, &tid, order.op_order_id, "shipped_to_vendor")
+        .await
+        .unwrap();
     tx2.commit().await.unwrap();
 
     // Check sum_shipped
     let mut tx3 = pool.begin().await.unwrap();
-    let (_, sum_shipped, _) = repo::lock_order_for_quantity_check(&mut tx3, &tid, order.op_order_id).await.unwrap();
-    assert_eq!(sum_shipped, 0, "No ship events recorded, return should be blocked");
+    let (_, sum_shipped, _) =
+        repo::lock_order_for_quantity_check(&mut tx3, &tid, order.op_order_id)
+            .await
+            .unwrap();
+    assert_eq!(
+        sum_shipped, 0,
+        "No ship events recorded, return should be blocked"
+    );
     tx3.rollback().await.unwrap();
 }
 
@@ -249,25 +295,39 @@ async fn test_return_quantity_bound_enforced() {
     let tid = unique_tenant();
 
     let mut ctx = pool.begin().await.unwrap();
-    let order = repo::create_order(&mut ctx, &tid, &base_create_req("alice"), "OP-000007").await.unwrap();
+    let order = repo::create_order(&mut ctx, &tid, &base_create_req("alice"), "OP-000007")
+        .await
+        .unwrap();
     ctx.commit().await.unwrap();
     let mut tx = pool.begin().await.unwrap();
-    repo::issue_order(&mut tx, &tid, order.op_order_id, None).await.unwrap();
+    repo::issue_order(&mut tx, &tid, order.op_order_id, None)
+        .await
+        .unwrap();
     tx.commit().await.unwrap();
 
     // Ship 8
     let mut tx2 = pool.begin().await.unwrap();
-    repo::create_ship_event_tx(&mut tx2, &tid, order.op_order_id, &ship_req(8)).await.unwrap();
-    repo::set_order_status(&mut tx2, &tid, order.op_order_id, "shipped_to_vendor").await.unwrap();
+    repo::create_ship_event_tx(&mut tx2, &tid, order.op_order_id, &ship_req(8))
+        .await
+        .unwrap();
+    repo::set_order_status(&mut tx2, &tid, order.op_order_id, "shipped_to_vendor")
+        .await
+        .unwrap();
     tx2.commit().await.unwrap();
 
     // Try to return 9 (> 8 shipped)
     let mut tx3 = pool.begin().await.unwrap();
-    let (_, sum_shipped, sum_received) = repo::lock_order_for_quantity_check(&mut tx3, &tid, order.op_order_id).await.unwrap();
+    let (_, sum_shipped, sum_received) =
+        repo::lock_order_for_quantity_check(&mut tx3, &tid, order.op_order_id)
+            .await
+            .unwrap();
     assert_eq!(sum_shipped, 8);
     assert_eq!(sum_received, 0);
     let would_exceed = sum_received + 9 > sum_shipped;
-    assert!(would_exceed, "Return of 9 should exceed shipped quantity of 8");
+    assert!(
+        would_exceed,
+        "Return of 9 should exceed shipped quantity of 8"
+    );
     tx3.rollback().await.unwrap();
 }
 
@@ -280,11 +340,15 @@ async fn test_review_before_return_event_fails() {
     let tid = unique_tenant();
 
     let mut ctx = pool.begin().await.unwrap();
-    let order = repo::create_order(&mut ctx, &tid, &base_create_req("alice"), "OP-000008").await.unwrap();
+    let order = repo::create_order(&mut ctx, &tid, &base_create_req("alice"), "OP-000008")
+        .await
+        .unwrap();
     ctx.commit().await.unwrap();
     let mut tx = pool.begin().await.unwrap();
 
-    let return_count = repo::count_return_events(&mut tx, order.op_order_id).await.unwrap();
+    let return_count = repo::count_return_events(&mut tx, order.op_order_id)
+        .await
+        .unwrap();
     assert_eq!(return_count, 0, "No return events should exist");
     tx.rollback().await.unwrap();
 }
@@ -324,29 +388,47 @@ async fn test_full_lifecycle_happy_path() {
     let tid = unique_tenant();
 
     let mut ctx = pool.begin().await.unwrap();
-    let order = repo::create_order(&mut ctx, &tid, &base_create_req("alice"), "OP-000011").await.unwrap();
+    let order = repo::create_order(&mut ctx, &tid, &base_create_req("alice"), "OP-000011")
+        .await
+        .unwrap();
     ctx.commit().await.unwrap();
 
     // Issue
     let mut tx = pool.begin().await.unwrap();
-    repo::issue_order(&mut tx, &tid, order.op_order_id, None).await.unwrap();
+    repo::issue_order(&mut tx, &tid, order.op_order_id, None)
+        .await
+        .unwrap();
     tx.commit().await.unwrap();
 
     // Ship 10
     let mut tx2 = pool.begin().await.unwrap();
-    let (_, sum_shipped, _) = repo::lock_order_for_quantity_check(&mut tx2, &tid, order.op_order_id).await.unwrap();
+    let (_, sum_shipped, _) =
+        repo::lock_order_for_quantity_check(&mut tx2, &tid, order.op_order_id)
+            .await
+            .unwrap();
     assert_eq!(sum_shipped, 0);
-    repo::create_ship_event_tx(&mut tx2, &tid, order.op_order_id, &ship_req(10)).await.unwrap();
-    repo::set_order_status(&mut tx2, &tid, order.op_order_id, "shipped_to_vendor").await.unwrap();
+    repo::create_ship_event_tx(&mut tx2, &tid, order.op_order_id, &ship_req(10))
+        .await
+        .unwrap();
+    repo::set_order_status(&mut tx2, &tid, order.op_order_id, "shipped_to_vendor")
+        .await
+        .unwrap();
     tx2.commit().await.unwrap();
 
     // Return 10
     let mut tx3 = pool.begin().await.unwrap();
-    let (_, sum_shipped2, sum_received) = repo::lock_order_for_quantity_check(&mut tx3, &tid, order.op_order_id).await.unwrap();
+    let (_, sum_shipped2, sum_received) =
+        repo::lock_order_for_quantity_check(&mut tx3, &tid, order.op_order_id)
+            .await
+            .unwrap();
     assert_eq!(sum_shipped2, 10);
     assert_eq!(sum_received, 0);
-    let ret = repo::create_return_event_tx(&mut tx3, &tid, order.op_order_id, &return_req(10)).await.unwrap();
-    repo::set_order_status(&mut tx3, &tid, order.op_order_id, "returned").await.unwrap();
+    let ret = repo::create_return_event_tx(&mut tx3, &tid, order.op_order_id, &return_req(10))
+        .await
+        .unwrap();
+    repo::set_order_status(&mut tx3, &tid, order.op_order_id, "returned")
+        .await
+        .unwrap();
     tx3.commit().await.unwrap();
 
     // Record review accepted → closed
@@ -362,12 +444,21 @@ async fn test_full_lifecycle_happy_path() {
     };
     let mut tx4 = pool.begin().await.unwrap();
     // Enter review_in_progress
-    repo::set_order_status(&mut tx4, &tid, order.op_order_id, "review_in_progress").await.unwrap();
-    repo::create_review_tx(&mut tx4, &tid, order.op_order_id, &review_req).await.unwrap();
-    repo::set_order_status(&mut tx4, &tid, order.op_order_id, "closed").await.unwrap();
+    repo::set_order_status(&mut tx4, &tid, order.op_order_id, "review_in_progress")
+        .await
+        .unwrap();
+    repo::create_review_tx(&mut tx4, &tid, order.op_order_id, &review_req)
+        .await
+        .unwrap();
+    repo::set_order_status(&mut tx4, &tid, order.op_order_id, "closed")
+        .await
+        .unwrap();
     tx4.commit().await.unwrap();
 
-    let final_order = repo::get_order(&pool, &tid, order.op_order_id).await.unwrap().unwrap();
+    let final_order = repo::get_order(&pool, &tid, order.op_order_id)
+        .await
+        .unwrap()
+        .unwrap();
     assert_eq!(final_order.status, "closed");
 }
 
@@ -380,15 +471,22 @@ async fn test_cancel_from_draft() {
     let tid = unique_tenant();
 
     let mut ctx = pool.begin().await.unwrap();
-    let order = repo::create_order(&mut ctx, &tid, &base_create_req("alice"), "OP-000012").await.unwrap();
+    let order = repo::create_order(&mut ctx, &tid, &base_create_req("alice"), "OP-000012")
+        .await
+        .unwrap();
     ctx.commit().await.unwrap();
 
     let mut tx = pool.begin().await.unwrap();
     let new_status = state_machine::transition_cancel(&order.status).unwrap();
-    repo::set_order_status(&mut tx, &tid, order.op_order_id, new_status.as_str()).await.unwrap();
+    repo::set_order_status(&mut tx, &tid, order.op_order_id, new_status.as_str())
+        .await
+        .unwrap();
     tx.commit().await.unwrap();
 
-    let updated = repo::get_order(&pool, &tid, order.op_order_id).await.unwrap().unwrap();
+    let updated = repo::get_order(&pool, &tid, order.op_order_id)
+        .await
+        .unwrap()
+        .unwrap();
     assert_eq!(updated.status, "cancelled");
 }
 
@@ -398,7 +496,10 @@ async fn test_cancel_from_draft() {
 #[serial]
 async fn test_cancel_from_closed_fails() {
     let result = state_machine::transition_cancel("closed");
-    assert!(result.is_err(), "Should not be able to cancel a closed order");
+    assert!(
+        result.is_err(),
+        "Should not be able to cancel a closed order"
+    );
 }
 
 // ── 14. Re-identification requires return event ──────────────────────────────
@@ -410,11 +511,15 @@ async fn test_re_identification_requires_return_event() {
     let tid = unique_tenant();
 
     let mut ctx = pool.begin().await.unwrap();
-    let order = repo::create_order(&mut ctx, &tid, &base_create_req("alice"), "OP-000014").await.unwrap();
+    let order = repo::create_order(&mut ctx, &tid, &base_create_req("alice"), "OP-000014")
+        .await
+        .unwrap();
     ctx.commit().await.unwrap();
 
     let mut tx = pool.begin().await.unwrap();
-    let return_count = repo::count_return_events(&mut tx, order.op_order_id).await.unwrap();
+    let return_count = repo::count_return_events(&mut tx, order.op_order_id)
+        .await
+        .unwrap();
     assert_eq!(return_count, 0);
     tx.rollback().await.unwrap();
 }
@@ -429,23 +534,35 @@ async fn test_quantity_bound_across_rework_cycles() {
 
     // quantity_sent = 10
     let mut ctx = pool.begin().await.unwrap();
-    let order = repo::create_order(&mut ctx, &tid, &base_create_req("alice"), "OP-000015").await.unwrap();
+    let order = repo::create_order(&mut ctx, &tid, &base_create_req("alice"), "OP-000015")
+        .await
+        .unwrap();
     ctx.commit().await.unwrap();
 
     let mut tx = pool.begin().await.unwrap();
-    repo::issue_order(&mut tx, &tid, order.op_order_id, None).await.unwrap();
+    repo::issue_order(&mut tx, &tid, order.op_order_id, None)
+        .await
+        .unwrap();
     tx.commit().await.unwrap();
 
     // Cycle 1: ship 6
     let mut tx2 = pool.begin().await.unwrap();
-    repo::create_ship_event_tx(&mut tx2, &tid, order.op_order_id, &ship_req(6)).await.unwrap();
-    repo::set_order_status(&mut tx2, &tid, order.op_order_id, "shipped_to_vendor").await.unwrap();
+    repo::create_ship_event_tx(&mut tx2, &tid, order.op_order_id, &ship_req(6))
+        .await
+        .unwrap();
+    repo::set_order_status(&mut tx2, &tid, order.op_order_id, "shipped_to_vendor")
+        .await
+        .unwrap();
     tx2.commit().await.unwrap();
 
     // Return 6
     let mut tx3 = pool.begin().await.unwrap();
-    let ret1 = repo::create_return_event_tx(&mut tx3, &tid, order.op_order_id, &return_req(6)).await.unwrap();
-    repo::set_order_status(&mut tx3, &tid, order.op_order_id, "returned").await.unwrap();
+    let ret1 = repo::create_return_event_tx(&mut tx3, &tid, order.op_order_id, &return_req(6))
+        .await
+        .unwrap();
+    repo::set_order_status(&mut tx3, &tid, order.op_order_id, "returned")
+        .await
+        .unwrap();
     tx3.commit().await.unwrap();
 
     // Review rejected + rework → at_vendor
@@ -460,32 +577,59 @@ async fn test_quantity_bound_across_rework_cycles() {
         notes: None,
     };
     let mut tx4 = pool.begin().await.unwrap();
-    repo::set_order_status(&mut tx4, &tid, order.op_order_id, "review_in_progress").await.unwrap();
-    repo::create_review_tx(&mut tx4, &tid, order.op_order_id, &review_req).await.unwrap();
-    repo::set_order_status(&mut tx4, &tid, order.op_order_id, "at_vendor").await.unwrap();
+    repo::set_order_status(&mut tx4, &tid, order.op_order_id, "review_in_progress")
+        .await
+        .unwrap();
+    repo::create_review_tx(&mut tx4, &tid, order.op_order_id, &review_req)
+        .await
+        .unwrap();
+    repo::set_order_status(&mut tx4, &tid, order.op_order_id, "at_vendor")
+        .await
+        .unwrap();
     tx4.commit().await.unwrap();
 
     // Cycle 2: try to ship 5 (total would be 6+5=11 > 10)
     let mut tx5 = pool.begin().await.unwrap();
-    let (order5, sum_shipped5, _) = repo::lock_order_for_quantity_check(&mut tx5, &tid, order.op_order_id).await.unwrap();
+    let (order5, sum_shipped5, _) =
+        repo::lock_order_for_quantity_check(&mut tx5, &tid, order.op_order_id)
+            .await
+            .unwrap();
     assert_eq!(sum_shipped5, 6, "Cycle 1 shipped 6");
     let would_exceed = sum_shipped5 + 5 > order5.quantity_sent as i64;
-    assert!(would_exceed, "Cycle 2 ship of 5 would exceed quantity_sent of 10");
+    assert!(
+        would_exceed,
+        "Cycle 2 ship of 5 would exceed quantity_sent of 10"
+    );
     tx5.rollback().await.unwrap();
 
     // Cycle 2: ship 4 (total 6+4=10, exactly at bound — allowed)
     let mut tx6 = pool.begin().await.unwrap();
-    let (order6, sum6, _) = repo::lock_order_for_quantity_check(&mut tx6, &tid, order.op_order_id).await.unwrap();
+    let (order6, sum6, _) = repo::lock_order_for_quantity_check(&mut tx6, &tid, order.op_order_id)
+        .await
+        .unwrap();
     assert_eq!(sum6, 6);
-    assert!(sum6 + 4 <= order6.quantity_sent as i64, "Should be within bound");
-    repo::create_ship_event_tx(&mut tx6, &tid, order.op_order_id, &ship_req(4)).await.unwrap();
-    repo::set_order_status(&mut tx6, &tid, order.op_order_id, "shipped_to_vendor").await.unwrap();
+    assert!(
+        sum6 + 4 <= order6.quantity_sent as i64,
+        "Should be within bound"
+    );
+    repo::create_ship_event_tx(&mut tx6, &tid, order.op_order_id, &ship_req(4))
+        .await
+        .unwrap();
+    repo::set_order_status(&mut tx6, &tid, order.op_order_id, "shipped_to_vendor")
+        .await
+        .unwrap();
     tx6.commit().await.unwrap();
 
     // Verify total shipped
     let mut tx7 = pool.begin().await.unwrap();
-    let (_, total_shipped, _) = repo::lock_order_for_quantity_check(&mut tx7, &tid, order.op_order_id).await.unwrap();
-    assert_eq!(total_shipped, 10, "Total shipped across 2 cycles should be 10");
+    let (_, total_shipped, _) =
+        repo::lock_order_for_quantity_check(&mut tx7, &tid, order.op_order_id)
+            .await
+            .unwrap();
+    assert_eq!(
+        total_shipped, 10,
+        "Total shipped across 2 cycles should be 10"
+    );
     tx7.rollback().await.unwrap();
 }
 
@@ -506,7 +650,9 @@ async fn test_status_label_upsert() {
             description: Some("Order not yet issued".to_string()),
             updated_by: "admin".to_string(),
         },
-    ).await.unwrap();
+    )
+    .await
+    .unwrap();
 
     assert_eq!(label.display_label, "Pending");
     assert_eq!(label.canonical_status, "draft");
@@ -529,7 +675,9 @@ async fn test_service_type_label_upsert() {
             description: Some("Thermal processing services".to_string()),
             updated_by: "admin".to_string(),
         },
-    ).await.unwrap();
+    )
+    .await
+    .unwrap();
 
     assert_eq!(label.display_label, "Heat Treatment");
     assert_eq!(label.service_type, "heat_treat");

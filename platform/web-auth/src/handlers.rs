@@ -61,7 +61,10 @@ async fn login(State(cfg): State<Arc<WebAuthConfig>>, Json(body): Json<LoginBody
         Ok(v) => v,
         Err(e) => {
             tracing::error!(error = %e, "failed to parse identity-auth /login response");
-            return error_503("auth_unavailable", "Invalid response from authentication service");
+            return error_503(
+                "auth_unavailable",
+                "Invalid response from authentication service",
+            );
         }
     };
 
@@ -163,8 +166,7 @@ async fn refresh(State(cfg): State<Arc<WebAuthConfig>>, req: Request) -> Respons
 
     // TODO(bd-knkyq): Remove this decode-without-verify once bd-knkyq provides
     // tenant_id from the refresh session server-side without requiring it in the request.
-    let tenant_id =
-        decode_tenant_from_access_cookie(req.headers(), &cfg.access_cookie_name());
+    let tenant_id = decode_tenant_from_access_cookie(req.headers(), &cfg.access_cookie_name());
 
     let url = format!("{}/api/auth/refresh", cfg.auth_base_url);
 
@@ -203,7 +205,10 @@ async fn refresh(State(cfg): State<Arc<WebAuthConfig>>, req: Request) -> Respons
         Ok(v) => v,
         Err(e) => {
             tracing::error!(error = %e, "failed to parse identity-auth /refresh response");
-            return error_503("auth_unavailable", "Invalid response from authentication service");
+            return error_503(
+                "auth_unavailable",
+                "Invalid response from authentication service",
+            );
         }
     };
 
@@ -271,8 +276,7 @@ async fn proxy_error_response(status: reqwest::StatusCode, resp: reqwest::Respon
     let axum_status =
         StatusCode::from_u16(status.as_u16()).unwrap_or(StatusCode::INTERNAL_SERVER_ERROR);
     let body_text = resp.text().await.unwrap_or_default();
-    let json_body: serde_json::Value = serde_json::from_str(&body_text).unwrap_or_else(|_| {
-        serde_json::json!({"error": "upstream_error", "message": body_text})
-    });
+    let json_body: serde_json::Value = serde_json::from_str(&body_text)
+        .unwrap_or_else(|_| serde_json::json!({"error": "upstream_error", "message": body_text}));
     (axum_status, Json(json_body)).into_response()
 }

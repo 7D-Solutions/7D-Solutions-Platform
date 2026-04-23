@@ -12,7 +12,11 @@ pub enum ComplaintError {
     NotFound(Uuid),
 
     #[error("Invalid state transition from '{from}' to '{to}': {reason}")]
-    InvalidTransition { from: String, to: String, reason: String },
+    InvalidTransition {
+        from: String,
+        to: String,
+        reason: String,
+    },
 
     #[error("Validation error: {0}")]
     Validation(String),
@@ -31,14 +35,18 @@ impl From<ComplaintError> for platform_http_contracts::ApiError {
     fn from(err: ComplaintError) -> Self {
         match err {
             ComplaintError::NotFound(id) => Self::not_found(format!("Complaint {} not found", id)),
-            ComplaintError::InvalidTransition { from, to, reason } => {
-                Self::new(422, "invalid_transition", format!("Cannot transition from '{}' to '{}': {}", from, to, reason))
-            }
+            ComplaintError::InvalidTransition { from, to, reason } => Self::new(
+                422,
+                "invalid_transition",
+                format!("Cannot transition from '{}' to '{}': {}", from, to, reason),
+            ),
             ComplaintError::Validation(msg) => Self::new(422, "validation_error", msg),
             ComplaintError::Conflict(msg) => Self::new(409, "conflict", msg),
-            ComplaintError::AppendOnly(entity) => {
-                Self::new(422, "append_only", format!("{} records cannot be modified or deleted", entity))
-            }
+            ComplaintError::AppendOnly(entity) => Self::new(
+                422,
+                "append_only",
+                format!("{} records cannot be modified or deleted", entity),
+            ),
             ComplaintError::Database(e) => {
                 tracing::error!("CC database error: {}", e);
                 Self::internal("Internal database error")

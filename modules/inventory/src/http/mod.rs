@@ -1,7 +1,7 @@
 pub mod adjustments;
-pub mod barcode;
 pub mod admin;
 pub mod admin_types;
+pub mod barcode;
 pub mod batch_receipts;
 pub mod cycle_counts;
 pub mod expiry;

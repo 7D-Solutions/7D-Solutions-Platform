@@ -45,7 +45,10 @@ pub async fn list_stages(pool: &PgPool, tenant_id: &str) -> Result<Vec<PipelineS
     Ok(rows)
 }
 
-pub async fn list_active_stages(pool: &PgPool, tenant_id: &str) -> Result<Vec<PipelineStage>, StageError> {
+pub async fn list_active_stages(
+    pool: &PgPool,
+    tenant_id: &str,
+) -> Result<Vec<PipelineStage>, StageError> {
     let rows = sqlx::query_as::<_, PipelineStage>(
         "SELECT * FROM pipeline_stages WHERE tenant_id = $1 AND active = TRUE ORDER BY order_rank ASC",
     )
@@ -56,7 +59,10 @@ pub async fn list_active_stages(pool: &PgPool, tenant_id: &str) -> Result<Vec<Pi
 }
 
 /// Returns the initial (lowest order_rank non-terminal active) stage for the tenant.
-pub async fn initial_stage(pool: &PgPool, tenant_id: &str) -> Result<Option<PipelineStage>, StageError> {
+pub async fn initial_stage(
+    pool: &PgPool,
+    tenant_id: &str,
+) -> Result<Option<PipelineStage>, StageError> {
     let row = sqlx::query_as::<_, PipelineStage>(
         r#"
         SELECT * FROM pipeline_stages
@@ -190,7 +196,10 @@ pub async fn reorder_stages(
 }
 
 /// Seed default pipeline stages for a tenant if none exist.
-pub async fn seed_default_stages(conn: &mut PgConnection, tenant_id: &str) -> Result<(), StageError> {
+pub async fn seed_default_stages(
+    conn: &mut PgConnection,
+    tenant_id: &str,
+) -> Result<(), StageError> {
     let count: i64 =
         sqlx::query_scalar("SELECT COUNT(*) FROM pipeline_stages WHERE tenant_id = $1")
             .bind(tenant_id)

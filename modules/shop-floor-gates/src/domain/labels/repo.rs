@@ -3,7 +3,12 @@ use uuid::Uuid;
 
 use super::StatusLabel;
 
-pub async fn upsert_label(pool: &PgPool, table: &str, _tenant_id: &str, label: &StatusLabel) -> Result<StatusLabel, sqlx::Error> {
+pub async fn upsert_label(
+    pool: &PgPool,
+    table: &str,
+    _tenant_id: &str,
+    label: &StatusLabel,
+) -> Result<StatusLabel, sqlx::Error> {
     let sql = format!(
         r#"INSERT INTO {table} (id, tenant_id, status_key, display_name, color_hex, sort_order)
            VALUES ($1, $2, $3, $4, $5, $6)
@@ -24,7 +29,11 @@ pub async fn upsert_label(pool: &PgPool, table: &str, _tenant_id: &str, label: &
         .await
 }
 
-pub async fn list_labels(pool: &PgPool, table: &str, tenant_id: &str) -> Result<Vec<StatusLabel>, sqlx::Error> {
+pub async fn list_labels(
+    pool: &PgPool,
+    table: &str,
+    tenant_id: &str,
+) -> Result<Vec<StatusLabel>, sqlx::Error> {
     let sql = format!(
         "SELECT * FROM {table} WHERE tenant_id = $1 ORDER BY sort_order ASC, status_key ASC"
     );
@@ -34,8 +43,17 @@ pub async fn list_labels(pool: &PgPool, table: &str, tenant_id: &str) -> Result<
         .await
 }
 
-pub async fn delete_label(pool: &PgPool, table: &str, id: Uuid, tenant_id: &str) -> Result<bool, sqlx::Error> {
+pub async fn delete_label(
+    pool: &PgPool,
+    table: &str,
+    id: Uuid,
+    tenant_id: &str,
+) -> Result<bool, sqlx::Error> {
     let sql = format!("DELETE FROM {table} WHERE id = $1 AND tenant_id = $2");
-    let result = sqlx::query(&sql).bind(id).bind(tenant_id).execute(pool).await?;
+    let result = sqlx::query(&sql)
+        .bind(id)
+        .bind(tenant_id)
+        .execute(pool)
+        .await?;
     Ok(result.rows_affected() > 0)
 }

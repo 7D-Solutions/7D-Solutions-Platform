@@ -65,7 +65,10 @@ pub fn start_order_booked_consumer(bus: Arc<dyn EventBus>, pool: PgPool) {
                     handle_order_booked(&pool, &envelope.payload).await;
                 }
                 Err(e) => {
-                    tracing::warn!("CRM: failed to deserialize sales_orders.order.booked payload: {}", e);
+                    tracing::warn!(
+                        "CRM: failed to deserialize sales_orders.order.booked payload: {}",
+                        e
+                    );
                 }
             }
         }

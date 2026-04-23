@@ -49,7 +49,10 @@ pub async fn list_type_labels(pool: &PgPool, tenant_id: &str) -> Result<Vec<Labe
     list_from(pool, tenant_id, "opp_type_labels").await
 }
 
-pub async fn list_priority_labels(pool: &PgPool, tenant_id: &str) -> Result<Vec<Label>, LabelError> {
+pub async fn list_priority_labels(
+    pool: &PgPool,
+    tenant_id: &str,
+) -> Result<Vec<Label>, LabelError> {
     list_from(pool, tenant_id, "opp_priority_labels").await
 }
 

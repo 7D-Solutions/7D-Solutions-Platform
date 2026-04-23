@@ -75,11 +75,12 @@ async fn create_session_stores_row_with_sliding_and_absolute_windows() {
     assert_eq!(device_info["ua"], "integration-test");
 
     // Token must be stored as SHA-256 hash, not plaintext.
-    let stored_hash: String = sqlx::query_scalar("SELECT token_hash FROM refresh_sessions WHERE session_id = $1")
-        .bind(session_id)
-        .fetch_one(&pool)
-        .await
-        .expect("fetch hash");
+    let stored_hash: String =
+        sqlx::query_scalar("SELECT token_hash FROM refresh_sessions WHERE session_id = $1")
+            .bind(session_id)
+            .fetch_one(&pool)
+            .await
+            .expect("fetch hash");
     assert_eq!(stored_hash, hash);
     assert_ne!(stored_hash, raw, "raw token must not be stored");
 }
@@ -275,12 +276,13 @@ async fn rotate_revokes_old_and_issues_new_with_absolute_cap_preserved() {
     assert!(old_revoked.is_some(), "old session must be revoked");
 
     // New row has same absolute cap (sliding doesn't outlive the hard max).
-    let new_abs: chrono::DateTime<Utc> =
-        sqlx::query_scalar("SELECT absolute_expires_at FROM refresh_sessions WHERE session_id = $1")
-            .bind(rotated.session_id)
-            .fetch_one(&pool)
-            .await
-            .expect("new row");
+    let new_abs: chrono::DateTime<Utc> = sqlx::query_scalar(
+        "SELECT absolute_expires_at FROM refresh_sessions WHERE session_id = $1",
+    )
+    .bind(rotated.session_id)
+    .fetch_one(&pool)
+    .await
+    .expect("new row");
     assert_eq!(new_abs, absolute_expires_at);
 }
 
@@ -401,7 +403,10 @@ async fn revoke_all_for_user_kills_all_live_sessions_for_that_user() {
             .fetch_one(&pool)
             .await
             .expect("other row");
-    assert!(other_revoked.is_none(), "other user's session must not be touched");
+    assert!(
+        other_revoked.is_none(),
+        "other user's session must not be touched"
+    );
 }
 
 // ---------------------------------------------------------------------------
@@ -481,7 +486,10 @@ async fn revoke_by_id_only_affects_the_matching_session_for_the_caller() {
             .fetch_one(&pool)
             .await
             .expect("row");
-    assert!(revoked.is_none(), "session must NOT be revoked by a stranger");
+    assert!(
+        revoked.is_none(),
+        "session must NOT be revoked by a stranger"
+    );
 
     // Right caller can.
     let n_right = refresh_sessions::revoke_by_id(&pool, sid, tenant_id, user_id, "me")
@@ -547,7 +555,10 @@ fn cookie_helper_reads_refresh_cookie_from_header() {
         axum::http::header::COOKIE,
         HeaderValue::from_static("foo=bar; refresh=abc123; other=x"),
     );
-    assert_eq!(cookies::read_refresh_cookie(&headers).as_deref(), Some("abc123"));
+    assert_eq!(
+        cookies::read_refresh_cookie(&headers).as_deref(),
+        Some("abc123")
+    );
 }
 
 #[test]

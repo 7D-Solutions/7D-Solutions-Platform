@@ -25,7 +25,9 @@ pub enum OpportunityError {
     NotFound(Uuid),
     #[error("Stage '{0}' does not exist or is inactive for this tenant")]
     InvalidStage(String),
-    #[error("Cannot advance to terminal stage '{0}' via advance-stage; use close-won or close-lost")]
+    #[error(
+        "Cannot advance to terminal stage '{0}' via advance-stage; use close-won or close-lost"
+    )]
     TerminalStageViaAdvance(String),
     #[error("Opportunity is already in terminal stage '{0}'")]
     AlreadyTerminal(String),
@@ -40,21 +42,32 @@ pub enum OpportunityError {
 impl From<OpportunityError> for platform_http_contracts::ApiError {
     fn from(err: OpportunityError) -> Self {
         match err {
-            OpportunityError::NotFound(id) => Self::not_found(format!("Opportunity {} not found", id)),
-            OpportunityError::InvalidStage(code) => {
-                Self::new(422, "invalid_stage", format!("Stage '{}' is invalid or inactive", code))
+            OpportunityError::NotFound(id) => {
+                Self::not_found(format!("Opportunity {} not found", id))
             }
+            OpportunityError::InvalidStage(code) => Self::new(
+                422,
+                "invalid_stage",
+                format!("Stage '{}' is invalid or inactive", code),
+            ),
             OpportunityError::TerminalStageViaAdvance(code) => Self::new(
                 422,
                 "terminal_stage_via_advance",
-                format!("Stage '{}' is terminal; use /close-won or /close-lost", code),
+                format!(
+                    "Stage '{}' is terminal; use /close-won or /close-lost",
+                    code
+                ),
             ),
-            OpportunityError::AlreadyTerminal(code) => {
-                Self::new(422, "already_terminal", format!("Opportunity is in terminal stage '{}'", code))
-            }
-            OpportunityError::CloseLostRequiresReason => {
-                Self::new(422, "close_lost_requires_reason", "close_reason is required")
-            }
+            OpportunityError::AlreadyTerminal(code) => Self::new(
+                422,
+                "already_terminal",
+                format!("Opportunity is in terminal stage '{}'", code),
+            ),
+            OpportunityError::CloseLostRequiresReason => Self::new(
+                422,
+                "close_lost_requires_reason",
+                "close_reason is required",
+            ),
             OpportunityError::Validation(msg) => Self::new(422, "validation_error", msg),
             OpportunityError::Database(e) => {
                 tracing::error!("CRM opportunities DB error: {}", e);

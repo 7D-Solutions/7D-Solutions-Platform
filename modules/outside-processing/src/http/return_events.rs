@@ -34,7 +34,10 @@ pub async fn create_return_event(
 
     let mut tx = match state.pool.begin().await {
         Ok(t) => t,
-        Err(e) => return with_request_id(ApiError::from(OpError::Database(e)), &tracing_ctx).into_response(),
+        Err(e) => {
+            return with_request_id(ApiError::from(OpError::Database(e)), &tracing_ctx)
+                .into_response()
+        }
     };
 
     let (order, sum_shipped, sum_received) =
@@ -46,9 +49,14 @@ pub async fn create_return_event(
     // Must have at least one ship event before a return
     if sum_shipped == 0 {
         return with_request_id(
-            ApiError::new(422, "no_ship_events", "Cannot record a return before any shipment"),
+            ApiError::new(
+                422,
+                "no_ship_events",
+                "Cannot record a return before any shipment",
+            ),
             &tracing_ctx,
-        ).into_response();
+        )
+        .into_response();
     }
 
     // Validate state
@@ -61,11 +69,17 @@ pub async fn create_return_event(
     let new_total = sum_received + req.quantity_received as i64;
     if new_total > sum_shipped {
         return with_request_id(
-            ApiError::new(422, "quantity_exceeded",
-                format!("Return quantity {} would exceed total shipped {} (already received: {})",
-                    req.quantity_received, sum_shipped, sum_received)),
+            ApiError::new(
+                422,
+                "quantity_exceeded",
+                format!(
+                    "Return quantity {} would exceed total shipped {} (already received: {})",
+                    req.quantity_received, sum_shipped, sum_received
+                ),
+            ),
             &tracing_ctx,
-        ).into_response();
+        )
+        .into_response();
     }
 
     let ret_event = match repo::create_return_event_tx(&mut tx, &tenant_id, order_id, &req).await {
@@ -73,13 +87,17 @@ pub async fn create_return_event(
         Err(e) => return with_request_id(ApiError::from(e), &tracing_ctx).into_response(),
     };
 
-    if let Err(e) = repo::set_order_status(&mut tx, &tenant_id, order_id, new_status.as_str()).await {
+    if let Err(e) = repo::set_order_status(&mut tx, &tenant_id, order_id, new_status.as_str()).await
+    {
         return with_request_id(ApiError::from(e), &tracing_ctx).into_response();
     }
 
     let event_id = Uuid::new_v4();
     let env = events::build_returned_envelope(
-        event_id, tenant_id.clone(), correlation_id.clone(), None,
+        event_id,
+        tenant_id.clone(),
+        correlation_id.clone(),
+        None,
         ReturnedPayload {
             op_order_id: order_id,
             return_event_id: ret_event.id,
@@ -90,10 +108,17 @@ pub async fn create_return_event(
         },
     );
     let _ = repo::enqueue_outbox(
-        &mut tx, &tenant_id, event_id,
-        events::EVENT_RETURNED, "op_order", &order_id.to_string(),
-        &env, &correlation_id, None,
-    ).await;
+        &mut tx,
+        &tenant_id,
+        event_id,
+        events::EVENT_RETURNED,
+        "op_order",
+        &order_id.to_string(),
+        &env,
+        &correlation_id,
+        None,
+    )
+    .await;
 
     if let Err(e) = tx.commit().await {
         return with_request_id(ApiError::from(OpError::Database(e)), &tracing_ctx).into_response();

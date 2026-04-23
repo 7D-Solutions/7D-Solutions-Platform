@@ -35,12 +35,16 @@ impl SoMetrics {
             IntCounter::new("so_orders_cancelled_total", "Total sales orders cancelled")?;
         registry.register(Box::new(orders_cancelled_total.clone()))?;
 
-        let blankets_activated_total =
-            IntCounter::new("so_blankets_activated_total", "Total blanket orders activated")?;
+        let blankets_activated_total = IntCounter::new(
+            "so_blankets_activated_total",
+            "Total blanket orders activated",
+        )?;
         registry.register(Box::new(blankets_activated_total.clone()))?;
 
-        let releases_created_total =
-            IntCounter::new("so_releases_created_total", "Total blanket releases created")?;
+        let releases_created_total = IntCounter::new(
+            "so_releases_created_total",
+            "Total blanket releases created",
+        )?;
         registry.register(Box::new(releases_created_total.clone()))?;
 
         let outbox_queue_depth =
@@ -84,10 +88,15 @@ impl SoMetrics {
     }
 }
 
-pub async fn metrics_handler(State(state): State<Arc<AppState>>) -> impl axum::response::IntoResponse {
+pub async fn metrics_handler(
+    State(state): State<Arc<AppState>>,
+) -> impl axum::response::IntoResponse {
     (
         StatusCode::OK,
-        [(axum::http::header::CONTENT_TYPE, "text/plain; version=0.0.4")],
+        [(
+            axum::http::header::CONTENT_TYPE,
+            "text/plain; version=0.0.4",
+        )],
         state.metrics.export(),
     )
 }

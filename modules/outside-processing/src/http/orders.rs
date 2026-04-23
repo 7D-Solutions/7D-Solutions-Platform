@@ -34,7 +34,10 @@ pub async fn create_order(
 
     let mut tx = match state.pool.begin().await {
         Ok(t) => t,
-        Err(e) => return with_request_id(ApiError::from(OpError::Database(e)), &tracing_ctx).into_response(),
+        Err(e) => {
+            return with_request_id(ApiError::from(OpError::Database(e)), &tracing_ctx)
+                .into_response()
+        }
     };
 
     let order_number = match repo::next_op_order_number(&mut tx, &tenant_id).await {
@@ -64,10 +67,17 @@ pub async fn create_order(
         },
     );
     let _ = repo::enqueue_outbox(
-        &mut tx, &tenant_id, event_id,
-        events::EVENT_ORDER_CREATED, "op_order", &order.op_order_id.to_string(),
-        &env, &correlation_id, None,
-    ).await;
+        &mut tx,
+        &tenant_id,
+        event_id,
+        events::EVENT_ORDER_CREATED,
+        "op_order",
+        &order.op_order_id.to_string(),
+        &env,
+        &correlation_id,
+        None,
+    )
+    .await;
 
     if let Err(e) = tx.commit().await {
         return with_request_id(ApiError::from(OpError::Database(e)), &tracing_ctx).into_response();
@@ -93,7 +103,8 @@ pub async fn get_order(
         Ok(None) => with_request_id(
             ApiError::not_found(format!("OP order {} not found", order_id)),
             &tracing_ctx,
-        ).into_response(),
+        )
+        .into_response(),
         Err(e) => with_request_id(ApiError::from(e), &tracing_ctx).into_response(),
     }
 }
@@ -149,10 +160,14 @@ pub async fn issue_order(
 
     let mut tx = match state.pool.begin().await {
         Ok(t) => t,
-        Err(e) => return with_request_id(ApiError::from(OpError::Database(e)), &tracing_ctx).into_response(),
+        Err(e) => {
+            return with_request_id(ApiError::from(OpError::Database(e)), &tracing_ctx)
+                .into_response()
+        }
     };
 
-    let order = match repo::issue_order(&mut tx, &tenant_id, order_id, req.purchase_order_id).await {
+    let order = match repo::issue_order(&mut tx, &tenant_id, order_id, req.purchase_order_id).await
+    {
         Ok(o) => o,
         Err(e) => return with_request_id(ApiError::from(e), &tracing_ctx).into_response(),
     };
@@ -171,10 +186,17 @@ pub async fn issue_order(
         },
     );
     let _ = repo::enqueue_outbox(
-        &mut tx, &tenant_id, event_id,
-        events::EVENT_ORDER_ISSUED, "op_order", &order.op_order_id.to_string(),
-        &env, &correlation_id, None,
-    ).await;
+        &mut tx,
+        &tenant_id,
+        event_id,
+        events::EVENT_ORDER_ISSUED,
+        "op_order",
+        &order.op_order_id.to_string(),
+        &env,
+        &correlation_id,
+        None,
+    )
+    .await;
 
     if let Err(e) = tx.commit().await {
         return with_request_id(ApiError::from(OpError::Database(e)), &tracing_ctx).into_response();
@@ -200,7 +222,10 @@ pub async fn cancel_order(
 
     let mut tx = match state.pool.begin().await {
         Ok(t) => t,
-        Err(e) => return with_request_id(ApiError::from(OpError::Database(e)), &tracing_ctx).into_response(),
+        Err(e) => {
+            return with_request_id(ApiError::from(OpError::Database(e)), &tracing_ctx)
+                .into_response()
+        }
     };
 
     let order = match repo::lock_order(&mut tx, &tenant_id, order_id).await {
@@ -213,10 +238,11 @@ pub async fn cancel_order(
         Err(e) => return with_request_id(ApiError::from(e), &tracing_ctx).into_response(),
     };
 
-    let updated = match repo::set_order_status(&mut tx, &tenant_id, order_id, new_status.as_str()).await {
-        Ok(o) => o,
-        Err(e) => return with_request_id(ApiError::from(e), &tracing_ctx).into_response(),
-    };
+    let updated =
+        match repo::set_order_status(&mut tx, &tenant_id, order_id, new_status.as_str()).await {
+            Ok(o) => o,
+            Err(e) => return with_request_id(ApiError::from(e), &tracing_ctx).into_response(),
+        };
 
     let event_id = Uuid::new_v4();
     let env = events::build_order_cancelled_envelope(
@@ -232,10 +258,17 @@ pub async fn cancel_order(
         },
     );
     let _ = repo::enqueue_outbox(
-        &mut tx, &tenant_id, event_id,
-        events::EVENT_ORDER_CANCELLED, "op_order", &order_id.to_string(),
-        &env, &correlation_id, None,
-    ).await;
+        &mut tx,
+        &tenant_id,
+        event_id,
+        events::EVENT_ORDER_CANCELLED,
+        "op_order",
+        &order_id.to_string(),
+        &env,
+        &correlation_id,
+        None,
+    )
+    .await;
 
     if let Err(e) = tx.commit().await {
         return with_request_id(ApiError::from(OpError::Database(e)), &tracing_ctx).into_response();
@@ -260,7 +293,10 @@ pub async fn close_order(
 
     let mut tx = match state.pool.begin().await {
         Ok(t) => t,
-        Err(e) => return with_request_id(ApiError::from(OpError::Database(e)), &tracing_ctx).into_response(),
+        Err(e) => {
+            return with_request_id(ApiError::from(OpError::Database(e)), &tracing_ctx)
+                .into_response()
+        }
     };
 
     let order = match repo::lock_order(&mut tx, &tenant_id, order_id).await {
@@ -273,10 +309,11 @@ pub async fn close_order(
         Err(e) => return with_request_id(ApiError::from(e), &tracing_ctx).into_response(),
     };
 
-    let updated = match repo::set_order_status(&mut tx, &tenant_id, order_id, new_status.as_str()).await {
-        Ok(o) => o,
-        Err(e) => return with_request_id(ApiError::from(e), &tracing_ctx).into_response(),
-    };
+    let updated =
+        match repo::set_order_status(&mut tx, &tenant_id, order_id, new_status.as_str()).await {
+            Ok(o) => o,
+            Err(e) => return with_request_id(ApiError::from(e), &tracing_ctx).into_response(),
+        };
 
     let event_id = Uuid::new_v4();
     let env = events::build_order_closed_envelope(
@@ -292,10 +329,17 @@ pub async fn close_order(
         },
     );
     let _ = repo::enqueue_outbox(
-        &mut tx, &tenant_id, event_id,
-        events::EVENT_ORDER_CLOSED, "op_order", &order_id.to_string(),
-        &env, &correlation_id, None,
-    ).await;
+        &mut tx,
+        &tenant_id,
+        event_id,
+        events::EVENT_ORDER_CLOSED,
+        "op_order",
+        &order_id.to_string(),
+        &env,
+        &correlation_id,
+        None,
+    )
+    .await;
 
     if let Err(e) = tx.commit().await {
         return with_request_id(ApiError::from(OpError::Database(e)), &tracing_ctx).into_response();

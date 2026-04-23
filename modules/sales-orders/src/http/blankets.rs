@@ -91,7 +91,8 @@ pub async fn get_blanket(
         Err(e) => {
             let api_err = ApiError::from(e);
             (
-                StatusCode::from_u16(api_err.status_code()).unwrap_or(StatusCode::INTERNAL_SERVER_ERROR),
+                StatusCode::from_u16(api_err.status_code())
+                    .unwrap_or(StatusCode::INTERNAL_SERVER_ERROR),
                 Json(api_err),
             )
                 .into_response()
@@ -124,7 +125,8 @@ pub async fn update_blanket(
         Err(e) => {
             let api_err = ApiError::from(e);
             (
-                StatusCode::from_u16(api_err.status_code()).unwrap_or(StatusCode::UNPROCESSABLE_ENTITY),
+                StatusCode::from_u16(api_err.status_code())
+                    .unwrap_or(StatusCode::UNPROCESSABLE_ENTITY),
                 Json(api_err),
             )
                 .into_response()
@@ -157,7 +159,8 @@ pub async fn activate_blanket(
         Err(e) => {
             let api_err = ApiError::from(e);
             (
-                StatusCode::from_u16(api_err.status_code()).unwrap_or(StatusCode::UNPROCESSABLE_ENTITY),
+                StatusCode::from_u16(api_err.status_code())
+                    .unwrap_or(StatusCode::UNPROCESSABLE_ENTITY),
                 Json(api_err),
             )
                 .into_response()
@@ -190,7 +193,8 @@ pub async fn add_blanket_line(
         Err(e) => {
             let api_err = ApiError::from(e);
             (
-                StatusCode::from_u16(api_err.status_code()).unwrap_or(StatusCode::UNPROCESSABLE_ENTITY),
+                StatusCode::from_u16(api_err.status_code())
+                    .unwrap_or(StatusCode::UNPROCESSABLE_ENTITY),
                 Json(api_err),
             )
                 .into_response()

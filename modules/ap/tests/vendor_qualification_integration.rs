@@ -143,7 +143,11 @@ async fn qualified_vendor_allows_po() {
         expected_delivery_date: None,
     };
     let result = create_po(&pool, &tid, &req, corr()).await;
-    assert!(result.is_ok(), "expected PO to succeed for qualified vendor, got: {:?}", result);
+    assert!(
+        result.is_ok(),
+        "expected PO to succeed for qualified vendor, got: {:?}",
+        result
+    );
 }
 
 // ============================================================================
@@ -234,7 +238,11 @@ async fn restricted_vendor_allows_po() {
         expected_delivery_date: None,
     };
     let result = create_po(&pool, &tid, &req, corr()).await;
-    assert!(result.is_ok(), "expected PO to succeed for restricted vendor, got: {:?}", result);
+    assert!(
+        result.is_ok(),
+        "expected PO to succeed for restricted vendor, got: {:?}",
+        result
+    );
 }
 
 // ============================================================================

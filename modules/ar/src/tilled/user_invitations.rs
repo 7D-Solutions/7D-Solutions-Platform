@@ -106,7 +106,10 @@ mod tests {
             role: "merchant_admin".to_string(),
         };
         let value = serde_json::to_value(payload).expect("test fixture");
-        assert_eq!(value.get("email").expect("test fixture"), "invite@example.com");
+        assert_eq!(
+            value.get("email").expect("test fixture"),
+            "invite@example.com"
+        );
         assert_eq!(value.get("role").expect("test fixture"), "merchant_admin");
     }
 

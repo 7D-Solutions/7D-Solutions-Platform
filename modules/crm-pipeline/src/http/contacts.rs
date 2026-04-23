@@ -35,7 +35,10 @@ pub async fn get_contact_attributes(
     match repo::get_attributes(&state.pool, &tenant_id, party_contact_id).await {
         Ok(Some(attr)) => Json(attr).into_response(),
         Ok(None) => with_request_id(
-            ApiError::not_found(format!("No CRM attributes for contact {}", party_contact_id)),
+            ApiError::not_found(format!(
+                "No CRM attributes for contact {}",
+                party_contact_id
+            )),
             &tracing_ctx,
         )
         .into_response(),
@@ -60,7 +63,10 @@ pub async fn set_contact_attributes(
         Ok(id) => id,
         Err(e) => return with_request_id(e, &tracing_ctx).into_response(),
     };
-    let actor = claims.as_ref().map(|c| c.user_id.to_string()).unwrap_or_else(|| "unknown".to_string());
+    let actor = claims
+        .as_ref()
+        .map(|c| c.user_id.to_string())
+        .unwrap_or_else(|| "unknown".to_string());
     match repo::upsert_attributes(&state.pool, &tenant_id, party_contact_id, &req, &actor).await {
         Ok(attr) => Json(attr).into_response(),
         Err(e) => with_request_id(ApiError::from(e), &tracing_ctx).into_response(),

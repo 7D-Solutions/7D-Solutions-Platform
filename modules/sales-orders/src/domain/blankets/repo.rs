@@ -329,13 +329,11 @@ pub async fn update_release_status<'e>(
     tenant_id: &str,
     status: &str,
 ) -> Result<(), sqlx::Error> {
-    sqlx::query(
-        "UPDATE blanket_order_releases SET status = $3 WHERE id = $1 AND tenant_id = $2",
-    )
-    .bind(release_id)
-    .bind(tenant_id)
-    .bind(status)
-    .execute(executor)
-    .await?;
+    sqlx::query("UPDATE blanket_order_releases SET status = $3 WHERE id = $1 AND tenant_id = $2")
+        .bind(release_id)
+        .bind(tenant_id)
+        .bind(status)
+        .execute(executor)
+        .await?;
     Ok(())
 }

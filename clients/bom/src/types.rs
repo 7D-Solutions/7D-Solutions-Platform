@@ -81,39 +81,6 @@ pub struct BomLine {
     pub updated_at: chrono::DateTime<chrono::Utc>,
 }
 
-/// Embedded item details returned when `?include=item_details` is requested.
-/// `unit_cost_minor` is populated from the standard-cost valuation config (minor currency units).
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ItemDetails {
-    pub item_id: uuid::Uuid,
-    pub sku: String,
-    pub name: String,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub description: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub unit_cost_minor: Option<i64>,
-}
-
-/// BomLine enriched with optional item details (`?include=item_details`).
-/// `item` is `null` when the `component_item_id` does not resolve in inventory.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct BomLineEnriched {
-    pub component_item_id: uuid::Uuid,
-    pub created_at: chrono::DateTime<chrono::Utc>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub find_number: Option<i32>,
-    pub id: uuid::Uuid,
-    pub quantity: f64,
-    pub revision_id: uuid::Uuid,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub scrap_factor: Option<f64>,
-    pub tenant_id: String,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub uom: Option<String>,
-    pub updated_at: chrono::DateTime<chrono::Utc>,
-    pub item: Option<ItemDetails>,
-}
-
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct BomRevision {
     pub bom_id: uuid::Uuid,

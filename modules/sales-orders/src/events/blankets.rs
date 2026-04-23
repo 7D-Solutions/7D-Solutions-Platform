@@ -4,7 +4,10 @@ use chrono::{DateTime, NaiveDate, Utc};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use super::{MUTATION_CLASS_DATA_MUTATION, MUTATION_CLASS_LIFECYCLE, MUTATION_CLASS_REVERSAL, SO_EVENT_SCHEMA_VERSION};
+use super::{
+    MUTATION_CLASS_DATA_MUTATION, MUTATION_CLASS_LIFECYCLE, MUTATION_CLASS_REVERSAL,
+    SO_EVENT_SCHEMA_VERSION,
+};
 use crate::events::envelope::{create_so_envelope, EventEnvelope};
 
 // ── Event type constants ──────────────────────────────────────────────────────

@@ -5,7 +5,7 @@ use sqlx::PgPool;
 use uuid::Uuid;
 
 use super::{
-    compute_line_total, repo, CreateOrderLineRequest, CreateOrderRequest, CancelOrderRequest,
+    compute_line_total, repo, CancelOrderRequest, CreateOrderLineRequest, CreateOrderRequest,
     ListOrdersQuery, OrderError, SalesOrder, SalesOrderLine, SalesOrderWithLines, SoStatus,
     UpdateOrderLineRequest, UpdateOrderRequest,
 };
@@ -21,7 +21,9 @@ pub async fn create_order(
     use chrono::Utc;
     let id = Uuid::new_v4();
     let order_number = generate_order_number();
-    let order_date = req.order_date.unwrap_or_else(|| chrono::Utc::now().date_naive());
+    let order_date = req
+        .order_date
+        .unwrap_or_else(|| chrono::Utc::now().date_naive());
 
     let order = repo::insert_order(
         pool,
@@ -86,8 +88,7 @@ pub async fn update_order(
         .await?
         .ok_or(OrderError::NotFound(order_id))?;
 
-    let current_status = SoStatus::from_str(&order.status)
-        .unwrap_or(SoStatus::Draft);
+    let current_status = SoStatus::from_str(&order.status).unwrap_or(SoStatus::Draft);
     if current_status != SoStatus::Draft {
         return Err(OrderError::NotDraft(order.status.clone()));
     }
@@ -304,14 +305,10 @@ pub async fn cancel_order(
     // Release any outstanding inventory reservations
     if let Some(inv_url) = inventory_base_url {
         let lines = repo::fetch_lines_for_order(pool, order_id, tenant_id).await?;
-        let reserved: Vec<Uuid> = lines
-            .iter()
-            .filter_map(|l| l.reservation_id)
-            .collect();
+        let reserved: Vec<Uuid> = lines.iter().filter_map(|l| l.reservation_id).collect();
         if !reserved.is_empty() {
             let client = reqwest::Client::new();
-            release_all_compensating(&client, inv_url, tenant_id, &reserved, &correlation_id)
-                .await;
+            release_all_compensating(&client, inv_url, tenant_id, &reserved, &correlation_id).await;
         }
     }
 
@@ -387,21 +384,33 @@ async fn reserve_lines_with_compensation(
         });
 
         let url = format!("{}/api/inventory/reservations/reserve", inventory_base_url);
-        let mut req = client.post(&url).header("x-tenant-id", tenant_id).json(&body);
+        let mut req = client
+            .post(&url)
+            .header("x-tenant-id", tenant_id)
+            .json(&body);
         if let Some(ref token) = jwt {
             req = req.header("Authorization", format!("Bearer {}", token));
         }
-        let resp = req.send().await.map_err(|e| OrderError::ReservationFailed {
-            line_id: line.id,
-            reason: e.to_string(),
-        })?;
+        let resp = req
+            .send()
+            .await
+            .map_err(|e| OrderError::ReservationFailed {
+                line_id: line.id,
+                reason: e.to_string(),
+            })?;
 
         if !resp.status().is_success() {
             let reason = resp.text().await.unwrap_or_else(|_| "unknown".to_string());
             // Compensate previously reserved lines before returning error
             let to_release: Vec<Uuid> = reserved.iter().map(|(_, r)| *r).collect();
-            release_all_compensating(client, inventory_base_url, tenant_id, &to_release, correlation_id)
-                .await;
+            release_all_compensating(
+                client,
+                inventory_base_url,
+                tenant_id,
+                &to_release,
+                correlation_id,
+            )
+            .await;
             return Err(OrderError::ReservationFailed {
                 line_id: line.id,
                 reason,
@@ -445,7 +454,10 @@ async fn release_all_compensating(
             "idempotency_key": idempotency_key,
             "correlation_id": correlation_id,
         });
-        let mut req = client.post(&url).header("x-tenant-id", tenant_id).json(&body);
+        let mut req = client
+            .post(&url)
+            .header("x-tenant-id", tenant_id)
+            .json(&body);
         if let Some(ref token) = jwt {
             req = req.header("Authorization", format!("Bearer {}", token));
         }
@@ -476,5 +488,9 @@ async fn release_all_compensating(
 fn generate_order_number() -> String {
     use chrono::Utc;
     let now = Utc::now();
-    format!("SO-{}-{:06}", now.format("%Y%m%d"), fastrand::u32(0..1_000_000))
+    format!(
+        "SO-{}-{:06}",
+        now.format("%Y%m%d"),
+        fastrand::u32(0..1_000_000)
+    )
 }

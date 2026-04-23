@@ -18,11 +18,18 @@ pub async fn create_verification(
     req: CreateVerificationRequest,
 ) -> Result<OperationStartVerification, ApiError> {
     // Enforce uniqueness at the application layer (DB has a unique constraint too)
-    let existing = repo::fetch_verification_for_operation(pool, req.work_order_id, req.operation_id, tenant_id)
-        .await
-        .map_err(|e| ApiError::internal(e.to_string()))?;
+    let existing = repo::fetch_verification_for_operation(
+        pool,
+        req.work_order_id,
+        req.operation_id,
+        tenant_id,
+    )
+    .await
+    .map_err(|e| ApiError::internal(e.to_string()))?;
     if existing.is_some() {
-        return Err(ApiError::conflict("Verification already exists for this operation"));
+        return Err(ApiError::conflict(
+            "Verification already exists for this operation",
+        ));
     }
 
     let now = Utc::now();
@@ -47,7 +54,9 @@ pub async fn create_verification(
         updated_at: now,
     };
 
-    repo::insert_verification(pool, &v).await.map_err(|e| ApiError::internal(e.to_string()))?;
+    repo::insert_verification(pool, &v)
+        .await
+        .map_err(|e| ApiError::internal(e.to_string()))?;
     Ok(v)
 }
 
@@ -64,13 +73,21 @@ pub async fn operator_confirm(
         .ok_or_else(|| ApiError::not_found("Verification not found"))?;
 
     if v.status != "pending" {
-        return Err(ApiError::bad_request(format!("Verification is already {}", v.status)));
+        return Err(ApiError::bad_request(format!(
+            "Verification is already {}",
+            v.status
+        )));
     }
     if v.operator_id != operator_id {
-        return Err(ApiError::forbidden("Only the assigned operator can confirm"));
+        return Err(ApiError::forbidden(
+            "Only the assigned operator can confirm",
+        ));
     }
 
-    let mut tx = pool.begin().await.map_err(|e| ApiError::internal(e.to_string()))?;
+    let mut tx = pool
+        .begin()
+        .await
+        .map_err(|e| ApiError::internal(e.to_string()))?;
 
     let updated = sqlx::query_as::<_, OperationStartVerification>(
         r#"UPDATE operation_start_verifications
@@ -110,7 +127,9 @@ pub async fn operator_confirm(
     .await
     .map_err(|e| ApiError::internal(e.to_string()))?;
 
-    tx.commit().await.map_err(|e| ApiError::internal(e.to_string()))?;
+    tx.commit()
+        .await
+        .map_err(|e| ApiError::internal(e.to_string()))?;
     Ok(updated)
 }
 
@@ -127,17 +146,27 @@ pub async fn verify(
         .ok_or_else(|| ApiError::not_found("Verification not found"))?;
 
     if v.status != "pending" {
-        return Err(ApiError::bad_request(format!("Verification is already {}", v.status)));
+        return Err(ApiError::bad_request(format!(
+            "Verification is already {}",
+            v.status
+        )));
     }
     // Two-step invariant: operator must have confirmed AND all checkboxes must be true
     if v.operator_confirmed_at.is_none() {
-        return Err(ApiError::bad_request("Operator must confirm before verifier can verify"));
+        return Err(ApiError::bad_request(
+            "Operator must confirm before verifier can verify",
+        ));
     }
     if !v.drawing_verified || !v.material_verified || !v.instruction_verified {
-        return Err(ApiError::bad_request("All verification checkboxes must be set before completing verification"));
+        return Err(ApiError::bad_request(
+            "All verification checkboxes must be set before completing verification",
+        ));
     }
 
-    let mut tx = pool.begin().await.map_err(|e| ApiError::internal(e.to_string()))?;
+    let mut tx = pool
+        .begin()
+        .await
+        .map_err(|e| ApiError::internal(e.to_string()))?;
 
     let updated = sqlx::query_as::<_, OperationStartVerification>(
         r#"UPDATE operation_start_verifications
@@ -174,7 +203,9 @@ pub async fn verify(
     .await
     .map_err(|e| ApiError::internal(e.to_string()))?;
 
-    tx.commit().await.map_err(|e| ApiError::internal(e.to_string()))?;
+    tx.commit()
+        .await
+        .map_err(|e| ApiError::internal(e.to_string()))?;
     Ok(updated)
 }
 
@@ -191,7 +222,10 @@ pub async fn skip_verification(
         .ok_or_else(|| ApiError::not_found("Verification not found"))?;
 
     if v.status != "pending" {
-        return Err(ApiError::bad_request(format!("Verification is already {}", v.status)));
+        return Err(ApiError::bad_request(format!(
+            "Verification is already {}",
+            v.status
+        )));
     }
 
     let updated = sqlx::query_as::<_, OperationStartVerification>(
@@ -213,11 +247,21 @@ pub async fn skip_verification(
     Ok(updated)
 }
 
-pub async fn list_verifications(pool: &PgPool, tenant_id: &str, q: ListVerificationsQuery) -> Result<Vec<OperationStartVerification>, ApiError> {
-    repo::list_verifications(pool, tenant_id, &q).await.map_err(|e| ApiError::internal(e.to_string()))
+pub async fn list_verifications(
+    pool: &PgPool,
+    tenant_id: &str,
+    q: ListVerificationsQuery,
+) -> Result<Vec<OperationStartVerification>, ApiError> {
+    repo::list_verifications(pool, tenant_id, &q)
+        .await
+        .map_err(|e| ApiError::internal(e.to_string()))
 }
 
-pub async fn get_verification(pool: &PgPool, id: Uuid, tenant_id: &str) -> Result<OperationStartVerification, ApiError> {
+pub async fn get_verification(
+    pool: &PgPool,
+    id: Uuid,
+    tenant_id: &str,
+) -> Result<OperationStartVerification, ApiError> {
     repo::fetch_verification(pool, id, tenant_id)
         .await
         .map_err(|e| ApiError::internal(e.to_string()))?

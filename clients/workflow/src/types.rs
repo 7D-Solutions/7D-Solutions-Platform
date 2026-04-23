@@ -76,6 +76,16 @@ pub enum InstanceStatus {
     Cancelled,
 }
 
+impl InstanceStatus {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            InstanceStatus::Active => "active",
+            InstanceStatus::Completed => "completed",
+            InstanceStatus::Cancelled => "cancelled",
+        }
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct StartInstanceRequest {
     #[serde(skip_serializing_if = "Option::is_none")]

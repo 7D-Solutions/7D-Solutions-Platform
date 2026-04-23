@@ -17,5 +17,5 @@ pub const MUTATION_DATA: &str = "DATA_MUTATION";
 pub const MUTATION_LIFECYCLE: &str = "LIFECYCLE";
 pub const MUTATION_REVERSAL: &str = "REVERSAL";
 
-pub use produced::*;
 pub use envelope::create_op_envelope;
+pub use produced::*;

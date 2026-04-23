@@ -28,8 +28,13 @@ pub fn build_activity_logged_envelope(
     payload: ActivityLoggedPayload,
 ) -> EventEnvelope<ActivityLoggedPayload> {
     create_crm_envelope(
-        event_id, tenant_id, EVENT_TYPE_ACTIVITY_LOGGED.to_string(),
-        correlation_id, None, MUTATION_CLASS_DATA_MUTATION.to_string(), payload,
+        event_id,
+        tenant_id,
+        EVENT_TYPE_ACTIVITY_LOGGED.to_string(),
+        correlation_id,
+        None,
+        MUTATION_CLASS_DATA_MUTATION.to_string(),
+        payload,
     )
 }
 
@@ -48,8 +53,13 @@ pub fn build_activity_completed_envelope(
     payload: ActivityCompletedPayload,
 ) -> EventEnvelope<ActivityCompletedPayload> {
     create_crm_envelope(
-        event_id, tenant_id, EVENT_TYPE_ACTIVITY_COMPLETED.to_string(),
-        correlation_id, None, MUTATION_CLASS_LIFECYCLE.to_string(), payload,
+        event_id,
+        tenant_id,
+        EVENT_TYPE_ACTIVITY_COMPLETED.to_string(),
+        correlation_id,
+        None,
+        MUTATION_CLASS_LIFECYCLE.to_string(),
+        payload,
     )
 }
 
@@ -69,7 +79,12 @@ pub fn build_activity_overdue_envelope(
     payload: ActivityOverduePayload,
 ) -> EventEnvelope<ActivityOverduePayload> {
     create_crm_envelope(
-        event_id, tenant_id, EVENT_TYPE_ACTIVITY_OVERDUE.to_string(),
-        correlation_id, None, MUTATION_CLASS_LIFECYCLE.to_string(), payload,
+        event_id,
+        tenant_id,
+        EVENT_TYPE_ACTIVITY_OVERDUE.to_string(),
+        correlation_id,
+        None,
+        MUTATION_CLASS_LIFECYCLE.to_string(),
+        payload,
     )
 }

@@ -42,7 +42,9 @@ pub async fn list_categories(
         Ok(t) => t,
         Err(e) => return with_request_id(e, &tracing_ctx).into_response(),
     };
-    match repo::list_category_codes(&state.pool, &tenant_id, q.include_inactive.unwrap_or(false)).await {
+    match repo::list_category_codes(&state.pool, &tenant_id, q.include_inactive.unwrap_or(false))
+        .await
+    {
         Ok(list) => Json(list).into_response(),
         Err(e) => with_request_id(ApiError::from(e), &tracing_ctx).into_response(),
     }
