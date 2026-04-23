@@ -73,7 +73,7 @@ Shared crates used by services. Not independently deployed.
 | event-bus | event-bus | 2.1.1 | NATS JetStream event bus with outbox relay, DLQ routing, and consumer retry | [Revisions](platform/event-bus/REVISIONS.md) |
 | event-consumer | event-consumer | 1.0.1 | Consumer-side event dispatch: handler registry, router, and context | [Revisions](platform/event-consumer/REVISIONS.md) |
 | feature-flags | feature-flags | 0.1.0 | Per-tenant and global feature flag storage and lookup for the 7D platform |  |
-| health | health | 1.2.1 | Shared health and readiness check endpoints for all services | [Revisions](platform/health/REVISIONS.md) |
+| health | health | 1.3.0 | Shared health and readiness check endpoints for all services | [Revisions](platform/health/REVISIONS.md) |
 | http-contracts | platform-http-contracts | 0.1.0 | Shared HTTP response types — pagination, error envelopes, field errors |  |
 | platform-contracts | platform_contracts | 1.0.2 | Platform-wide event and command contract conventions — canonical types and constants | [Revisions](platform/platform-contracts/REVISIONS.md) |
 | platform-sdk | platform-sdk | 0.1.0 | Module startup SDK — manifest parser, builder, and HTTP runtime for 7D platform services |  |

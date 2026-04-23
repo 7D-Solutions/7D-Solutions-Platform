@@ -4,6 +4,9 @@
 > **Standard:** See `docs/VERSIONING.md` for the rules governing this file.
 
 
+## 1.3.0
+- feat: operational vitals types — VitalsResponse, DlqVitals, OutboxVitals, ProjectionVitals, ConsumerVitals for the platform vitals API ([bd-fpulo])
+
 ## 1.2.1
 - chore: rustfmt reflow + regenerate typed clients (no behavior change)
 

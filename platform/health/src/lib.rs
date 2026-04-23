@@ -6,6 +6,9 @@
 //!
 //! See `docs/HEALTH-CONTRACT.md` for the full specification.
 
+pub mod vitals;
+pub use vitals::{ConsumerVitals, DlqVitals, OutboxVitals, ProjectionVitals, VitalsResponse};
+
 use std::collections::HashSet;
 use std::sync::{Arc, Mutex};
 
