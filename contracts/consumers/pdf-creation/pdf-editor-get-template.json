@@ -1,0 +1,12 @@
+{
+  "endpoint": "/api/pdf/forms/templates/{id}",
+  "method": "get",
+  "required": ["id", "tenant_id", "name", "created_at", "updated_at"],
+  "properties": {
+    "id": {"type": "string"},
+    "tenant_id": {"type": "string"},
+    "name": {"type": "string"},
+    "created_at": {"type": "string"},
+    "updated_at": {"type": "string"}
+  }
+}
