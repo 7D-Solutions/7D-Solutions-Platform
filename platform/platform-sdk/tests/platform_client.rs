@@ -330,7 +330,11 @@ async fn service_token_does_not_retry_on_403() {
     let client = PlatformClient::new(base).with_service_token(None, None);
     let resp = client.get("/api/forbidden", &test_claims()).await.unwrap();
     assert_eq!(resp.status(), 403);
-    assert_eq!(call_count.load(Ordering::SeqCst), 1, "403 must not trigger a service-token retry");
+    assert_eq!(
+        call_count.load(Ordering::SeqCst),
+        1,
+        "403 must not trigger a service-token retry"
+    );
 }
 
 #[tokio::test]
@@ -351,9 +355,16 @@ async fn static_token_does_not_retry_on_401() {
 
     let base = start_server(app).await;
     let client = PlatformClient::new(base).with_bearer_token("stale-token".into());
-    let resp = client.get("/api/static-auth", &test_claims()).await.unwrap();
+    let resp = client
+        .get("/api/static-auth", &test_claims())
+        .await
+        .unwrap();
     assert_eq!(resp.status(), 401);
-    assert_eq!(call_count.load(Ordering::SeqCst), 1, "static token must never auto-retry on 401");
+    assert_eq!(
+        call_count.load(Ordering::SeqCst),
+        1,
+        "static token must never auto-retry on 401"
+    );
 }
 
 #[tokio::test]
@@ -419,6 +430,10 @@ async fn service_token_concurrent_401s_all_succeed() {
 
     for handle in handles {
         let resp = handle.await.unwrap();
-        assert_eq!(resp.status(), 200, "every concurrent task must succeed after token refresh");
+        assert_eq!(
+            resp.status(),
+            200,
+            "every concurrent task must succeed after token refresh"
+        );
     }
 }

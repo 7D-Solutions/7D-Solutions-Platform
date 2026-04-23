@@ -44,6 +44,7 @@ use crate::event_registry::{EventRegistry, RouteOutcome};
 use crate::manifest::{Manifest, ManifestError};
 use crate::platform_services::PlatformServices;
 use crate::startup::{self, StartupError};
+use crate::vitals::VitalsProvider;
 
 /// Type-erased async startup callback.
 type StartupFn = Box<
@@ -86,6 +87,8 @@ pub struct ModuleBuilder {
     /// Optional OTLP endpoint override (defaults to `OTEL_EXPORTER_OTLP_ENDPOINT` env var).
     /// When set, logged at startup as the configured trace export destination.
     otlp_endpoint: Option<String>,
+    /// Optional custom vitals provider for the `extended` field of `GET /api/vitals`.
+    vitals_provider: Option<Arc<dyn VitalsProvider>>,
 }
 
 impl ModuleBuilder {
@@ -121,6 +124,7 @@ impl ModuleBuilder {
             rate_limit_tiers: Vec::new(),
             tenant_readiness: None,
             otlp_endpoint: None,
+            vitals_provider: None,
         }
     }
 
@@ -631,6 +635,22 @@ impl ModuleBuilder {
         self
     }
 
+    /// Register a custom vitals provider for the `extended` field of `GET /api/vitals`.
+    ///
+    /// The standard vitals endpoint (`GET /api/vitals`) is always wired and queries
+    /// DLQ, outbox, and projection tables automatically.  Call this method to attach
+    /// service-specific data to the `extended` field of the response.
+    ///
+    /// ```rust,ignore
+    /// ModuleBuilder::from_manifest("module.toml")
+    ///     .vitals_handler(MyVitalsProvider)
+    ///     ...
+    /// ```
+    pub fn vitals_handler(mut self, provider: impl VitalsProvider + 'static) -> Self {
+        self.vitals_provider = Some(Arc::new(provider));
+        self
+    }
+
     /// Enable blob storage for this module.
     ///
     /// The SDK reads the bucket name from the `[blob]` section of `module.toml`
@@ -846,6 +866,13 @@ impl ModuleBuilder {
             }
         };
 
+        // Resolve outbox table name for the vitals endpoint.
+        let vitals_outbox_table = manifest
+            .events
+            .as_ref()
+            .and_then(|e| e.publish.as_ref())
+            .map(|p| p.outbox_table.clone());
+
         // Phase B: HTTP stack + serve
         let flags = startup::MiddlewareFlags {
             skip_cors: self.skip_cors,
@@ -855,6 +882,8 @@ impl ModuleBuilder {
             csrf_protection: self.csrf_protection,
             authz_gate: self.authz_gate,
             tenant_readiness: self.tenant_readiness,
+            vitals_provider: self.vitals_provider,
+            vitals_outbox_table,
         };
         startup::phase_b(
             &manifest,

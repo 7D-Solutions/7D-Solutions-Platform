@@ -572,6 +572,12 @@ pub(crate) struct MiddlewareFlags {
     /// Optional tenant readiness checker wired into `GET /api/ready?tenant_id=`.
     /// When `None`, the `?tenant_id=` parameter is silently ignored.
     pub tenant_readiness: Option<Arc<dyn health::TenantReadinessCheck>>,
+    /// Optional custom vitals provider for the `extended` field of `GET /api/vitals`.
+    /// `GET /api/vitals` is always wired regardless of whether this is set.
+    pub vitals_provider: Option<Arc<dyn crate::vitals::VitalsProvider>>,
+    /// Outbox table name for vitals pending-count queries.
+    /// Defaults to `"events_outbox"` if not set.
+    pub vitals_outbox_table: Option<String>,
 }
 
 /// Phase B: HTTP stack assembly and server start.
@@ -623,6 +629,8 @@ pub(crate) async fn phase_b(
         phase_a.bus.clone(),
         probe_nats,
         flags.tenant_readiness.clone(),
+        flags.vitals_provider.clone(),
+        flags.vitals_outbox_table.clone(),
     );
 
     // Env-based overrides for host/port
@@ -763,6 +771,12 @@ struct ReadyParams {
     tenant_id: Option<uuid::Uuid>,
 }
 
+#[derive(serde::Deserialize)]
+struct VitalsParams {
+    /// When provided, scopes projection queries and tenant_ready to this tenant.
+    tenant_id: Option<uuid::Uuid>,
+}
+
 /// Build observability routes that are always served regardless of middleware config.
 ///
 /// These are not middleware — they are endpoints that orchestrators (k8s, Docker)
@@ -774,6 +788,8 @@ pub(crate) fn build_observability_routes(
     bus: Option<Arc<dyn EventBus>>,
     probe_nats: bool,
     tenant_readiness: Option<Arc<dyn health::TenantReadinessCheck>>,
+    vitals_provider: Option<Arc<dyn crate::vitals::VitalsProvider>>,
+    vitals_outbox_table: Option<String>,
 ) -> Router {
     if probe_nats && bus.is_none() {
         tracing::warn!(
@@ -869,6 +885,54 @@ pub(crate) fn build_observability_routes(
                     }
 
                     health::ready_response_to_axum(resp)
+                }
+            }),
+        )
+        .route(
+            "/api/vitals",
+            get({
+                let vitals_name = module_name.clone();
+                let vitals_version = version.clone();
+                let vitals_pool = pool.clone();
+                let vitals_readiness = tenant_readiness.clone();
+                let custom_provider = vitals_provider;
+                let outbox_table = vitals_outbox_table;
+                move |Query(params): Query<VitalsParams>| async move {
+                    use crate::vitals::StandardVitalsProvider;
+
+                    let provider = match outbox_table {
+                        Some(ref t) => StandardVitalsProvider::with_outbox_table(t),
+                        None => StandardVitalsProvider::new(),
+                    };
+
+                    let tenant_id = params.tenant_id;
+
+                    let tenant_ready =
+                        if let (Some(tid), Some(ref checker)) = (tenant_id, &vitals_readiness) {
+                            Some(checker.is_ready(tid))
+                        } else {
+                            None
+                        };
+
+                    let extended = if let Some(ref prov) = custom_provider {
+                        let val = prov.collect_extended(&vitals_pool, tenant_id).await;
+                        if val.is_null() { None } else { Some(val) }
+                    } else {
+                        None
+                    };
+
+                    let resp = provider
+                        .collect(
+                            &vitals_pool,
+                            &vitals_name,
+                            &vitals_version,
+                            tenant_id,
+                            tenant_ready,
+                            extended,
+                        )
+                        .await;
+
+                    Json(resp)
                 }
             }),
         )

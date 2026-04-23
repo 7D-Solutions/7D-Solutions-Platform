@@ -42,6 +42,7 @@ mod startup_helpers;
 pub mod tenant;
 pub mod tenant_quota;
 pub mod tenant_resolver;
+pub mod vitals;
 
 /// Re-export the feature flag crate for use in module handlers.
 ///
@@ -76,6 +77,7 @@ pub use event_bus::{EventBus, EventEnvelope};
 pub use health::{CircuitBreakerInfo, TenantReadinessCheck, TenantReadinessRegistry};
 pub use security::claims::VerifiedClaims;
 pub use sqlx::PgPool;
+pub use vitals::{StandardVitalsProvider, VitalsProvider};
 
 /// Extract the tenant ID string from verified JWT claims in request extensions.
 ///

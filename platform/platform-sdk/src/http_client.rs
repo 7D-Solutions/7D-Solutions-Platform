@@ -26,7 +26,10 @@ struct ServiceMintedState {
 
 impl ServiceMintedState {
     fn get_cached(&self) -> Option<String> {
-        self.cached.lock().expect("service token cache poisoned").clone()
+        self.cached
+            .lock()
+            .expect("service token cache poisoned")
+            .clone()
     }
 
     /// Re-mint only when `expired` matches the current cached value, ensuring
@@ -764,8 +767,12 @@ impl PlatformClient {
         {
             return false;
         }
-        let Some(expired) = snapshot else { return false };
-        let TokenSource::ServiceMinted(state) = &self.token_source else { return false };
+        let Some(expired) = snapshot else {
+            return false;
+        };
+        let TokenSource::ServiceMinted(state) = &self.token_source else {
+            return false;
+        };
         state.refresh_if_stale(expired.as_deref()).is_some()
     }
 
