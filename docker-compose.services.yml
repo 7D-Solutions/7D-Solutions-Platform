@@ -806,6 +806,14 @@ services:
       QBO_BASE_URL: ${QBO_BASE_URL:-}
       OAUTH_ENCRYPTION_KEY: ${OAUTH_ENCRYPTION_KEY:-}
       OAUTH_IMPORT_ENABLED: ${OAUTH_IMPORT_ENABLED:-}
+      # UPS OAuth — register an app at developer.ups.com to obtain credentials.
+      UPS_CLIENT_ID: ${UPS_CLIENT_ID:-}
+      UPS_CLIENT_SECRET: ${UPS_CLIENT_SECRET:-}
+      UPS_REDIRECT_URI: ${UPS_REDIRECT_URI:-}
+      # FedEx OAuth — register an app at developer.fedex.com to obtain credentials.
+      FEDEX_CLIENT_ID: ${FEDEX_CLIENT_ID:-}
+      FEDEX_CLIENT_SECRET: ${FEDEX_CLIENT_SECRET:-}
+      FEDEX_REDIRECT_URI: ${FEDEX_REDIRECT_URI:-}
       # Intuit webhook signature verification token.
       # Set INTUIT_WEBHOOK_VERIFIER_TOKEN in your .env for local dev testing.
       # Required in staging/production (startup guard enforces this).
@@ -813,6 +821,9 @@ services:
       # AES-256-GCM key for encrypting per-tenant QBO webhook verifier tokens (bd-mmnbp).
       # Generate: openssl rand -hex 32  — store in .env, never commit.
       INTEGRATIONS_SECRETS_KEY: ${INTEGRATIONS_SECRETS_KEY:-}
+      GCP_PROJECT_ID: ${GCP_PROJECT_ID:-}
+      GCP_SECRET_NAME: ${GCP_SECRET_NAME:-integrations-secrets-key}
+      GOOGLE_APPLICATION_CREDENTIALS: ${GOOGLE_APPLICATION_CREDENTIALS:-}
       # Local dev profile — allows empty INTUIT_WEBHOOK_VERIFIER_TOKEN.
       # Staging/production must NOT set this (startup guard will reject empty token).
       APP_PROFILE: dev-local

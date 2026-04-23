@@ -4,6 +4,9 @@
 > **Standard:** See `docs/VERSIONING.md` for the rules governing this file.
 
 
+## 2.37.0
+- feat: load INTEGRATIONS_SECRETS_KEY from Google Secret Manager at startup (yup-oauth2 + reqwest; GCP path gated on GOOGLE_APPLICATION_CREDENTIALS + GCP_PROJECT_ID being non-empty; any GCP failure falls back to env var) ([bd-zpi79])
+
 ## 2.36.0
 - feat: write-only admin API for carrier credentials — POST /api/integrations/carriers/{type}/credentials and GET .../status for UPS, FedEx, USPS; encrypted storage in integrations_carrier_credentials; internal.rs falls back to connector_configs for CI-seeded sandbox creds ([bd-e3vwo])
 

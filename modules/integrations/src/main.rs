@@ -106,11 +106,93 @@ fn validate_webhook_env() {
     }
 }
 
-/// Load and validate INTEGRATIONS_SECRETS_KEY from env.
+/// Load the AES-256-GCM secrets key.
 ///
-/// Fatal if absent, empty, or not exactly 32 bytes after hex/base64 decoding.
-/// The key is used for AES-256-GCM encryption of per-tenant QBO webhook verifier tokens.
-fn load_secrets_key() -> [u8; 32] {
+/// Lookup order:
+/// 1. Google Secret Manager (if GOOGLE_APPLICATION_CREDENTIALS and GCP_PROJECT_ID are both set).
+///    GCP_SECRET_NAME defaults to "integrations-secrets-key".
+///    Any failure in this step logs a warning and falls through to step 2.
+/// 2. INTEGRATIONS_SECRETS_KEY env var (hex or base64 → 32 bytes). Fatal if absent or invalid.
+async fn load_secrets_key() -> [u8; 32] {
+    let gcp_creds = std::env::var("GOOGLE_APPLICATION_CREDENTIALS").unwrap_or_default();
+    let gcp_project = std::env::var("GCP_PROJECT_ID").unwrap_or_default();
+
+    if !gcp_creds.is_empty() && !gcp_project.is_empty() {
+        let secret_name = std::env::var("GCP_SECRET_NAME")
+            .unwrap_or_else(|_| "integrations-secrets-key".to_string());
+
+        match fetch_key_from_gcp(&gcp_creds, &gcp_project, &secret_name).await {
+            Ok(key) => return key,
+            Err(e) => tracing::warn!("GCP fetch failed: {}, falling back to env var", e),
+        }
+    }
+
+    load_key_from_env()
+}
+
+/// Fetch the 32-byte key from Google Secret Manager.
+async fn fetch_key_from_gcp(
+    creds_path: &str,
+    project_id: &str,
+    secret_name: &str,
+) -> Result<[u8; 32], String> {
+    let sa_key = yup_oauth2::read_service_account_key(creds_path)
+        .await
+        .map_err(|e| format!("read service account key: {e}"))?;
+
+    let auth = yup_oauth2::ServiceAccountAuthenticator::builder(sa_key)
+        .build()
+        .await
+        .map_err(|e| format!("build authenticator: {e}"))?;
+
+    let token = auth
+        .token(&["https://www.googleapis.com/auth/cloud-platform"])
+        .await
+        .map_err(|e| format!("get token: {e}"))?;
+
+    let url = format!(
+        "https://secretmanager.googleapis.com/v1/projects/{project_id}/secrets/{secret_name}/versions/latest:access"
+    );
+    let resp = reqwest::Client::new()
+        .get(&url)
+        .bearer_auth(token.token().ok_or("token has no value")?)
+        .send()
+        .await
+        .map_err(|e| format!("HTTP request: {e}"))?;
+
+    if !resp.status().is_success() {
+        return Err(format!("Secret Manager returned HTTP {}", resp.status()));
+    }
+
+    let body: serde_json::Value = resp
+        .json()
+        .await
+        .map_err(|e| format!("parse response: {e}"))?;
+
+    let b64 = body["payload"]["data"]
+        .as_str()
+        .ok_or("missing payload.data field")?;
+
+    use base64::Engine as _;
+    let bytes = base64::engine::general_purpose::STANDARD
+        .decode(b64)
+        .map_err(|e| format!("base64 decode: {e}"))?;
+
+    if bytes.len() != 32 {
+        return Err(format!(
+            "GCP secret decoded to {} bytes, expected 32, falling back to env var",
+            bytes.len()
+        ));
+    }
+
+    let mut key = [0u8; 32];
+    key.copy_from_slice(&bytes);
+    Ok(key)
+}
+
+/// Decode INTEGRATIONS_SECRETS_KEY env var (hex or base64) to exactly 32 bytes.
+/// Panics with an actionable message if absent, undecodable, or wrong length.
+fn load_key_from_env() -> [u8; 32] {
     let raw = std::env::var("INTEGRATIONS_SECRETS_KEY").unwrap_or_default();
     if raw.is_empty() {
         panic!(
@@ -120,7 +202,6 @@ fn load_secrets_key() -> [u8; 32] {
              or base64 (44 chars with padding)."
         );
     }
-    // Try hex decode first (64 chars = 32 bytes), then base64.
     let bytes: Vec<u8> = if raw.len() == 64 && raw.chars().all(|c| c.is_ascii_hexdigit()) {
         (0..raw.len())
             .step_by(2)
@@ -209,11 +290,13 @@ fn validate_qbo_env() {
 
 #[tokio::main]
 async fn main() {
+    let webhooks_key = load_secrets_key().await;
+
     ModuleBuilder::from_manifest("module.toml")
         .migrator(&MIGRATOR)
-        .routes(|ctx| {
+        .routes(move |ctx| {
             validate_webhook_env();
-            let webhooks_key = load_secrets_key();
+            let webhooks_key = webhooks_key;
 
             let bus = ctx.bus_arc().expect("Integrations requires event bus");
 
@@ -400,5 +483,105 @@ mod startup_guard_tests {
             &[("APP_PROFILE", ""), ("INTUIT_WEBHOOK_VERIFIER_TOKEN", "")],
             || validate_webhook_env(),
         );
+    }
+}
+
+#[cfg(test)]
+mod secrets_key_tests {
+    use super::{load_key_from_env, load_secrets_key};
+    use serial_test::serial;
+
+    // 64-char hex string = 32 bytes
+    const VALID_HEX: &str = "0102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f20";
+
+    fn set_no_gcp() {
+        std::env::remove_var("GOOGLE_APPLICATION_CREDENTIALS");
+        std::env::remove_var("GCP_PROJECT_ID");
+    }
+
+    /// GCP vars absent, valid hex env var → returns key without warn.
+    #[tokio::test]
+    #[serial]
+    async fn secrets_key_env_var_only() {
+        set_no_gcp();
+        std::env::set_var("INTEGRATIONS_SECRETS_KEY", VALID_HEX);
+        let key = load_secrets_key().await;
+        assert_eq!(key[0], 0x01);
+        assert_eq!(key[31], 0x20);
+        std::env::remove_var("INTEGRATIONS_SECRETS_KEY");
+    }
+
+    /// Both GCP vars empty → skip GCP, fall back to env var.
+    #[tokio::test]
+    #[serial]
+    async fn secrets_key_gcp_vars_empty_skips() {
+        std::env::set_var("GOOGLE_APPLICATION_CREDENTIALS", "");
+        std::env::set_var("GCP_PROJECT_ID", "");
+        std::env::set_var("INTEGRATIONS_SECRETS_KEY", VALID_HEX);
+        let key = load_secrets_key().await;
+        assert_eq!(key.len(), 32);
+        std::env::remove_var("INTEGRATIONS_SECRETS_KEY");
+        std::env::remove_var("GOOGLE_APPLICATION_CREDENTIALS");
+        std::env::remove_var("GCP_PROJECT_ID");
+    }
+
+    /// GCP creds path does not exist → warn + fall back to env var.
+    #[tokio::test]
+    #[serial]
+    async fn secrets_key_file_missing() {
+        std::env::set_var("GOOGLE_APPLICATION_CREDENTIALS", "/nonexistent/sa.json");
+        std::env::set_var("GCP_PROJECT_ID", "test-project");
+        std::env::set_var("INTEGRATIONS_SECRETS_KEY", VALID_HEX);
+        let key = load_secrets_key().await;
+        assert_eq!(key.len(), 32);
+        std::env::remove_var("INTEGRATIONS_SECRETS_KEY");
+        std::env::remove_var("GOOGLE_APPLICATION_CREDENTIALS");
+        std::env::remove_var("GCP_PROJECT_ID");
+    }
+
+    /// GCP creds file exists but contains invalid JSON → warn + fall back.
+    #[tokio::test]
+    #[serial]
+    async fn secrets_key_file_invalid_json() {
+        let path = std::env::temp_dir().join("invalid_sa_test.json");
+        std::fs::write(&path, "not json").expect("write test file");
+        std::env::set_var("GOOGLE_APPLICATION_CREDENTIALS", path.to_str().expect("valid path"));
+        std::env::set_var("GCP_PROJECT_ID", "test-project");
+        std::env::set_var("INTEGRATIONS_SECRETS_KEY", VALID_HEX);
+        let key = load_secrets_key().await;
+        assert_eq!(key.len(), 32);
+        std::fs::remove_file(&path).ok();
+        std::env::remove_var("INTEGRATIONS_SECRETS_KEY");
+        std::env::remove_var("GOOGLE_APPLICATION_CREDENTIALS");
+        std::env::remove_var("GCP_PROJECT_ID");
+    }
+
+    /// Invalid hex/base64 env var → panic.
+    #[test]
+    #[serial]
+    #[should_panic(expected = "not valid hex or base64")]
+    fn secrets_key_invalid_hex() {
+        std::env::set_var("INTEGRATIONS_SECRETS_KEY", "notvalidhexorbase64!!!");
+        load_key_from_env();
+    }
+
+    /// Valid base64 but decodes to wrong byte count → panic.
+    #[test]
+    #[serial]
+    #[should_panic(expected = "decoded to 16 bytes")]
+    fn secrets_key_wrong_byte_count() {
+        use base64::Engine as _;
+        let short = base64::engine::general_purpose::STANDARD.encode([0u8; 16]);
+        std::env::set_var("INTEGRATIONS_SECRETS_KEY", short);
+        load_key_from_env();
+    }
+
+    /// Env var absent → panic.
+    #[test]
+    #[serial]
+    #[should_panic(expected = "INTEGRATIONS_SECRETS_KEY is not set or empty")]
+    fn secrets_key_neither_set() {
+        std::env::remove_var("INTEGRATIONS_SECRETS_KEY");
+        load_key_from_env();
     }
 }

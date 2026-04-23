@@ -53,7 +53,7 @@ fn oauth_error(e: OAuthError) -> ApiError {
 
 fn validate_provider(provider: &str) -> Result<(), ApiError> {
     match provider {
-        "quickbooks" => Ok(()),
+        "quickbooks" | "ups" | "fedex" => Ok(()),
         _ => Err(oauth_error(OAuthError::UnsupportedProvider(
             provider.to_string(),
         ))),
@@ -94,6 +94,52 @@ impl QboConfig {
     }
 }
 
+struct UpsConfig {
+    client_id: String,
+    client_secret: String,
+    redirect_uri: String,
+    auth_url: String,
+    token_url: String,
+}
+
+impl UpsConfig {
+    fn from_env() -> Self {
+        Self {
+            client_id: std::env::var("UPS_CLIENT_ID").unwrap_or_default(),
+            client_secret: std::env::var("UPS_CLIENT_SECRET").unwrap_or_default(),
+            redirect_uri: std::env::var("UPS_REDIRECT_URI").unwrap_or_default(),
+            auth_url: std::env::var("UPS_AUTH_URL").unwrap_or_else(|_| {
+                "https://onlinetools.ups.com/security/v1/oauth/authorize".to_string()
+            }),
+            token_url: std::env::var("UPS_TOKEN_URL").unwrap_or_else(|_| {
+                "https://onlinetools.ups.com/security/v1/oauth/token".to_string()
+            }),
+        }
+    }
+}
+
+struct FedExConfig {
+    client_id: String,
+    client_secret: String,
+    redirect_uri: String,
+    auth_url: String,
+    token_url: String,
+}
+
+impl FedExConfig {
+    fn from_env() -> Self {
+        Self {
+            client_id: std::env::var("FEDEX_CLIENT_ID").unwrap_or_default(),
+            client_secret: std::env::var("FEDEX_CLIENT_SECRET").unwrap_or_default(),
+            redirect_uri: std::env::var("FEDEX_REDIRECT_URI").unwrap_or_default(),
+            auth_url: std::env::var("FEDEX_AUTH_URL")
+                .unwrap_or_else(|_| "https://apis.fedex.com/oauth/authorize".to_string()),
+            token_url: std::env::var("FEDEX_TOKEN_URL")
+                .unwrap_or_else(|_| "https://apis.fedex.com/oauth/token".to_string()),
+        }
+    }
+}
+
 // ============================================================================
 // Callback query params
 // ============================================================================
@@ -101,8 +147,8 @@ impl QboConfig {
 #[derive(Debug, Deserialize)]
 pub struct OAuthCallbackQuery {
     pub code: String,
-    #[serde(rename = "realmId")]
-    pub realm_id: String,
+    #[serde(rename = "realmId", default)]
+    pub realm_id: Option<String>,
     #[serde(default)]
     pub state: Option<String>,
 }
@@ -137,20 +183,45 @@ pub async fn connect(
         return e.into_response();
     }
 
-    let config = match QboConfig::from_env() {
-        Ok(c) => c,
-        Err(e) => return e.into_response(),
+    let auth_url = match provider.as_str() {
+        "quickbooks" => {
+            let config = match QboConfig::from_env() {
+                Ok(c) => c,
+                Err(e) => return e.into_response(),
+            };
+            format!(
+                "{}?client_id={}&response_type=code&scope={}&redirect_uri={}&state={}",
+                config.auth_url,
+                urlencoding::encode(&config.client_id),
+                urlencoding::encode("com.intuit.quickbooks.accounting"),
+                urlencoding::encode(&config.redirect_uri),
+                urlencoding::encode(&app_id),
+            )
+        }
+        "ups" => {
+            let config = UpsConfig::from_env();
+            format!(
+                "{}?client_id={}&response_type=code&scope={}&redirect_uri={}&state={}",
+                config.auth_url,
+                urlencoding::encode(&config.client_id),
+                urlencoding::encode("shipping"),
+                urlencoding::encode(&config.redirect_uri),
+                urlencoding::encode(&app_id),
+            )
+        }
+        "fedex" => {
+            let config = FedExConfig::from_env();
+            format!(
+                "{}?client_id={}&response_type=code&scope={}&redirect_uri={}&state={}",
+                config.auth_url,
+                urlencoding::encode(&config.client_id),
+                urlencoding::encode("shipping"),
+                urlencoding::encode(&config.redirect_uri),
+                urlencoding::encode(&app_id),
+            )
+        }
+        _ => unreachable!("validate_provider already checked"),
     };
-
-    let scopes = "com.intuit.quickbooks.accounting";
-    let auth_url = format!(
-        "{}?client_id={}&response_type=code&scope={}&redirect_uri={}&state={}",
-        config.auth_url,
-        urlencoding::encode(&config.client_id),
-        urlencoding::encode(scopes),
-        urlencoding::encode(&config.redirect_uri),
-        urlencoding::encode(&app_id),
-    );
 
     Redirect::temporary(&auth_url).into_response()
 }
@@ -193,20 +264,69 @@ pub async fn callback(
         }
     };
 
-    let config = match QboConfig::from_env() {
-        Ok(c) => c,
-        Err(e) => return e.into_response(),
-    };
+    // Per-provider: resolve realm_id, scopes, and token endpoint config.
+    // quickbooks requires realmId from the callback query; UPS/FedEx use empty string (schema NOT NULL).
+    let (token_url, client_id, client_secret, redirect_uri, realm_id, scopes) =
+        match provider.as_str() {
+            "quickbooks" => {
+                let realm_id = match params.realm_id.as_deref() {
+                    Some(r) if !r.is_empty() => r.to_string(),
+                    _ => {
+                        return ApiError::new(
+                            422,
+                            "missing_realm_id",
+                            "realmId is required for quickbooks",
+                        )
+                        .into_response();
+                    }
+                };
+                let config = match QboConfig::from_env() {
+                    Ok(c) => c,
+                    Err(e) => return e.into_response(),
+                };
+                (
+                    config.token_url,
+                    config.client_id,
+                    config.client_secret,
+                    config.redirect_uri,
+                    realm_id,
+                    "com.intuit.quickbooks.accounting".to_string(),
+                )
+            }
+            "ups" => {
+                let config = UpsConfig::from_env();
+                (
+                    config.token_url,
+                    config.client_id,
+                    config.client_secret,
+                    config.redirect_uri,
+                    String::new(),
+                    "shipping".to_string(),
+                )
+            }
+            "fedex" => {
+                let config = FedExConfig::from_env();
+                (
+                    config.token_url,
+                    config.client_id,
+                    config.client_secret,
+                    config.redirect_uri,
+                    String::new(),
+                    "shipping".to_string(),
+                )
+            }
+            _ => unreachable!("validate_provider already checked"),
+        };
 
     // Exchange authorization code for tokens
     let client = reqwest::Client::new();
     let resp = match client
-        .post(&config.token_url)
-        .basic_auth(&config.client_id, Some(&config.client_secret))
+        .post(&token_url)
+        .basic_auth(&client_id, Some(&client_secret))
         .form(&[
             ("grant_type", "authorization_code"),
-            ("code", &params.code),
-            ("redirect_uri", &config.redirect_uri),
+            ("code", params.code.as_str()),
+            ("redirect_uri", redirect_uri.as_str()),
         ])
         .send()
         .await
@@ -242,14 +362,12 @@ pub async fn callback(
         }
     };
 
-    let scopes = "com.intuit.quickbooks.accounting";
-
     match service::create_connection(
         &state.pool,
         &app_id,
         &provider,
-        &params.realm_id,
-        scopes,
+        &realm_id,
+        &scopes,
         &tokens,
     )
     .await
