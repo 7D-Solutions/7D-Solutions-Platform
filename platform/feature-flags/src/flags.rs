@@ -94,6 +94,28 @@ pub async fn set_flag(
     Ok(())
 }
 
+/// Returns all feature flags visible to the given tenant.
+///
+/// For each flag name, returns the per-tenant row if one exists, otherwise
+/// the global default row (`tenant_id IS NULL`). Flags with no DB rows at
+/// all are absent from the map — callers should treat absence as disabled.
+pub async fn list_flags_for_tenant(
+    pool: &PgPool,
+    tenant_id: Uuid,
+) -> Result<std::collections::HashMap<String, bool>, FlagError> {
+    let rows: Vec<(String, bool)> = sqlx::query_as(
+        "SELECT DISTINCT ON (flag_name) flag_name, enabled \
+         FROM feature_flags \
+         WHERE tenant_id = $1 OR tenant_id IS NULL \
+         ORDER BY flag_name, (tenant_id IS NOT NULL) DESC",
+    )
+    .bind(tenant_id)
+    .fetch_all(pool)
+    .await?;
+
+    Ok(rows.into_iter().collect())
+}
+
 /// Remove a feature flag row.
 ///
 /// Pass `tenant_id = None` to delete the global row.

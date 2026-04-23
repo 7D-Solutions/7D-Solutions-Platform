@@ -7,7 +7,7 @@
 //! Run with:
 //!   cargo test -p feature-flags --test integration -- --nocapture
 
-use feature_flags::{delete_flag, is_enabled, set_flag};
+use feature_flags::{delete_flag, is_enabled, list_flags_for_tenant, set_flag};
 use sqlx::PgPool;
 use uuid::Uuid;
 
@@ -128,4 +128,45 @@ async fn feature_flag_upsert_is_idempotent() {
     assert!(!enabled, "flag must reflect the last set_flag call");
 
     delete_flag(&pool, &flag, None).await.unwrap();
+}
+
+/// list_flags_for_tenant returns per-tenant row when it exists, global row otherwise.
+#[tokio::test]
+async fn list_flags_for_tenant_returns_per_tenant_and_global_flags() {
+    let pool = test_pool().await;
+    let tenant = Uuid::new_v4();
+    let global_flag = format!("test_list_global_{}", Uuid::new_v4().simple());
+    let tenant_flag = format!("test_list_tenant_{}", Uuid::new_v4().simple());
+
+    // Set a global flag and a per-tenant override
+    set_flag(&pool, &global_flag, None, true).await.unwrap();
+    set_flag(&pool, &tenant_flag, Some(tenant), false).await.unwrap();
+
+    let flags = list_flags_for_tenant(&pool, tenant).await.unwrap();
+
+    assert_eq!(flags.get(&global_flag), Some(&true), "global flag must appear");
+    assert_eq!(flags.get(&tenant_flag), Some(&false), "per-tenant flag must appear");
+
+    // Cleanup
+    delete_flag(&pool, &global_flag, None).await.unwrap();
+    delete_flag(&pool, &tenant_flag, Some(tenant)).await.unwrap();
+}
+
+/// list_flags_for_tenant: per-tenant row overrides global when both exist.
+#[tokio::test]
+async fn list_flags_for_tenant_per_tenant_overrides_global() {
+    let pool = test_pool().await;
+    let tenant = Uuid::new_v4();
+    let flag = format!("test_list_override_{}", Uuid::new_v4().simple());
+
+    // Global says true, per-tenant says false
+    set_flag(&pool, &flag, None, true).await.unwrap();
+    set_flag(&pool, &flag, Some(tenant), false).await.unwrap();
+
+    let flags = list_flags_for_tenant(&pool, tenant).await.unwrap();
+    assert_eq!(flags.get(&flag), Some(&false), "per-tenant override must win");
+
+    // Cleanup
+    delete_flag(&pool, &flag, None).await.unwrap();
+    delete_flag(&pool, &flag, Some(tenant)).await.unwrap();
 }

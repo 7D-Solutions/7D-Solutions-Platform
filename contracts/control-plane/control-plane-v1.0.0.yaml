@@ -544,6 +544,56 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorBody'
 
+  # ── Feature flags ────────────────────────────────────────────────────────
+  /api/features:
+    get:
+      summary: List feature flags for a tenant
+      operationId: getTenantFeatures
+      description: >
+        Returns all feature flags visible to the authenticated tenant.
+        Per-tenant rows take precedence over global defaults.
+        Absent flags (no DB rows) are omitted from the response — callers
+        should treat absence as disabled.
+
+        Requires a valid Bearer JWT. The tenant_id query parameter must match
+        the tenant_id claim in the token; mismatches return 403.
+      tags: [features]
+      security:
+        - tenantBearer: []
+      parameters:
+        - name: tenant_id
+          in: query
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: UUID of the tenant whose flags to retrieve.
+      responses:
+        '200':
+          description: Feature flags for the tenant
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TenantFeaturesResponse'
+        '400':
+          description: Missing or invalid tenant_id parameter
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorBody'
+        '401':
+          description: No valid JWT provided
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorBody'
+        '403':
+          description: JWT tenant_id does not match query parameter
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorBody'
+
 components:
   securitySchemes:
     platformAdmin:
@@ -554,6 +604,13 @@ components:
         Platform admin JWT. Issued by identity-auth with role=platform_admin.
         Transmitted as httpOnly cookie in browser contexts; as Bearer token
         in service-to-service calls.
+    tenantBearer:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: >
+        Tenant-scoped JWT. Issued by identity-auth for authenticated tenant users.
+        The tenant_id claim identifies the tenant the caller belongs to.
 
   parameters:
     TenantIdPath:
@@ -1026,3 +1083,21 @@ components:
         error:
           type: string
           description: Human-readable error description
+
+    TenantFeaturesResponse:
+      type: object
+      required:
+        - tenant_id
+        - flags
+      properties:
+        tenant_id:
+          type: string
+          format: uuid
+          description: The tenant whose flags are returned.
+        flags:
+          type: object
+          additionalProperties:
+            type: boolean
+          description: >
+            Map of flag_name → enabled. Only flags with at least one DB row
+            (per-tenant or global) appear here; absent flags are disabled by default.

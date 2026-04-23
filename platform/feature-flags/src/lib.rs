@@ -34,4 +34,4 @@ pub mod admin;
 pub mod flags;
 
 pub use admin::admin_router;
-pub use flags::{delete_flag, is_enabled, set_flag, FlagError};
+pub use flags::{delete_flag, is_enabled, list_flags_for_tenant, set_flag, FlagError};

@@ -4,6 +4,9 @@
 > **Standard:** See `docs/VERSIONING.md` for the rules governing this file.
 
 
+## 1.7.0
+- feat: public tenant feature-flag endpoint — `GET /api/features?tenant_id={uuid}` returns resolved flag map; JWT-gated, cross-tenant isolation enforced ([bd-p2jsi])
+
 ## 1.6.4
 - chore: rustfmt reflow + regenerate typed clients (no behavior change)
 

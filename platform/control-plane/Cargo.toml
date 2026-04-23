@@ -1,6 +1,6 @@
 [package]
 name = "control-plane"
-version = "1.6.4"
+version = "1.7.0"
 edition = "2021"
 description = "Tenant provisioning, platform billing orchestration, and data retention"
 publish = ["7d-platform"]
@@ -37,6 +37,7 @@ sha2 = "0.10"
 zip = "2.4.2"
 
 tenant-registry = { path = "../../platform/tenant-registry" }
+feature-flags = { path = "../feature-flags" }
 health = { path = "../health" }
 event-bus = { path = "../event-bus" }
 security = { path = "../security" }
