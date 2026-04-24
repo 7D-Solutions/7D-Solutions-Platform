@@ -21,6 +21,7 @@ pub mod tax;
 pub mod tax_config;
 pub mod tax_config_rules;
 pub mod tax_reports;
+pub mod tax_tenant_config;
 pub mod tenant;
 pub mod usage;
 pub mod webhooks;

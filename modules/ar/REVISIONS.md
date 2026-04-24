@@ -4,6 +4,9 @@
 > **Standard:** See `docs/VERSIONING.md` for the rules governing this file.
 
 
+## 6.7.0
+- feat(tax): tenant-scoped tax_calculation_source config — ar_tenant_tax_config table with config_version for cache invalidation, PUT/GET /api/ar/tax/tenant-config, TaxConfigChanged outbox event, per-tenant provider dispatch in the quote path (platform vs external_accounting_software) ([bd-kkhf4])
+
 ## 6.6.5
 - chore: workspace rustfmt pass (no behavioral changes) ([bd-44hil])
 
