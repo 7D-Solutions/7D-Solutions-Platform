@@ -929,15 +929,18 @@ pub async fn login(
     super::concurrency::acquire_tenant_xact_lock(&mut tx, req.tenant_id)
         .await
         .map_err(|e| {
+            use super::concurrency::AcquireError::*;
+            let (status, label) = match e {
+                AdvisoryLockTimeout => (StatusCode::SERVICE_UNAVAILABLE, "lock_timeout"),
+                Db(_) => (StatusCode::INTERNAL_SERVER_ERROR, "db_error"),
+                Timeout => (StatusCode::INTERNAL_SERVER_ERROR, "unexpected_limiter_timeout"),
+            };
             state
                 .metrics
                 .auth_login_total
-                .with_label_values(&["failure", "db_error"])
+                .with_label_values(&["failure", label])
                 .inc();
-            err(
-                StatusCode::INTERNAL_SERVER_ERROR,
-                format!("advisory lock: {e}"),
-            )
+            err(status, format!("advisory lock: {e}"))
         })?;
 
     // Tenant lifecycle gate: deny login for suspended/canceled tenants; deny new login for past_due.

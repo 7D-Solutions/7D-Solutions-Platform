@@ -12,9 +12,14 @@ pub struct HashConcurrencyLimiter {
     acquire_timeout: Duration,
 }
 
-#[derive(Debug)]
+#[derive(Debug, thiserror::Error)]
 pub enum AcquireError {
+    #[error("limiter timeout")]
     Timeout,
+    #[error("advisory lock timeout")]
+    AdvisoryLockTimeout,
+    #[error("db error: {0}")]
+    Db(#[from] sqlx::Error),
 }
 
 impl HashConcurrencyLimiter {
@@ -40,15 +45,28 @@ impl HashConcurrencyLimiter {
 
 /// Take a PostgreSQL advisory transaction lock keyed on tenant_id.
 /// Serializes concurrent logins for the same tenant to prevent TOCTOU on lease count.
+/// Uses pg_try_advisory_xact_lock with bounded retry (5s ceiling) rather than blocking
+/// pg_advisory_xact_lock, so a slow statement holding the lock doesn't wedge the pool.
 pub async fn acquire_tenant_xact_lock(
     tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
     tenant_id: Uuid,
-) -> Result<(), sqlx::Error> {
-    sqlx::query("SELECT pg_advisory_xact_lock(hashtext($1::text)::bigint)")
+) -> Result<(), AcquireError> {
+    let deadline = std::time::Instant::now() + Duration::from_secs(5);
+    loop {
+        let got: (bool,) = sqlx::query_as(
+            "SELECT pg_try_advisory_xact_lock(hashtext($1::text)::bigint)",
+        )
         .bind(tenant_id)
-        .execute(&mut **tx)
+        .fetch_one(&mut **tx)
         .await?;
-    Ok(())
+        if got.0 {
+            return Ok(());
+        }
+        if std::time::Instant::now() >= deadline {
+            return Err(AcquireError::AdvisoryLockTimeout);
+        }
+        tokio::time::sleep(Duration::from_millis(50)).await;
+    }
 }
 
 /// Count active seat leases for a tenant.
