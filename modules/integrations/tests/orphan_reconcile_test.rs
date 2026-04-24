@@ -11,6 +11,7 @@
 use integrations_rs::sync_pull_recovery::reconcile_orphan_inflight_pulls;
 use serial_test::serial;
 use sqlx::postgres::PgPoolOptions;
+use std::time::Duration;
 use uuid::Uuid;
 
 async fn setup_db() -> sqlx::PgPool {
@@ -20,7 +21,8 @@ async fn setup_db() -> sqlx::PgPool {
             .to_string()
     });
     let pool = PgPoolOptions::new()
-        .max_connections(10)
+        .max_connections(1)
+        .acquire_timeout(Duration::from_secs(120))
         .connect(&url)
         .await
         .expect("Failed to connect to integrations test DB");
@@ -28,6 +30,14 @@ async fn setup_db() -> sqlx::PgPool {
         .run(&pool)
         .await
         .expect("Failed to run integrations migrations");
+    // Remove any inflight test rows left by prior runs or aborted tests so
+    // reconcile counts are deterministic across all three test cases.
+    sqlx::query(
+        "DELETE FROM integrations_sync_pull_log WHERE app_id LIKE 'test-%' AND status = 'inflight'",
+    )
+    .execute(&pool)
+    .await
+    .expect("pre-test cleanup of stale inflight rows");
     pool
 }
 
@@ -66,6 +76,8 @@ async fn orphan_reconcile_marks_old_inflight_failed() {
     .await
     .expect("fetch row");
 
+    pool.close().await;
+
     assert_eq!(row.0, "failed", "status must be 'failed'");
     assert_eq!(row.1.as_deref(), Some("service_restart"), "error must be 'service_restart'");
     assert!(row.2.is_some(), "completed_at must be set");
@@ -101,6 +113,8 @@ async fn orphan_reconcile_preserves_young_inflight() {
             .await
             .expect("fetch row");
 
+    pool.close().await;
+
     assert_eq!(status, "inflight", "young row must remain 'inflight'");
 }
 
@@ -134,6 +148,8 @@ async fn orphan_reconcile_respects_threshold_argument() {
             .fetch_one(&pool)
             .await
             .expect("fetch row");
+
+    pool.close().await;
 
     assert_eq!(status, "failed");
 }

@@ -689,11 +689,22 @@
     "/api/integrations/sync/push/{entity_type}": {
       "post": {
         "tags": [
-          "SyncPush"
+          "Sync Push"
         ],
         "summary": "POST /api/integrations/sync/push/{entity_type}",
         "description": "Supported entity types: customer, invoice, payment.\nReturns the full push taxonomy variant as JSON with `\"outcome\"` discriminant.",
         "operationId": "push_entity",
+        "parameters": [
+          {
+            "name": "entity_type",
+            "in": "path",
+            "description": "Entity type: customer, invoice, or payment",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
         "requestBody": {
           "content": {
             "application/json": {

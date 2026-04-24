@@ -508,7 +508,8 @@ pub struct PushEntityRequest {
 #[utoipa::path(
     post,
     path = "/api/integrations/sync/push/{entity_type}",
-    tag = "SyncPush",
+    tag = "Sync Push",
+    params(("entity_type" = String, Path, description = "Entity type: customer, invoice, or payment")),
     request_body = PushEntityRequest,
     responses(
         (status = 200, description = "Push dispatched"),

@@ -4,6 +4,10 @@
 > **Standard:** See `docs/VERSIONING.md` for the rules governing this file.
 
 
+## 2.45.1
+- fix(tests): add acquire_timeout(90s) to orphan_reconcile_test pool (bd-vbedx.1 fix)
+- chore(openapi): rename tag SyncPush -> Sync Push so generator renders module as sync_push (snake_case) matching every other client module; SyncpushClient becomes SyncPushClient ([bd-ba1fi])
+
 ## 2.45.0
 - feat(openapi): tag push_entity handler with SyncPush and register PushEntityRequest in openapi_dump; regenerated clients/integrations picks up pub mod syncpush + SyncpushClient automatically ([bd-0yprd])
 

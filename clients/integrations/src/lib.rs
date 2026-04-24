@@ -7,7 +7,7 @@ pub mod connectors;
 pub mod external_refs;
 pub mod oauth;
 pub mod qbo_invoice;
-pub mod syncpush;
+pub mod sync_push;
 pub mod webhooks;
 
 pub use types::*;
@@ -15,7 +15,7 @@ pub use connectors::ConnectorsClient;
 pub use external_refs::ExternalRefsClient;
 pub use oauth::OauthClient;
 pub use qbo_invoice::QboInvoiceClient;
-pub use syncpush::SyncpushClient;
+pub use sync_push::SyncPushClient;
 pub use webhooks::WebhooksClient;
 
 // -- PlatformService trait impls (connects to SDK VerticalBuilder) --
@@ -48,7 +48,7 @@ impl platform_sdk::PlatformService for QboInvoiceClient {
     }
 }
 
-impl platform_sdk::PlatformService for SyncpushClient {
+impl platform_sdk::PlatformService for SyncPushClient {
     const SERVICE_NAME: &'static str = "integrations";
     fn from_platform_client(client: platform_sdk::PlatformClient) -> Self {
         Self::new(client)
