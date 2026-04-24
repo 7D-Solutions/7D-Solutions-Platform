@@ -16,6 +16,7 @@
 ///   GET  /api/control/tenants/:tenant_id/vitals        — Aggregated tenant health + module vitals
 ///   GET  /api/service-catalog                          — Module-to-URL service catalog
 ///   GET  /api/features                                 — Per-tenant feature flags (requires JWT)
+///   GET  /api/schemas/features/v{N}                    — JSON Schema for feature-flags payload v{N}
 use axum::{
     extract::State,
     http::StatusCode,
@@ -111,6 +112,10 @@ pub fn build_router(state: Arc<AppState>, summary_state: Arc<SummaryState>) -> R
         )
         .route("/api/service-catalog", get(handlers::service_catalog))
         .route("/api/features", get(handlers::tenant_features))
+        .route(
+            "/api/schemas/features/{version}",
+            get(handlers::features_schema),
+        )
         .with_state(state)
         .merge(summary_router(summary_state.clone()))
         .merge(entitlements_router(summary_state.clone()))

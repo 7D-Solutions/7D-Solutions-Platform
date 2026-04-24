@@ -1,9 +1,11 @@
 /// GET /api/features?tenant_id={uuid}
+/// GET /api/schemas/features/v{N}
 ///
-/// Returns all feature flags visible to the authenticated tenant.
+/// Returns all feature flags visible to the authenticated tenant, versioned by schema_version.
 /// Requires a valid JWT whose tenant_id claim matches the query parameter.
+/// Schema endpoint is unauthenticated and returns the JSON Schema for v{N} (404 if unknown).
 use axum::{
-    extract::{Extension, Query, State},
+    extract::{Extension, Path, Query, State},
     http::StatusCode,
     Json,
 };
@@ -16,6 +18,9 @@ use crate::models::ErrorBody;
 use crate::state::AppState;
 use security::VerifiedClaims;
 
+/// Current schema version for TenantFeaturesResponse. Bump when the shape changes.
+pub const SCHEMA_VERSION: u32 = 1;
+
 #[derive(Debug, Deserialize)]
 pub struct TenantFeaturesQuery {
     pub tenant_id: Option<String>,
@@ -24,6 +29,7 @@ pub struct TenantFeaturesQuery {
 #[derive(Debug, Serialize)]
 pub struct TenantFeaturesResponse {
     pub tenant_id: String,
+    pub schema_version: u32,
     pub flags: HashMap<String, bool>,
 }
 
@@ -90,6 +96,34 @@ pub async fn tenant_features(
 
     Ok(Json(TenantFeaturesResponse {
         tenant_id: tenant_id.to_string(),
+        schema_version: SCHEMA_VERSION,
         flags,
     }))
+}
+
+/// GET /api/schemas/features/v{version}
+///
+/// Returns the JSON Schema document for the given feature-flags payload version.
+/// Returns 404 for unknown versions so frontends can fail-fast on unrecognized schemas.
+pub async fn features_schema(
+    Path(version): Path<String>,
+) -> Result<Json<serde_json::Value>, StatusCode> {
+    match version.as_str() {
+        "v1" => Ok(Json(serde_json::json!({
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "$id": "/api/schemas/features/v1",
+            "type": "object",
+            "required": ["tenant_id", "schema_version", "flags"],
+            "properties": {
+                "tenant_id": {"type": "string", "format": "uuid"},
+                "schema_version": {"type": "integer", "const": 1},
+                "flags": {
+                    "type": "object",
+                    "additionalProperties": {"type": "boolean"}
+                }
+            },
+            "additionalProperties": false
+        }))),
+        _ => Err(StatusCode::NOT_FOUND),
+    }
 }

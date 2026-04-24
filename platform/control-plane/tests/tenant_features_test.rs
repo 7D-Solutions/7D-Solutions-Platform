@@ -234,3 +234,68 @@ async fn tenant_features_malformed_uuid_returns_400() {
     let body: serde_json::Value = resp.json();
     assert!(body["error"].as_str().is_some());
 }
+
+/// schema_version field and /api/schemas/features/v{N} endpoint
+///
+/// Covers:
+///   (f) GET /api/features response includes schema_version == 1
+///   (g) GET /api/schemas/features/v1 returns JSON Schema with required fields
+///   (h) GET /api/schemas/features/v999 returns 404
+#[tokio::test]
+async fn features_schema_version() {
+    let pool = test_pool().await;
+    let keys = make_test_keys();
+    let tenant_id = Uuid::new_v4();
+    let token = mint_token(&keys.encoding, tenant_id);
+    let server = build_server(pool, keys.verifier);
+
+    // (f) Features payload carries schema_version = 1
+    let resp = server
+        .get("/api/features")
+        .authorization_bearer(token)
+        .add_query_param("tenant_id", tenant_id.to_string())
+        .await;
+    resp.assert_status(StatusCode::OK);
+    let body: serde_json::Value = resp.json();
+    assert_eq!(
+        body["schema_version"].as_u64(),
+        Some(1),
+        "schema_version must be 1"
+    );
+
+    // (g) Schema endpoint returns a valid JSON Schema for v1
+    let schema_resp = server.get("/api/schemas/features/v1").await;
+    schema_resp.assert_status(StatusCode::OK);
+    let schema: serde_json::Value = schema_resp.json();
+    assert_eq!(
+        schema["$id"].as_str(),
+        Some("/api/schemas/features/v1"),
+        "schema $id must match endpoint path"
+    );
+    let required = schema["required"].as_array().expect("required must be array");
+    let required_strs: Vec<&str> = required
+        .iter()
+        .filter_map(|v| v.as_str())
+        .collect();
+    assert!(
+        required_strs.contains(&"tenant_id"),
+        "schema must require tenant_id"
+    );
+    assert!(
+        required_strs.contains(&"schema_version"),
+        "schema must require schema_version"
+    );
+    assert!(
+        required_strs.contains(&"flags"),
+        "schema must require flags"
+    );
+    assert_eq!(
+        schema["properties"]["schema_version"]["const"].as_u64(),
+        Some(1),
+        "schema must constrain schema_version to 1"
+    );
+
+    // (h) Unknown schema version returns 404
+    let unknown_resp = server.get("/api/schemas/features/v999").await;
+    unknown_resp.assert_status(StatusCode::NOT_FOUND);
+}

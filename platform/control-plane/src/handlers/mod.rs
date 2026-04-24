@@ -15,5 +15,5 @@ pub use provisioning_status::provisioning_status;
 pub use retention::{get_retention, set_retention, tombstone_tenant};
 pub use retry_provisioning::retry_provisioning;
 pub use service_catalog::service_catalog;
-pub use tenant_features::tenant_features;
+pub use tenant_features::{features_schema, tenant_features};
 pub use tenant_vitals::tenant_vitals;

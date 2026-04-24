@@ -4,6 +4,9 @@
 > **Standard:** See `docs/VERSIONING.md` for the rules governing this file.
 
 
+## 1.8.0
+- feat: schema_version field on TenantFeaturesResponse; GET /api/schemas/features/v{N} publishes JSON Schema; docs/frontend/FEATURE-FLAGS-CONTRACT.md documents lifecycle ([bd-k3318])
+
 ## 1.7.1
 - chore: workspace rustfmt pass (no behavioral changes) ([bd-44hil])
 
