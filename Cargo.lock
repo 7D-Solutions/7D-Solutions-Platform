@@ -403,7 +403,7 @@ dependencies = [
 
 [[package]]
 name = "auth-rs"
-version = "1.12.2"
+version = "1.12.3"
 dependencies = [
  "argon2",
  "async-nats",
@@ -1529,7 +1529,7 @@ checksum = "7c74b8349d32d297c9134b8c88677813a227df8f779daa29bfc29c183fe3dca6"
 
 [[package]]
 name = "contract-tests"
-version = "1.0.0"
+version = "1.1.0"
 dependencies = [
  "glob",
  "jsonschema",
@@ -1542,7 +1542,7 @@ dependencies = [
 
 [[package]]
 name = "control-plane"
-version = "1.7.1"
+version = "1.8.0"
 dependencies = [
  "axum",
  "axum-test",
@@ -1911,7 +1911,7 @@ dependencies = [
 
 [[package]]
 name = "customer-portal"
-version = "2.3.3"
+version = "2.3.4"
 dependencies = [
  "argon2",
  "axum",
@@ -3388,7 +3388,7 @@ dependencies = [
 
 [[package]]
 name = "integrations-rs"
-version = "2.40.0"
+version = "2.43.0"
 dependencies = [
  "aes-gcm",
  "async-nats",
@@ -3409,6 +3409,7 @@ dependencies = [
  "projections",
  "prometheus",
  "reqwest",
+ "scopeguard",
  "security",
  "serde",
  "serde_json",
@@ -4304,7 +4305,7 @@ dependencies = [
 
 [[package]]
 name = "party-rs"
-version = "3.3.0"
+version = "3.4.0"
 dependencies = [
  "async-nats",
  "axum",
@@ -4406,7 +4407,7 @@ dependencies = [
 
 [[package]]
 name = "pdf-editor"
-version = "2.4.0"
+version = "2.5.0"
 dependencies = [
  "anyhow",
  "async-nats",
@@ -6157,7 +6158,7 @@ dependencies = [
 
 [[package]]
 name = "security"
-version = "1.13.0"
+version = "1.14.0"
 dependencies = [
  "axum",
  "base64 0.22.1",
@@ -7615,7 +7616,7 @@ checksum = "49d64318d8311fc2668e48b63969f4343e0a85c4a109aa8460d6672e364b8bd1"
 
 [[package]]
 name = "ttp-rs"
-version = "4.0.3"
+version = "4.0.4"
 dependencies = [
  "async-nats",
  "axum",
