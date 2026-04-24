@@ -171,11 +171,15 @@ async fn create_invoice_same_requestid_is_idempotent() {
             description: Some(format!("Idempotency test {}", rid)),
             item_ref: Some(item_ref),
             tax_code_ref: None,
+            department_ref: None,
         }],
         due_date: None,
         doc_number: Some(format!("IDEM-{}", &rid.to_string()[..8])),
         currency_ref: None,
         txn_tax_detail: None,
+        bill_addr: None,
+        ship_addr: None,
+        department_ref: None,
     };
 
     // First call

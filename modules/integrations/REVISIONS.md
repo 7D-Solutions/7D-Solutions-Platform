@@ -4,6 +4,9 @@
 > **Standard:** See `docs/VERSIONING.md` for the rules governing this file.
 
 
+## 2.40.0
+- feat(qbo): add BillAddr, ShipAddr, DepartmentRef to QboInvoicePayload; QboLineItem gains per-line department_ref (emitted under SalesItemLineDetail per QBO wire spec); QboAddress struct for address fields ([bd-y9igm])
+
 ## 2.39.0
 - feat(qbo): tax write-back client — QboLineItem gains tax_code_ref, QboTxnTaxDetail block allows platform-computed tax override in QBO; Avalara credential loading from GCP Secret Manager or env-var fallback ([bd-kkhf4])
 

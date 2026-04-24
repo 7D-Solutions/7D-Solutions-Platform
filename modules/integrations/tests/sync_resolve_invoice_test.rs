@@ -102,11 +102,15 @@ fn minimal_payload(customer_ref: &str) -> QboInvoicePayload {
             description: Some("Push test line".to_string()),
             item_ref: None,
             tax_code_ref: None,
+            department_ref: None,
         }],
         due_date: None,
         doc_number: None,
         currency_ref: None,
         txn_tax_detail: None,
+        bill_addr: None,
+        ship_addr: None,
+        department_ref: None,
     }
 }
 
@@ -250,11 +254,15 @@ async fn test_sandbox_invoice_create_update_void() {
             description: Some(format!("Integration push test {}", &app_id[..8])),
             item_ref: Some(item_ref),
             tax_code_ref: None,
+            department_ref: None,
         }],
         due_date: Some("2026-12-31".to_string()),
         doc_number: Some(doc_number.clone()),
         currency_ref: None,
         txn_tax_detail: None,
+        bill_addr: None,
+        ship_addr: None,
+        department_ref: None,
     };
 
     let create_req = InvoicePushRequest {
@@ -297,11 +305,15 @@ async fn test_sandbox_invoice_create_update_void() {
             description: Some(format!("Updated push test {}", &app_id[..8])),
             item_ref: Some(item_ref2),
             tax_code_ref: None,
+            department_ref: None,
         }],
         due_date: Some("2026-12-31".to_string()),
         doc_number: Some(doc_number.clone()),
         currency_ref: None,
         txn_tax_detail: None,
+        bill_addr: None,
+        ship_addr: None,
+        department_ref: None,
     };
 
     let update_req = InvoicePushRequest {

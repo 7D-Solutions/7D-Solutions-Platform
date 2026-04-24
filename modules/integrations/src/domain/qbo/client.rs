@@ -25,6 +25,19 @@ pub struct QboLineItem {
     /// When Some, emitted as SalesItemLineDetail.TaxCodeRef.value.
     /// When None, field is omitted entirely (preserves existing wire shape).
     pub tax_code_ref: Option<String>,
+    /// Per-line DepartmentRef. Must be emitted under SalesItemLineDetail per QBO wire spec.
+    pub department_ref: Option<String>,
+}
+
+/// Postal address for QBO BillAddr / ShipAddr fields.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct QboAddress {
+    pub addr1: Option<String>,
+    pub city: Option<String>,
+    /// State / province code (QBO CountrySubDivisionCode).
+    pub subdivision_code: Option<String>,
+    pub postal_code: Option<String>,
+    pub country: Option<String>,
 }
 
 /// A single line in a QBO TxnTaxDetail block.
@@ -66,6 +79,12 @@ pub struct QboInvoicePayload {
     /// instead of running its Automated Sales Tax engine.
     /// When None, field is omitted — QBO behavior is unchanged.
     pub txn_tax_detail: Option<QboTxnTaxDetail>,
+    /// Customer billing address. Emitted as BillAddr at invoice level when Some.
+    pub bill_addr: Option<QboAddress>,
+    /// Customer shipping address. Emitted as ShipAddr at invoice level when Some.
+    pub ship_addr: Option<QboAddress>,
+    /// Header-level DepartmentRef. Emitted as DepartmentRef at invoice level when Some.
+    pub department_ref: Option<String>,
 }
 
 impl QboInvoicePayload {
@@ -89,6 +108,11 @@ impl QboInvoicePayload {
                 if let Some(ref tcr) = item.tax_code_ref {
                     line["SalesItemLineDetail"]["TaxCodeRef"] = serde_json::json!({"value": tcr});
                 }
+                // DepartmentRef lives under SalesItemLineDetail per QBO wire spec.
+                if let Some(ref dr) = item.department_ref {
+                    line["SalesItemLineDetail"]["DepartmentRef"] =
+                        serde_json::json!({"value": dr});
+                }
                 if let Some(ref desc) = item.description {
                     line["Description"] = Value::String(desc.clone());
                 }
@@ -108,6 +132,15 @@ impl QboInvoicePayload {
         }
         if let Some(ref currency) = self.currency_ref {
             body["CurrencyRef"] = serde_json::json!({"value": currency});
+        }
+        if let Some(ref ba) = self.bill_addr {
+            body["BillAddr"] = addr_to_json(ba);
+        }
+        if let Some(ref sa) = self.ship_addr {
+            body["ShipAddr"] = addr_to_json(sa);
+        }
+        if let Some(ref dr) = self.department_ref {
+            body["DepartmentRef"] = serde_json::json!({"value": dr});
         }
         if let Some(ref ttd) = self.txn_tax_detail {
             let tax_lines: Vec<Value> = ttd
@@ -900,6 +933,26 @@ fn extract_retry_after(headers: &reqwest::header::HeaderMap) -> Option<Duration>
         .map(Duration::from_secs)
 }
 
+fn addr_to_json(addr: &QboAddress) -> Value {
+    let mut a = serde_json::json!({});
+    if let Some(ref v) = addr.addr1 {
+        a["Line1"] = Value::String(v.clone());
+    }
+    if let Some(ref v) = addr.city {
+        a["City"] = Value::String(v.clone());
+    }
+    if let Some(ref v) = addr.subdivision_code {
+        a["CountrySubDivisionCode"] = Value::String(v.clone());
+    }
+    if let Some(ref v) = addr.postal_code {
+        a["PostalCode"] = Value::String(v.clone());
+    }
+    if let Some(ref v) = addr.country {
+        a["Country"] = Value::String(v.clone());
+    }
+    a
+}
+
 fn parse_json(body: &str) -> Result<Value, QboError> {
     serde_json::from_str(body).map_err(|e| QboError::Deserialize(e.to_string()))
 }
@@ -1314,11 +1367,15 @@ mod tests {
                 description: Some("Service fee".to_string()),
                 item_ref: None,
                 tax_code_ref: None,
+                department_ref: None,
             }],
             due_date: Some("2026-05-01".to_string()),
             doc_number: Some("INV-001".to_string()),
             currency_ref: None,
             txn_tax_detail: None,
+            bill_addr: None,
+            ship_addr: None,
+            department_ref: None,
         };
 
         let result = client
@@ -1421,11 +1478,15 @@ mod tests {
                 description: Some("Consulting".to_string()),
                 item_ref: Some("1".to_string()),
                 tax_code_ref: None,
+                department_ref: None,
             }],
             due_date: Some("2026-06-15".to_string()),
             doc_number: Some("DOC-999".to_string()),
             currency_ref: None,
             txn_tax_detail: None,
+            bill_addr: None,
+            ship_addr: None,
+            department_ref: None,
         };
         let json = payload.to_qbo_json();
         assert_eq!(json["CustomerRef"]["value"].as_str(), Some("5"));
@@ -1453,6 +1514,9 @@ mod tests {
             doc_number: None,
             currency_ref: Some("EUR".to_string()),
             txn_tax_detail: None,
+            bill_addr: None,
+            ship_addr: None,
+            department_ref: None,
         };
         let json = payload.to_qbo_json();
         assert_eq!(json["CurrencyRef"]["value"].as_str(), Some("EUR"));
@@ -1692,11 +1756,15 @@ mod tests {
                 description: Some("Service".to_string()),
                 item_ref: Some("1".to_string()),
                 tax_code_ref: None,
+                department_ref: None,
             }],
             due_date: Some("2026-12-31".to_string()),
             doc_number: Some("INV-001".to_string()),
             currency_ref: None,
             txn_tax_detail: None,
+            bill_addr: None,
+            ship_addr: None,
+            department_ref: None,
         }
     }
 
@@ -1733,6 +1801,7 @@ mod tests {
                 description: None,
                 item_ref: None,
                 tax_code_ref: Some("TAX".to_string()),
+                department_ref: None,
             }],
             txn_tax_detail: None,
             ..baseline_invoice_payload()
@@ -1743,6 +1812,69 @@ mod tests {
             line["SalesItemLineDetail"]["TaxCodeRef"]["value"].as_str(),
             Some("TAX"),
             "tax_code_ref=Some(TAX) must emit SalesItemLineDetail.TaxCodeRef.value=TAX"
+        );
+    }
+
+    /// BillAddr + header DepartmentRef + per-line DepartmentRef serialize to correct QBO wire shape.
+    ///
+    /// Key invariant: per-line DepartmentRef must appear under SalesItemLineDetail, not at the
+    /// top level of the Line object — top-level placement is silently ignored by QBO.
+    #[test]
+    fn qbo_invoice_addr_and_department_ref_serializes_correctly() {
+        let payload = QboInvoicePayload {
+            line_items: vec![QboLineItem {
+                amount: 200.00,
+                description: None,
+                item_ref: Some("1".to_string()),
+                tax_code_ref: None,
+                department_ref: Some("DEPT-7".to_string()),
+            }],
+            bill_addr: Some(QboAddress {
+                addr1: Some("123 Main St".to_string()),
+                city: Some("Tulsa".to_string()),
+                subdivision_code: Some("OK".to_string()),
+                postal_code: Some("74101".to_string()),
+                country: Some("US".to_string()),
+            }),
+            ship_addr: None,
+            department_ref: Some("DEPT-7".to_string()),
+            ..baseline_invoice_payload()
+        };
+        let json = payload.to_qbo_json();
+
+        // Invoice-level BillAddr
+        assert_eq!(json["BillAddr"]["Line1"].as_str(), Some("123 Main St"));
+        assert_eq!(json["BillAddr"]["City"].as_str(), Some("Tulsa"));
+        assert_eq!(
+            json["BillAddr"]["CountrySubDivisionCode"].as_str(),
+            Some("OK")
+        );
+        assert_eq!(json["BillAddr"]["PostalCode"].as_str(), Some("74101"));
+        assert_eq!(json["BillAddr"]["Country"].as_str(), Some("US"));
+
+        // ShipAddr absent
+        assert!(
+            json.get("ShipAddr").is_none(),
+            "None ship_addr must not emit ShipAddr"
+        );
+
+        // Invoice-level DepartmentRef
+        assert_eq!(
+            json["DepartmentRef"]["value"].as_str(),
+            Some("DEPT-7"),
+            "header department_ref must emit DepartmentRef.value at invoice level"
+        );
+
+        // Per-line DepartmentRef must be inside SalesItemLineDetail
+        let line = &json["Line"].as_array().expect("Line array")[0];
+        assert_eq!(
+            line["SalesItemLineDetail"]["DepartmentRef"]["value"].as_str(),
+            Some("DEPT-7"),
+            "line department_ref must be emitted under SalesItemLineDetail"
+        );
+        assert!(
+            line.get("DepartmentRef").is_none(),
+            "DepartmentRef must NOT appear at the top level of the Line object"
         );
     }
 

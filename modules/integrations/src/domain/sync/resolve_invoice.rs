@@ -279,6 +279,9 @@ mod tests {
             doc_number: None,
             currency_ref: None,
             txn_tax_detail: None,
+            bill_addr: None,
+            ship_addr: None,
+            department_ref: None,
         });
         assert_eq!(operation_name(&create), "create");
 
@@ -292,6 +295,9 @@ mod tests {
                 doc_number: None,
                 currency_ref: None,
                 txn_tax_detail: None,
+                bill_addr: None,
+                ship_addr: None,
+                department_ref: None,
             },
         };
         assert_eq!(operation_name(&update), "update");

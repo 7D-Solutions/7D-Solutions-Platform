@@ -407,11 +407,15 @@ async fn qbo_outbound_create_invoice_returns_valid_id() {
                 std::env::var("QBO_DEFAULT_ITEM_REF").unwrap_or_else(|_| "1".to_string()),
             ),
             tax_code_ref: None,
+            department_ref: None,
         }],
         due_date: Some("2026-12-31".to_string()),
         doc_number: Some("AR-001".to_string()),
         currency_ref: None,
         txn_tax_detail: None,
+        bill_addr: None,
+        ship_addr: None,
+        department_ref: None,
     };
 
     let result = client.create_invoice(&payload, Uuid::new_v4()).await;
