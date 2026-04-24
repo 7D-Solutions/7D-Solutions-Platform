@@ -65,6 +65,83 @@ impl TokenRefresher for HttpTokenRefresher {
                     .await
                     .map_err(|e| format!("Failed to parse token response: {}", e))
             }
+            "ups" => {
+                let client_id = std::env::var("UPS_CLIENT_ID")
+                    .map_err(|_| "UPS_CLIENT_ID not configured".to_string())?;
+                let client_secret = std::env::var("UPS_CLIENT_SECRET")
+                    .map_err(|_| "UPS_CLIENT_SECRET not configured".to_string())?;
+                let token_url = std::env::var("UPS_TOKEN_URL").unwrap_or_else(|_| {
+                    "https://onlinetools.ups.com/security/v1/oauth/refresh".to_string()
+                });
+
+                let resp = self
+                    .client
+                    .post(&token_url)
+                    .basic_auth(&client_id, Some(&client_secret))
+                    .form(&[
+                        ("grant_type", "refresh_token"),
+                        ("refresh_token", refresh_token),
+                    ])
+                    .send()
+                    .await
+                    .map_err(|e| format!("HTTP request failed: {}", e))?;
+
+                if !resp.status().is_success() {
+                    let status = resp.status();
+                    let body = resp.text().await.unwrap_or_default();
+                    return Err(format!("Token refresh failed: HTTP {} — {}", status, body));
+                }
+
+                resp.json::<TokenResponse>()
+                    .await
+                    .map_err(|e| format!("Failed to parse token response: {}", e))
+            }
+            "fedex" => {
+                let client_id = std::env::var("FEDEX_CLIENT_ID")
+                    .map_err(|_| "FEDEX_CLIENT_ID not configured".to_string())?;
+                let client_secret = std::env::var("FEDEX_CLIENT_SECRET")
+                    .map_err(|_| "FEDEX_CLIENT_SECRET not configured".to_string())?;
+                let token_url = std::env::var("FEDEX_TOKEN_URL").unwrap_or_else(|_| {
+                    "https://apis.fedex.com/oauth/token".to_string()
+                });
+
+                #[derive(serde::Deserialize)]
+                struct FedexTokenResponse {
+                    access_token: String,
+                    expires_in: i64,
+                }
+
+                let resp = self
+                    .client
+                    .post(&token_url)
+                    .form(&[
+                        ("grant_type", "client_credentials"),
+                        ("client_id", client_id.as_str()),
+                        ("client_secret", client_secret.as_str()),
+                        ("scope", "oob"),
+                    ])
+                    .send()
+                    .await
+                    .map_err(|e| format!("HTTP request failed: {}", e))?;
+
+                if !resp.status().is_success() {
+                    let status = resp.status();
+                    let body = resp.text().await.unwrap_or_default();
+                    return Err(format!("Token refresh failed: HTTP {} — {}", status, body));
+                }
+
+                let fedex = resp
+                    .json::<FedexTokenResponse>()
+                    .await
+                    .map_err(|e| format!("Failed to parse FedEx token response: {}", e))?;
+
+                Ok(TokenResponse {
+                    access_token: fedex.access_token,
+                    refresh_token: String::new(),
+                    expires_in: fedex.expires_in,
+                    x_refresh_token_expires_in: 0,
+                })
+            }
             other => Err(format!("No refresh implementation for provider: {}", other)),
         }
     }

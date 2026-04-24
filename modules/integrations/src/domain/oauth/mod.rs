@@ -131,7 +131,7 @@ pub struct TokenResponse {
     pub refresh_token: String,
     /// Seconds until access token expires.
     pub expires_in: i64,
-    /// Seconds until refresh token expires (Intuit-specific).
-    #[serde(default)]
+    /// Seconds until refresh token expires. QBO emits `x_refresh_token_expires_in`; UPS emits `refresh_token_expires_in`.
+    #[serde(default, alias = "refresh_token_expires_in")]
     pub x_refresh_token_expires_in: i64,
 }

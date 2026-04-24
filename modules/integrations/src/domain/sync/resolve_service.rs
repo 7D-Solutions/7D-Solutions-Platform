@@ -152,6 +152,7 @@ pub async fn resolve_conflict_transactional(
         ("customer", "edit") | ("customer", "creation") | ("customer", "deletion") => {}
         ("invoice", "edit") | ("invoice", "creation") | ("invoice", "deletion") => {}
         ("payment", "edit") | ("payment", "creation") | ("payment", "deletion") => {}
+        ("item", "edit") | ("item", "creation") | ("item", "deletion") => {}
         _ => {
             return Err(ResolveConflictError::UnsupportedEntityType(
                 conflict.entity_type.clone(),
@@ -365,7 +366,7 @@ async fn process_bulk_item(
         conflict.entity_type.as_str(),
         conflict.conflict_class.as_str(),
     ) {
-        ("customer" | "invoice" | "payment", "edit" | "creation" | "deletion") => {}
+        ("customer" | "invoice" | "payment" | "item", "edit" | "creation" | "deletion") => {}
         _ => {
             return BulkResolveOutcome::UnsupportedEntityType {
                 conflict_id: cid,

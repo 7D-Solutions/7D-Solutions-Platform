@@ -4,6 +4,9 @@
 > **Standard:** See `docs/VERSIONING.md` for the rules governing this file.
 
 
+## 2.43.0
+- feat(oauth): UPS and FedEx token refresh arms in HttpTokenRefresher; serde alias refresh_token_expires_in → x_refresh_token_expires_in ([bd-6rlla])
+
 ## 2.42.0
 - feat(sync): accept item as entity_type in resolve_conflict_transactional and bulk_resolve_conflicts allowlists ([bd-dz8rz])
 
