@@ -14,6 +14,7 @@ use integrations_rs::domain::sync::resolve_service::{
 };
 use serial_test::serial;
 use sqlx::postgres::PgPoolOptions;
+use std::time::Duration;
 use uuid::Uuid;
 
 async fn setup_db() -> sqlx::PgPool {
@@ -24,6 +25,7 @@ async fn setup_db() -> sqlx::PgPool {
     });
     let pool = PgPoolOptions::new()
         .max_connections(10)
+        .acquire_timeout(Duration::from_secs(90))
         .connect(&url)
         .await
         .expect("Failed to connect to integrations test DB");
