@@ -1,26 +1,149 @@
 //! HTTP handlers for OAuth connection lifecycle.
 //!
 //! Routes:
-//!   GET  /api/integrations/oauth/connect/{provider}     — redirect to provider auth URL
-//!   GET  /api/integrations/oauth/callback/{provider}    — handle provider redirect
+//!   GET  /api/integrations/oauth/connect/{provider}     — redirect to provider auth URL (307)
+//!   GET  /api/integrations/oauth/callback/{provider}    — handle provider redirect (always 302)
 //!   GET  /api/integrations/oauth/status/{provider}      — connection status
 //!   POST /api/integrations/oauth/disconnect/{provider}  — disconnect
 //!   POST /api/integrations/oauth/import                 — seed tokens directly (admin + env gate)
 
 use axum::{
+    body::Body,
     extract::{Path, Query, State},
-    http::StatusCode,
-    response::{IntoResponse, Redirect},
+    http::{header, StatusCode},
+    response::{IntoResponse, Redirect, Response},
     Extension, Json,
 };
+use base64::Engine as _;
+use hmac::{Hmac, Mac};
 use platform_http_contracts::ApiError;
 use security::VerifiedClaims;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
+use sha2::Sha256;
 use std::sync::Arc;
 
 use crate::domain::oauth::{service, OAuthConnectionInfo, OAuthError, TokenResponse};
 use crate::AppState;
 use platform_sdk::extract_tenant;
+
+type HmacSha256 = Hmac<Sha256>;
+
+// ============================================================================
+// Signed-state helpers
+// ============================================================================
+
+/// State payload carried through the OAuth redirect roundtrip.
+#[derive(Debug, Serialize, Deserialize)]
+pub struct OAuthStatePayload {
+    pub app_id: String,
+    pub return_url: String,
+    pub nonce: String,
+}
+
+fn new_nonce() -> String {
+    base64::engine::general_purpose::URL_SAFE_NO_PAD
+        .encode(uuid::Uuid::new_v4().as_bytes())
+}
+
+fn state_secret() -> Result<Vec<u8>, String> {
+    let raw = std::env::var("OAUTH_STATE_SECRET")
+        .map_err(|_| "OAUTH_STATE_SECRET not set".to_string())?;
+    if raw.len() < 32 {
+        return Err("OAUTH_STATE_SECRET too short".to_string());
+    }
+    Ok(raw.into_bytes())
+}
+
+/// Encode payload as `base64url(json).base64url(hmac_sha256)`.
+pub fn encode_state(payload: &OAuthStatePayload) -> Result<String, String> {
+    let json = serde_json::to_string(payload).map_err(|e| e.to_string())?;
+    let encoded_json =
+        base64::engine::general_purpose::URL_SAFE_NO_PAD.encode(json.as_bytes());
+
+    let secret = state_secret()?;
+    let mut mac =
+        HmacSha256::new_from_slice(&secret).map_err(|e| format!("HMAC init: {e}"))?;
+    mac.update(encoded_json.as_bytes());
+    let sig = mac.finalize().into_bytes();
+    let encoded_sig = base64::engine::general_purpose::URL_SAFE_NO_PAD.encode(sig.as_slice());
+
+    Ok(format!("{}.{}", encoded_json, encoded_sig))
+}
+
+/// Decode and HMAC-verify a state string produced by `encode_state`.
+pub fn decode_state(state: &str) -> Result<OAuthStatePayload, String> {
+    let dot = state.rfind('.').ok_or("invalid state format: no dot separator")?;
+    let encoded_json = &state[..dot];
+    let encoded_sig = &state[dot + 1..];
+
+    let sig_bytes = base64::engine::general_purpose::URL_SAFE_NO_PAD
+        .decode(encoded_sig)
+        .map_err(|_| "invalid signature encoding")?;
+
+    let secret = state_secret()?;
+    let mut mac =
+        HmacSha256::new_from_slice(&secret).map_err(|e| format!("HMAC init: {e}"))?;
+    mac.update(encoded_json.as_bytes());
+    mac.verify_slice(&sig_bytes)
+        .map_err(|_| "HMAC verification failed")?;
+
+    let json_bytes = base64::engine::general_purpose::URL_SAFE_NO_PAD
+        .decode(encoded_json)
+        .map_err(|_| "invalid payload encoding")?;
+    let payload: OAuthStatePayload =
+        serde_json::from_slice(&json_bytes).map_err(|_| "invalid payload JSON")?;
+
+    Ok(payload)
+}
+
+/// Append a query param to a URL, using '&' or '?' as appropriate.
+pub fn append_query(base: &str, param: &str) -> String {
+    if base.contains('?') {
+        format!("{}&{}", base, param)
+    } else {
+        format!("{}?{}", base, param)
+    }
+}
+
+/// Extract scheme://host[:port] from a URL string.
+fn extract_origin(url: &str) -> Option<String> {
+    let scheme_end = url.find("://")?;
+    let scheme = &url[..scheme_end];
+    let after_scheme = &url[scheme_end + 3..];
+    let authority_end = after_scheme
+        .find(|c: char| c == '/' || c == '?')
+        .unwrap_or(after_scheme.len());
+    Some(format!("{}://{}", scheme, &after_scheme[..authority_end]))
+}
+
+/// Return true if the origin of `url` exactly matches any comma-separated entry in
+/// `allowed_origins` (case-insensitive scheme+host+port comparison).
+fn is_origin_allowed(url: &str, allowed_origins: &str) -> bool {
+    let origin = match extract_origin(url) {
+        Some(o) => o.to_lowercase(),
+        None => return false,
+    };
+    for entry in allowed_origins.split(',') {
+        let entry = entry.trim().to_lowercase();
+        if !entry.is_empty() && origin == entry {
+            return true;
+        }
+    }
+    false
+}
+
+fn default_return_url() -> String {
+    std::env::var("OAUTH_DEFAULT_RETURN_URL").unwrap_or_default()
+}
+
+/// Build a true 302 Found redirect response (Intuit go-live requirement).
+fn redirect_302(url: &str) -> Response {
+    Response::builder()
+        .status(StatusCode::FOUND)
+        .header(header::LOCATION, url)
+        .body(Body::empty())
+        .expect("valid redirect response")
+}
 
 // ============================================================================
 // Error helpers
@@ -141,8 +264,13 @@ impl FedExConfig {
 }
 
 // ============================================================================
-// Callback query params
+// Query params
 // ============================================================================
+
+#[derive(Debug, Deserialize, Default)]
+pub struct ConnectQuery {
+    pub return_url: Option<String>,
+}
 
 #[derive(Debug, Deserialize)]
 pub struct OAuthCallbackQuery {
@@ -163,17 +291,20 @@ pub struct OAuthCallbackQuery {
     params(("provider" = String, Path, description = "OAuth provider (e.g. quickbooks)")),
     responses(
         (status = 307, description = "Redirect to provider authorization page"),
-        (status = 422, description = "Unsupported provider"),
+        (status = 422, description = "Unsupported provider or return_url origin not allowed"),
     ),
     security(("bearer" = [])),
     tag = "OAuth"
 )]
 /// GET /api/integrations/oauth/connect/{provider}
 ///
-/// Redirects the user to the provider's authorization page.
+/// Redirects the user to the provider's authorization page (307).
+/// Optional `return_url` query param controls post-callback destination.
+/// The origin of return_url must be in OAUTH_ALLOWED_RETURN_ORIGINS or 422 is returned.
 pub async fn connect(
     claims: Option<Extension<VerifiedClaims>>,
     Path(provider): Path<String>,
+    Query(query): Query<ConnectQuery>,
 ) -> impl IntoResponse {
     let app_id = match extract_tenant(&claims) {
         Ok(id) => id,
@@ -182,6 +313,35 @@ pub async fn connect(
     if let Err(e) = validate_provider(&provider) {
         return e.into_response();
     }
+
+    let allowed_origins = std::env::var("OAUTH_ALLOWED_RETURN_ORIGINS").unwrap_or_default();
+    let return_url = match query.return_url {
+        Some(ru) if !ru.is_empty() => {
+            if !is_origin_allowed(&ru, &allowed_origins) {
+                return ApiError::new(
+                    422,
+                    "origin_not_allowed",
+                    "return_url origin is not in the allowed return origins list",
+                )
+                .into_response();
+            }
+            ru
+        }
+        _ => default_return_url(),
+    };
+
+    let payload = OAuthStatePayload {
+        app_id: app_id.clone(),
+        return_url,
+        nonce: new_nonce(),
+    };
+    let state = match encode_state(&payload) {
+        Ok(s) => s,
+        Err(e) => {
+            tracing::error!(error = %e, "Failed to encode OAuth state");
+            return ApiError::internal("Failed to build OAuth state").into_response();
+        }
+    };
 
     let auth_url = match provider.as_str() {
         "quickbooks" => {
@@ -195,7 +355,7 @@ pub async fn connect(
                 urlencoding::encode(&config.client_id),
                 urlencoding::encode("com.intuit.quickbooks.accounting"),
                 urlencoding::encode(&config.redirect_uri),
-                urlencoding::encode(&app_id),
+                urlencoding::encode(&state),
             )
         }
         "ups" => {
@@ -206,7 +366,7 @@ pub async fn connect(
                 urlencoding::encode(&config.client_id),
                 urlencoding::encode("shipping"),
                 urlencoding::encode(&config.redirect_uri),
-                urlencoding::encode(&app_id),
+                urlencoding::encode(&state),
             )
         }
         "fedex" => {
@@ -217,7 +377,7 @@ pub async fn connect(
                 urlencoding::encode(&config.client_id),
                 urlencoding::encode("shipping"),
                 urlencoding::encode(&config.redirect_uri),
-                urlencoding::encode(&app_id),
+                urlencoding::encode(&state),
             )
         }
         _ => unreachable!("validate_provider already checked"),
@@ -233,56 +393,64 @@ pub async fn connect(
         ("provider" = String, Path, description = "OAuth provider"),
         ("code" = String, Query, description = "Authorization code"),
         ("realmId" = String, Query, description = "QBO realm ID"),
-        ("state" = Option<String>, Query, description = "State parameter (app_id)"),
+        ("state" = Option<String>, Query, description = "HMAC-signed state payload"),
     ),
     responses(
-        (status = 201, description = "Connection created", body = OAuthConnectionInfo),
-        (status = 502, description = "Token exchange failed"),
+        (status = 302, description = "Redirect to return_url with connected=1 or error=<reason>"),
     ),
     tag = "OAuth"
 )]
 /// GET /api/integrations/oauth/callback/{provider}
 ///
 /// Handles the redirect from the provider after user authorization.
-/// Exchanges the auth code for tokens and persists the connection.
+/// Always returns 302 — never a JSON body (Intuit go-live security requirement).
+/// The return destination is extracted from the HMAC-verified state payload.
 pub async fn callback(
     State(state): State<Arc<AppState>>,
     Path(provider): Path<String>,
     Query(params): Query<OAuthCallbackQuery>,
-) -> impl IntoResponse {
-    if let Err(e) = validate_provider(&provider) {
-        return e.into_response();
-    }
-
-    // state carries the app_id set during connect — validate before any env/token work (CSRF guard)
-    let app_id = match params.state.as_deref() {
+) -> Response {
+    // Decode and HMAC-verify state before doing anything else (CSRF guard).
+    let raw_state = match params.state.as_deref() {
         Some(s) if !s.is_empty() => s.to_string(),
         _ => {
-            tracing::warn!("OAuth callback rejected: missing or empty state — possible CSRF");
-            return ApiError::new(400, "invalid_state", "Missing OAuth state parameter")
-                .into_response();
+            tracing::warn!("OAuth callback: missing or empty state — possible CSRF");
+            return redirect_302(&append_query(&default_return_url(), "error=invalid_state"));
         }
     };
 
-    // Per-provider: resolve realm_id, scopes, and token endpoint config.
-    // quickbooks requires realmId from the callback query; UPS/FedEx use empty string (schema NOT NULL).
+    let decoded_state = match decode_state(&raw_state) {
+        Ok(p) => p,
+        Err(e) => {
+            tracing::warn!(error = %e, "OAuth callback: state decode/HMAC failed — possible CSRF or replay");
+            return redirect_302(&append_query(&default_return_url(), "error=invalid_state"));
+        }
+    };
+
+    let app_id = decoded_state.app_id.clone();
+    let return_url = decoded_state.return_url.clone();
+
+    if validate_provider(&provider).is_err() {
+        return redirect_302(&append_query(&return_url, "error=invalid_provider"));
+    }
+
     let (token_url, client_id, client_secret, redirect_uri, realm_id, scopes) =
         match provider.as_str() {
             "quickbooks" => {
                 let realm_id = match params.realm_id.as_deref() {
                     Some(r) if !r.is_empty() => r.to_string(),
                     _ => {
-                        return ApiError::new(
-                            422,
-                            "missing_realm_id",
-                            "realmId is required for quickbooks",
-                        )
-                        .into_response();
+                        return redirect_302(&append_query(&return_url, "error=missing_realm_id"));
                     }
                 };
                 let config = match QboConfig::from_env() {
                     Ok(c) => c,
-                    Err(e) => return e.into_response(),
+                    Err(_) => {
+                        return redirect_302(&append_query(
+                            &return_url,
+                            "error=server_misconfiguration",
+                        ));
+                    }
                 };
                 (
                     config.token_url,
@@ -318,7 +486,6 @@ pub async fn callback(
             _ => unreachable!("validate_provider already checked"),
         };
 
-    // Exchange authorization code for tokens
     let client = reqwest::Client::new();
     let resp = match client
         .post(&token_url)
@@ -333,32 +500,23 @@ pub async fn callback(
     {
         Ok(r) => r,
         Err(e) => {
-            return oauth_error(OAuthError::TokenExchangeFailed(format!(
-                "HTTP request failed: {}",
-                e
-            )))
-            .into_response()
+            tracing::warn!(error = %e, "OAuth token exchange HTTP error");
+            return redirect_302(&append_query(&return_url, "error=token_exchange_failed"));
         }
     };
 
     if !resp.status().is_success() {
         let status = resp.status();
         let body = resp.text().await.unwrap_or_default();
-        return oauth_error(OAuthError::TokenExchangeFailed(format!(
-            "Token exchange failed: HTTP {} — {}",
-            status, body
-        )))
-        .into_response();
+        tracing::warn!(http_status = %status, body = %body, "OAuth token exchange non-2xx");
+        return redirect_302(&append_query(&return_url, "error=token_exchange_failed"));
     }
 
     let tokens: TokenResponse = match resp.json().await {
         Ok(t) => t,
         Err(e) => {
-            return oauth_error(OAuthError::TokenExchangeFailed(format!(
-                "Failed to parse token response: {}",
-                e
-            )))
-            .into_response()
+            tracing::warn!(error = %e, "OAuth token response parse error");
+            return redirect_302(&append_query(&return_url, "error=token_exchange_failed"));
         }
     };
 
@@ -372,8 +530,11 @@ pub async fn callback(
     )
     .await
     {
-        Ok(connection) => (StatusCode::CREATED, Json(connection)).into_response(),
-        Err(e) => oauth_error(e).into_response(),
+        Ok(_) => redirect_302(&append_query(&return_url, "connected=1")),
+        Err(e) => {
+            tracing::warn!(error = %e, "OAuth create_connection failed");
+            redirect_302(&append_query(&return_url, "error=db_write_failed"))
+        }
     }
 }
 
@@ -424,8 +585,6 @@ pub async fn status(
     tag = "OAuth"
 )]
 /// POST /api/integrations/oauth/disconnect/{provider}
-///
-/// Marks the connection as disconnected.
 pub async fn disconnect(
     State(state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,
@@ -449,10 +608,6 @@ pub async fn disconnect(
 // Token import (dev/CI seeding, admin-gated)
 // ============================================================================
 
-/// Runtime gate: allow import when OAUTH_IMPORT_ENABLED=1 OR ENV is not production.
-///
-/// Both conditions are checked so a misconfigured production deployment without
-/// the env flag can never be reached via this endpoint.
 pub fn is_import_enabled() -> bool {
     if std::env::var("OAUTH_IMPORT_ENABLED")
         .map(|v| v == "1")
@@ -464,16 +619,13 @@ pub fn is_import_enabled() -> bool {
     env != "production"
 }
 
-/// Request body for the token import endpoint.
 #[derive(Debug, Deserialize, utoipa::ToSchema)]
 pub struct ImportTokensRequest {
     pub provider: String,
     pub realm_id: String,
     pub access_token: String,
     pub refresh_token: String,
-    /// Seconds until the access token expires.
     pub expires_in: i64,
-    /// Seconds until the refresh token expires (0 → default 100 days).
     pub refresh_token_expires_in: i64,
     pub scopes: String,
 }
@@ -491,13 +643,6 @@ pub struct ImportTokensRequest {
     tag = "OAuth"
 )]
 /// POST /api/integrations/oauth/import
-///
-/// Seed OAuth tokens directly — skips the browser consent flow.
-/// Requires the `integrations.oauth.admin` permission AND
-/// either `OAUTH_IMPORT_ENABLED=1` or a non-production environment.
-///
-/// Tokens are encrypted with `pgp_sym_encrypt` via `OAUTH_ENCRYPTION_KEY`,
-/// identical to the callback path.
 pub async fn import_tokens(
     State(state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,

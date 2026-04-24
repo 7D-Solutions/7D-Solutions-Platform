@@ -4,6 +4,9 @@
 > **Standard:** See `docs/VERSIONING.md` for the rules governing this file.
 
 
+## 2.3.5
+- chore: rename crate from pdf-editor-rs to pdf-editor (no behavioral change)
+
 ## 2.3.4
 - fix: signature DRAW coords — multiply signaturePath points by annotation width/height before rendering; fixes sub-1pt blob ([bd-884lm])
 - feat: add optional `schemaVersion` field to annotation payload (inbound-only, defaults to "1.0", wire name `schemaVersion`) ([bd-bt4yr])

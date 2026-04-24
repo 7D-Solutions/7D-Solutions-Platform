@@ -4,6 +4,12 @@
 > **Standard:** See `docs/VERSIONING.md` for the rules governing this file.
 
 
+## 2.39.0
+- feat(qbo): tax write-back client — QboLineItem gains tax_code_ref, QboTxnTaxDetail block allows platform-computed tax override in QBO; Avalara credential loading from GCP Secret Manager or env-var fallback ([bd-kkhf4])
+
+## 2.38.0
+- feat(oauth): OAuth callback always returns 302; HMAC-signed state param prevents CSRF; startup validation panics on missing OAUTH_STATE_SECRET / OAUTH_DEFAULT_RETURN_URL / OAUTH_ALLOWED_RETURN_ORIGINS ([bd-5899o])
+
 ## 2.37.0
 - feat: load INTEGRATIONS_SECRETS_KEY from Google Secret Manager at startup (yup-oauth2 + reqwest; GCP path gated on GOOGLE_APPLICATION_CREDENTIALS + GCP_PROJECT_ID being non-empty; any GCP failure falls back to env var) ([bd-zpi79])
 

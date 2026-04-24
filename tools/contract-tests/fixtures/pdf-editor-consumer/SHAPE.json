@@ -1,0 +1,13 @@
+{
+  "id": "fixture-shape-001",
+  "type": "SHAPE",
+  "x": 244.8,
+  "y": 350.1,
+  "pageNumber": 1,
+  "timestamp": "2024-01-15T10:00:00.000Z",
+  "shapeType": "RECTANGLE",
+  "width": 122.4,
+  "height": 91.8,
+  "color": "#3182ce",
+  "borderColor": "#2c5282"
+}

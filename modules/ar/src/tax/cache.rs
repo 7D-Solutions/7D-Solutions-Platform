@@ -5,7 +5,6 @@ use serde::{Deserialize, Serialize};
 use sqlx::PgPool;
 use uuid::Uuid;
 
-use super::providers::LocalTaxProvider;
 use tax_core::models::*;
 use tax_core::{TaxProvider, TaxProviderError};
 
@@ -117,6 +116,68 @@ pub async fn find_cached_quote(
 }
 
 // ============================================================================
+// Cache lookup by idempotency key (config-version-aware)
+// ============================================================================
+
+/// Look up a cached tax quote by exact idempotency key.
+///
+/// Used by the per-tenant config-aware flow where the idempotency key encodes
+/// `(app_id, invoice_id, request_hash, config_version)` so that config changes
+/// invalidate cached entries without requiring schema modifications.
+pub async fn find_cached_quote_by_idempotency_key(
+    pool: &PgPool,
+    app_id: &str,
+    invoice_id: &str,
+    idempotency_key: &str,
+) -> Result<Option<CachedTaxQuote>, sqlx::Error> {
+    let row = sqlx::query_as::<
+        _,
+        (
+            Uuid,
+            String,
+            String,
+            String,
+            String,
+            String,
+            String,
+            i64,
+            serde_json::Value,
+            serde_json::Value,
+            DateTime<Utc>,
+            Option<DateTime<Utc>>,
+        ),
+    >(
+        r#"
+        SELECT id, app_id, invoice_id, idempotency_key, request_hash,
+               provider, provider_quote_ref, total_tax_minor,
+               tax_by_line, response_json, quoted_at, expires_at
+        FROM ar_tax_quote_cache
+        WHERE app_id = $1 AND invoice_id = $2 AND idempotency_key = $3
+        "#,
+    )
+    .bind(app_id)
+    .bind(invoice_id)
+    .bind(idempotency_key)
+    .fetch_optional(pool)
+    .await?;
+
+    Ok(row.map(|r| CachedTaxQuote {
+        id: r.0,
+        app_id: r.1,
+        invoice_id: r.2,
+        idempotency_key: r.3,
+        request_hash: r.4,
+        provider: r.5,
+        provider_quote_ref: r.6,
+        total_tax_minor: r.7,
+        tax_by_line: r.8,
+        response_json: r.9,
+        quoted_at: r.10,
+        expires_at: r.11,
+    }))
+}
+
+// ============================================================================
 // Cache store
 // ============================================================================
 
@@ -183,9 +244,10 @@ pub async fn store_quote_cache(
 ///
 /// The idempotency_key is derived from (app_id, invoice_id, request_hash) to ensure
 /// that the same invoice content always maps to the same cache entry.
-pub async fn quote_tax_cached(
+pub async fn quote_tax_cached<P: TaxProvider>(
     pool: &PgPool,
-    provider: &LocalTaxProvider,
+    provider: &P,
+    provider_name: &str,
     app_id: &str,
     req: TaxQuoteRequest,
 ) -> Result<TaxQuoteResponse, TaxProviderError> {
@@ -238,7 +300,7 @@ pub async fn quote_tax_cached(
         &invoice_id,
         &idempotency_key,
         &request_hash,
-        "local",
+        provider_name,
         &response,
     )
     .await

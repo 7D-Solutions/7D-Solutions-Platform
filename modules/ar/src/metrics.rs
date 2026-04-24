@@ -25,6 +25,8 @@ pub struct ArMetrics {
     pub event_consumer_lag_messages: IntGaugeVec,
     /// Outbox queue depth — number of unpublished events
     pub outbox_queue_depth: IntGauge,
+    /// Tax reconciliation flags raised since last restart
+    pub tax_reconciliation_flagged_total: IntCounterVec,
     registry: Registry,
 }
 
@@ -104,6 +106,15 @@ impl ArMetrics {
         )?;
         registry.register(Box::new(outbox_queue_depth.clone()))?;
 
+        let tax_reconciliation_flagged_total = IntCounterVec::new(
+            Opts::new(
+                "ar_tax_reconciliation_flagged_total",
+                "Tax reconciliation divergences flagged by tenant",
+            ),
+            &["tenant_id"],
+        )?;
+        registry.register(Box::new(tax_reconciliation_flagged_total.clone()))?;
+
         Ok(Self {
             invoices_created_total,
             invoices_paid_total,
@@ -113,6 +124,7 @@ impl ArMetrics {
             http_requests_total,
             event_consumer_lag_messages,
             outbox_queue_depth,
+            tax_reconciliation_flagged_total,
             registry,
         })
     }

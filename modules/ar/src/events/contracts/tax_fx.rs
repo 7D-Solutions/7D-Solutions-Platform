@@ -12,6 +12,9 @@ use crate::events::envelope::{create_ar_envelope, EventEnvelope};
 // Event Type Constants
 // ============================================================================
 
+/// Tenant tax calculation source or provider was changed by an admin
+pub const EVENT_TYPE_TAX_CONFIG_CHANGED: &str = "ar.tax_config_changed";
+
 /// Tax was calculated for an invoice draft (pre-commit, reversible)
 pub const EVENT_TYPE_TAX_QUOTED: &str = "tax.quoted";
 
@@ -170,6 +173,50 @@ pub fn build_tax_voided_envelope(
         correlation_id,
         causation_id,
         MUTATION_CLASS_REVERSAL.to_string(),
+        payload,
+    )
+    .with_schema_version(AR_EVENT_SCHEMA_VERSION.to_string())
+}
+
+// ============================================================================
+// Payload: ar.tax_config_changed (bd-kkhf4)
+// ============================================================================
+
+/// Payload for ar.tax_config_changed
+///
+/// Emitted when a tenant admin changes the tax calculation source or provider.
+/// Subscribers (reconciliation worker, sync adapter) use this to open a new
+/// diff window at `changed_at`, ensuring in-flight invoices are not affected.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TaxConfigChangedPayload {
+    pub tenant_id: String,
+    /// "platform" | "external_accounting_software"
+    pub tax_calculation_source: String,
+    /// "local" | "zero" | "avalara"
+    pub provider_name: String,
+    /// New config_version after this mutation
+    pub config_version: i64,
+    pub updated_by: String,
+    pub changed_at: DateTime<Utc>,
+}
+
+/// Build an envelope for ar.tax_config_changed
+///
+/// mutation_class: DATA_MUTATION (records config state change)
+pub fn build_tax_config_changed_envelope(
+    event_id: Uuid,
+    tenant_id: String,
+    correlation_id: String,
+    causation_id: Option<String>,
+    payload: TaxConfigChangedPayload,
+) -> EventEnvelope<TaxConfigChangedPayload> {
+    create_ar_envelope(
+        event_id,
+        tenant_id,
+        EVENT_TYPE_TAX_CONFIG_CHANGED.to_string(),
+        correlation_id,
+        causation_id,
+        MUTATION_CLASS_DATA_MUTATION.to_string(),
         payload,
     )
     .with_schema_version(AR_EVENT_SCHEMA_VERSION.to_string())
@@ -348,7 +395,7 @@ mod tests {
     }
 
     #[test]
-    fn tax_line_detail_serializes_correctly() {
+    fn tax_line_detail_serializes_correctly() -> Result<(), serde_json::Error> {
         let detail = TaxLineDetail {
             line_id: "line-1".to_string(),
             tax_minor: 500,
@@ -356,10 +403,11 @@ mod tests {
             jurisdiction: "New York".to_string(),
             tax_type: "sales_tax".to_string(),
         };
-        let json = serde_json::to_string(&detail).unwrap();
+        let json = serde_json::to_string(&detail)?;
         assert!(json.contains("tax_minor"));
         assert!(json.contains("jurisdiction"));
         assert!(json.contains("New York"));
+        Ok(())
     }
 
     #[test]
@@ -402,7 +450,7 @@ mod tests {
     }
 
     #[test]
-    fn invoice_settled_fx_payload_serializes_correctly() {
+    fn invoice_settled_fx_payload_serializes_correctly() -> Result<(), serde_json::Error> {
         let payload = InvoiceSettledFxPayload {
             tenant_id: "tenant-1".to_string(),
             invoice_id: "inv-fx-2".to_string(),
@@ -419,11 +467,12 @@ mod tests {
             realized_gain_loss_minor: -500,
             settled_at: Utc::now(),
         };
-        let json = serde_json::to_string(&payload).unwrap();
+        let json = serde_json::to_string(&payload)?;
         assert!(json.contains("txn_currency"));
         assert!(json.contains("rpt_currency"));
         assert!(json.contains("recognition_rate_id"));
         assert!(json.contains("settlement_rate_id"));
         assert!(json.contains("realized_gain_loss_minor"));
+        Ok(())
     }
 }

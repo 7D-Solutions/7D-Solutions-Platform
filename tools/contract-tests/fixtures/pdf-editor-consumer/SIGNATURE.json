@@ -1,0 +1,39 @@
+{
+  "id": "fixture-signature-001",
+  "type": "SIGNATURE",
+  "x": 306,
+  "y": 633.6,
+  "pageNumber": 1,
+  "timestamp": "2024-01-15T10:00:00.000Z",
+  "signatureMethod": "DRAW",
+  "width": 183.6,
+  "height": 48.96,
+  "color": "#1a1a1a",
+  "signaturePath": [
+    {
+      "x": 0.05,
+      "y": 0.5,
+      "newStroke": false
+    },
+    {
+      "x": 0.15,
+      "y": 0.3,
+      "newStroke": false
+    },
+    {
+      "x": 0.25,
+      "y": 0.6,
+      "newStroke": false
+    },
+    {
+      "x": 0.35,
+      "y": 0.4,
+      "newStroke": true
+    },
+    {
+      "x": 0.45,
+      "y": 0.5,
+      "newStroke": false
+    }
+  ]
+}

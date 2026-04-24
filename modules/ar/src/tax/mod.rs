@@ -22,18 +22,22 @@ pub mod cache;
 pub mod jurisdiction;
 pub mod models;
 pub mod providers;
+pub mod reconciliation;
 pub mod reporting;
+pub mod tenant_config;
 
 // Re-export all public types for backward-compatible `crate::tax::Foo` paths
 pub use cache::{
-    compute_request_hash, find_cached_quote, quote_tax_cached, store_quote_cache, CachedTaxQuote,
+    compute_request_hash, find_cached_quote, find_cached_quote_by_idempotency_key,
+    quote_tax_cached, store_quote_cache, CachedTaxQuote,
 };
 pub use jurisdiction::{
     compute_resolution_hash, get_jurisdiction_snapshot, insert_jurisdiction, insert_tax_rule,
     persist_jurisdiction_snapshot, resolve_and_persist_tax, resolve_jurisdiction,
 };
 pub use models::*;
-pub use providers::{LocalTaxProvider, ZeroTaxProvider};
+pub use providers::{AvalaraConfig, AvalaraProvider, LocalTaxProvider, ZeroTaxProvider};
+pub use tenant_config::TaxTenantConfig;
 pub use reporting::{
     render_csv, resolve_stacked_jurisdictions, tax_summary_by_period, TaxSummaryRow,
 };

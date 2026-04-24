@@ -6,15 +6,21 @@
 //! POST /api/ar/tax/void    — Void committed tax on refund/cancellation
 
 use axum::{
-    extract::State, http::StatusCode, response::IntoResponse, routing::post, Extension, Json,
-    Router,
+    extract::State,
+    http::StatusCode,
+    response::IntoResponse,
+    routing::{get, post},
+    Extension, Json, Router,
 };
 use security::VerifiedClaims;
 use serde::{Deserialize, Serialize};
 use sqlx::PgPool;
 
 use crate::domain::tax_config as tax_config_repo;
-use crate::tax::{self, LocalTaxProvider, TaxAddress, TaxLineItem, TaxQuoteRequest};
+use crate::tax::{
+    self, AvalaraConfig, AvalaraProvider, LocalTaxProvider, TaxAddress, TaxLineItem,
+    TaxQuoteRequest, ZeroTaxProvider,
+};
 
 // ============================================================================
 // Request / Response types
@@ -107,6 +113,11 @@ pub fn tax_router(db: PgPool) -> Router {
         )
         .route("/api/ar/tax/commit", post(commit_tax_handler))
         .route("/api/ar/tax/void", post(void_tax_handler))
+        .route(
+            "/api/ar/tax/tenant-config",
+            get(super::tax_tenant_config::get_tax_tenant_config)
+                .put(super::tax_tenant_config::put_tax_tenant_config),
+        )
         .with_state(db)
 }
 
@@ -131,13 +142,44 @@ pub async fn quote_tax_handler(
         Err(err) => return err.into_response(),
     };
 
+    let tenant_uuid = match uuid::Uuid::parse_str(&tenant_id) {
+        Ok(u) => u,
+        Err(_) => {
+            return (
+                StatusCode::BAD_REQUEST,
+                Json(ErrorBody {
+                    error: "invalid tenant_id in JWT".to_string(),
+                }),
+            )
+                .into_response();
+        }
+    };
+
+    // Fetch per-tenant config; return default (external_accounting_software) if no row.
+    let tenant_cfg = match crate::tax::tenant_config::get(&pool, tenant_uuid).await {
+        Ok(cfg) => cfg,
+        Err(e) => {
+            tracing::error!(error = %e, "Failed to load tenant tax config");
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(ErrorBody {
+                    error: "tax config unavailable".to_string(),
+                }),
+            )
+                .into_response();
+        }
+    };
+
     let correlation_id = body
         .correlation_id
+        .clone()
         .unwrap_or_else(|| uuid::Uuid::new_v4().to_string());
+
+    let invoice_id = body.invoice_id.clone();
 
     let req = TaxQuoteRequest {
         tenant_id: tenant_id.clone(),
-        invoice_id: body.invoice_id.clone(),
+        invoice_id: invoice_id.clone(),
         customer_id: body.customer_id,
         ship_to: body.ship_to,
         ship_from: body.ship_from,
@@ -147,56 +189,70 @@ pub async fn quote_tax_handler(
         correlation_id,
     };
 
-    // Check if we already have a cached quote with the same request hash
-    let request_hash = tax::compute_request_hash(&req);
-    let cached_hit = tax::find_cached_quote(&pool, &tenant_id, &body.invoice_id, &request_hash)
-        .await
-        .ok()
-        .flatten();
+    // External source: return zero — the external accounting software (QBO/AST) computes tax.
+    // No provider call, no cache write; zero is the AR platform's contribution.
+    if !tenant_cfg.is_platform_source() {
+        let tax_by_line: Vec<TaxByLineHttp> = req
+            .line_items
+            .iter()
+            .map(|l| TaxByLineHttp {
+                line_id: l.line_id.clone(),
+                tax_minor: 0,
+                rate: 0.0,
+                jurisdiction: "external".to_string(),
+                tax_type: "none".to_string(),
+            })
+            .collect();
 
-    if let Some(cached) = cached_hit {
-        let tax_by_line: Vec<tax::TaxByLine> = match serde_json::from_value(cached.tax_by_line) {
-            Ok(v) => v,
-            Err(e) => {
-                return (
-                    StatusCode::INTERNAL_SERVER_ERROR,
-                    Json(ErrorBody {
-                        error: format!("cached data corrupt: {}", e),
-                    }),
-                )
-                    .into_response();
-            }
-        };
-
-        let resp = QuoteTaxHttpResponse {
-            total_tax_minor: cached.total_tax_minor,
-            tax_by_line: tax_by_line
-                .into_iter()
-                .map(|l| TaxByLineHttp {
-                    line_id: l.line_id,
-                    tax_minor: l.tax_minor,
-                    rate: l.rate,
-                    jurisdiction: l.jurisdiction,
-                    tax_type: l.tax_type,
-                })
-                .collect(),
-            provider_quote_ref: cached.provider_quote_ref,
-            provider: cached.provider,
-            cached: true,
-            quoted_at: cached.quoted_at,
-        };
-
-        return (StatusCode::OK, Json(resp)).into_response();
+        return (
+            StatusCode::OK,
+            Json(QuoteTaxHttpResponse {
+                total_tax_minor: 0,
+                tax_by_line,
+                provider_quote_ref: format!("external-{}", uuid::Uuid::new_v4()),
+                provider: "external_accounting_software".to_string(),
+                cached: false,
+                quoted_at: chrono::Utc::now(),
+            }),
+        )
+            .into_response();
     }
 
-    // Cache miss — call local provider
-    let provider = LocalTaxProvider;
-    match tax::quote_tax_cached(&pool, &provider, &tenant_id, req).await {
-        Ok(response) => {
-            let resp = QuoteTaxHttpResponse {
-                total_tax_minor: response.total_tax_minor,
-                tax_by_line: response
-                    .tax_by_line
+    // Platform source: cache keyed by (tenant, invoice, content_hash, config_version).
+    // Including config_version ensures cache misses whenever the tenant's config changes,
+    // preventing stale provider quotes from being returned after a source/provider flip.
+    let request_hash = tax::compute_request_hash(&req);
+    let idempotency_key = format!(
+        "{}:{}:{}:cv{}",
+        tenant_id, invoice_id, request_hash, tenant_cfg.config_version
+    );
+
+    let cached_hit =
+        tax::find_cached_quote_by_idempotency_key(&pool, &tenant_id, &invoice_id, &idempotency_key)
+            .await
+            .ok()
+            .flatten();
+
+    if let Some(cached) = cached_hit {
+        let tax_by_line: Vec<tax::TaxByLine> =
+            match serde_json::from_value(cached.tax_by_line) {
+                Ok(v) => v,
+                Err(e) => {
+                    return (
+                        StatusCode::INTERNAL_SERVER_ERROR,
+                        Json(ErrorBody {
+                            error: format!("cached data corrupt: {}", e),
+                        }),
+                    )
+                        .into_response();
+                }
+            };
+
+        return (
+            StatusCode::OK,
+            Json(QuoteTaxHttpResponse {
+                total_tax_minor: cached.total_tax_minor,
+                tax_by_line: tax_by_line
                     .into_iter()
                     .map(|l| TaxByLineHttp {
                         line_id: l.line_id,
@@ -206,12 +262,81 @@ pub async fn quote_tax_handler(
                         tax_type: l.tax_type,
                     })
                     .collect(),
-                provider_quote_ref: response.provider_quote_ref,
-                provider: "local".to_string(),
-                cached: false,
-                quoted_at: response.quoted_at,
-            };
-            (StatusCode::OK, Json(resp)).into_response()
+                provider_quote_ref: cached.provider_quote_ref,
+                provider: cached.provider,
+                cached: true,
+                quoted_at: cached.quoted_at,
+            }),
+        )
+            .into_response();
+    }
+
+    // Cache miss — call the configured provider then store with the config_version-aware key.
+    // We call the provider directly (not via quote_tax_cached) so the cache entry uses
+    // `idempotency_key = "{tenant}:{invoice}:{hash}:cv{version}"`.  The old quote_tax_cached
+    // would store with a key that lacks the config_version suffix, creating a split-brain
+    // where the pre-check never finds the stored entry.
+    use tax::TaxProvider;
+
+    let (provider_name, quote_result): (&str, Result<_, tax::TaxProviderError>) =
+        match tenant_cfg.provider_name.as_str() {
+            "avalara" => {
+                let cfg = match AvalaraConfig::from_env() {
+                    Ok(c) => c,
+                    Err(_) => {
+                        return (
+                            StatusCode::SERVICE_UNAVAILABLE,
+                            Json(ErrorBody {
+                                error: "Avalara provider not configured for this deployment"
+                                    .to_string(),
+                            }),
+                        )
+                            .into_response();
+                    }
+                };
+                ("avalara", AvalaraProvider::new(cfg).quote_tax(req).await)
+            }
+            "zero" => ("zero", ZeroTaxProvider.quote_tax(req).await),
+            _ => ("local", LocalTaxProvider.quote_tax(req).await),
+        };
+
+    match quote_result {
+        Ok(response) => {
+            // Persist with config_version-aware idempotency_key so subsequent requests
+            // by the same tenant/invoice/config_version get a cache hit.
+            let _ = tax::store_quote_cache(
+                &pool,
+                &tenant_id,
+                &invoice_id,
+                &idempotency_key,
+                &request_hash,
+                provider_name,
+                &response,
+            )
+            .await;
+
+            (
+                StatusCode::OK,
+                Json(QuoteTaxHttpResponse {
+                    total_tax_minor: response.total_tax_minor,
+                    tax_by_line: response
+                        .tax_by_line
+                        .into_iter()
+                        .map(|l| TaxByLineHttp {
+                            line_id: l.line_id,
+                            tax_minor: l.tax_minor,
+                            rate: l.rate,
+                            jurisdiction: l.jurisdiction,
+                            tax_type: l.tax_type,
+                        })
+                        .collect(),
+                    provider_quote_ref: response.provider_quote_ref,
+                    provider: provider_name.to_string(),
+                    cached: false,
+                    quoted_at: response.quoted_at,
+                }),
+            )
+                .into_response()
         }
         Err(e) => {
             let status = match &e {

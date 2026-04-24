@@ -1,0 +1,16 @@
+{
+  "id": "fixture-callout-001",
+  "type": "CALLOUT",
+  "x": 367.2,
+  "y": 237.6,
+  "pageNumber": 1,
+  "timestamp": "2024-01-15T10:00:00.000Z",
+  "text": "Review this section carefully.",
+  "fontSize": 11.016,
+  "fontFamily": "Arial",
+  "width": 153,
+  "height": 73.44,
+  "color": "#1a202c",
+  "bgColor": "#fffde7",
+  "borderColor": "#f57f17"
+}
