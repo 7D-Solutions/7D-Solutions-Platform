@@ -1,6 +1,6 @@
 [package]
 name = "integrations-rs"
-version = "2.40.0"
+version = "2.42.0"
 edition = "2021"
 description = "External system connectors, webhook routing, and reference linking"
 
@@ -51,6 +51,7 @@ reqwest = { version = "0.12", default-features = false, features = ["json", "rus
 yup-oauth2 = "8"
 async-trait = "0.1"
 urlencoding = "2"
+scopeguard = "1"
 platform-http-contracts = { path = "../../platform/http-contracts", features = ["axum"] }
 utoipa = { version = "5", features = ["chrono", "uuid"] }
 config-validator = { path = "../../platform/config-validator" }

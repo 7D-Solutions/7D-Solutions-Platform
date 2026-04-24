@@ -95,6 +95,7 @@ pub const INTEGRATIONS_SYNC_AUTHORITY_FLIP: &str = "integrations.sync.authority.
 pub const INTEGRATIONS_SYNC_CONFLICT_RESOLVE: &str = "integrations.sync.conflict.resolve";
 pub const INTEGRATIONS_SYNC_PUSH: &str = "integrations.sync.push";
 pub const INTEGRATIONS_SYNC_READ: &str = "integrations.sync.read";
+pub const INTEGRATIONS_SYNC_PULL: &str = "integrations.sync.pull";
 
 // ── TTP (Third-Party Processing) ─────────────────────────────────────────────
 
@@ -270,6 +271,7 @@ mod tests {
         assert!(!INTEGRATIONS_SYNC_CONFLICT_RESOLVE.is_empty());
         assert!(!INTEGRATIONS_SYNC_PUSH.is_empty());
         assert!(!INTEGRATIONS_SYNC_READ.is_empty());
+        assert!(!INTEGRATIONS_SYNC_PULL.is_empty());
     }
 
     #[test]
@@ -280,6 +282,7 @@ mod tests {
         assert_ne!(INTEGRATIONS_SYNC_CONFLICT_RESOLVE, INTEGRATIONS_MUTATE);
         assert_ne!(INTEGRATIONS_SYNC_PUSH, INTEGRATIONS_MUTATE);
         assert_ne!(INTEGRATIONS_SYNC_READ, INTEGRATIONS_READ);
+        assert_ne!(INTEGRATIONS_SYNC_PULL, INTEGRATIONS_MUTATE);
     }
 
     #[test]
@@ -289,6 +292,7 @@ mod tests {
             INTEGRATIONS_SYNC_CONFLICT_RESOLVE,
             INTEGRATIONS_SYNC_PUSH,
             INTEGRATIONS_SYNC_READ,
+            INTEGRATIONS_SYNC_PULL,
         ];
         for i in 0..caps.len() {
             for j in (i + 1)..caps.len() {
@@ -304,6 +308,7 @@ mod tests {
             INTEGRATIONS_SYNC_CONFLICT_RESOLVE,
             INTEGRATIONS_SYNC_PUSH,
             INTEGRATIONS_SYNC_READ,
+            INTEGRATIONS_SYNC_PULL,
         ] {
             assert!(
                 perm.contains('.'),

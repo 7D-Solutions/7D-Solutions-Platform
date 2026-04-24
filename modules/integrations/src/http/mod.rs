@@ -7,6 +7,7 @@ pub mod oauth;
 pub mod qbo_invoice;
 pub mod qbo_settings;
 pub mod sync;
+pub mod sync_pull;
 pub mod webhooks;
 
 use axum::{
@@ -174,6 +175,17 @@ pub fn router(state: Arc<AppState>) -> Router {
         ]))
         .with_state(state.clone());
 
+    // Sync — manual pull (prod-safe per-tenant CDC trigger)
+    let sync_pull = Router::new()
+        .route(
+            "/api/integrations/sync/pull",
+            post(sync_pull::sync_pull),
+        )
+        .route_layer(RequirePermissionsLayer::new(&[
+            permissions::INTEGRATIONS_SYNC_PULL,
+        ]))
+        .with_state(state.clone());
+
     // Sync — reads (authority state, conflicts, dlq, push-attempts, jobs)
     let sync_reads = Router::new()
         .route(
@@ -228,6 +240,7 @@ pub fn router(state: Arc<AppState>) -> Router {
         .merge(sync_authority)
         .merge(sync_conflict_resolve)
         .merge(sync_push)
+        .merge(sync_pull)
         .merge(sync_reads)
         .merge(webhook_inbound)
         .merge(oauth_callback)

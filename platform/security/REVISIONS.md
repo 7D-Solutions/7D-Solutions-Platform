@@ -3,6 +3,9 @@
 > **What this file is:** The complete record of every change to this module after it was proven. Agents modifying this module must add a row here before committing. Products adopting a new version read this file to understand what changed.
 > **Standard:** See `docs/VERSIONING.md` for the rules governing this file.
 
+## 1.14.0
+- feat(permissions): add INTEGRATIONS_SYNC_PULL constant for prod-safe manual sync-pull endpoint ([bd-sqo0q])
+
 ## 1.13.0
 - feat: structured error_codes module — stable JWT/tenant failure taxonomy with const wire strings; public API, wire strings must never change ([bd-5899o])
 

@@ -4,6 +4,12 @@
 > **Standard:** See `docs/VERSIONING.md` for the rules governing this file.
 
 
+## 2.42.0
+- feat(sync): accept item as entity_type in resolve_conflict_transactional and bulk_resolve_conflicts allowlists ([bd-dz8rz])
+
+## 2.41.0
+- feat(sync): prod-safe per-tenant manual sync-pull endpoint — POST /api/integrations/sync/pull; partial unique index enforces one inflight pull per tenant; RAII guard ensures inflight rows always terminate; permission integrations.sync.pull ([bd-sqo0q])
+
 ## 2.40.0
 - feat(qbo): add BillAddr, ShipAddr, DepartmentRef to QboInvoicePayload; QboLineItem gains per-line department_ref (emitted under SalesItemLineDetail per QBO wire spec); QboAddress struct for address fields ([bd-y9igm])
 
