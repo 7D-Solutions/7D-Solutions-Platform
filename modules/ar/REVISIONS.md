@@ -4,6 +4,9 @@
 > **Standard:** See `docs/VERSIONING.md` for the rules governing this file.
 
 
+## 6.8.1
+- fix(tax): expose reconciliation_threshold_pct in TaxTenantConfigResponse and TaxTenantConfig repo struct; adds SELECT/RETURNING column and round-trip test ([bd-v2qxt])
+
 ## 6.8.0
 - feat(tax): reconciliation worker — detects divergence between platform-computed tax and QBO AST for dual-source tenants; writes to ar_tax_reconciliation_log with outlier flagging ([bd-jsbai])
 

@@ -434,6 +434,65 @@ async fn tax_calc_uses_tenant_config_cache_keyed_per_tenant() {
 }
 
 // ============================================================================
+// CHANGE 1 tests: reconciliation_threshold_pct surfaced in GET response
+// ============================================================================
+
+/// Insert a row with reconciliation_threshold_pct=0.015 directly via SQL, then GET
+/// and assert the response returns the custom threshold.
+#[tokio::test]
+async fn tenant_tax_config_get_returns_reconciliation_threshold_pct() {
+    use axum::body::Body;
+    use axum::http::{Method, Request, StatusCode};
+    use http_body_util::BodyExt;
+    use tower::ServiceExt;
+
+    let pool = common::setup_pool().await;
+    let tenant_id = Uuid::new_v4();
+    cleanup_tenant_config(&pool, tenant_id).await;
+
+    // Insert directly with a custom threshold (bypass set() which doesn't expose threshold writes)
+    sqlx::query(
+        "INSERT INTO ar_tenant_tax_config \
+         (tenant_id, tax_calculation_source, provider_name, config_version, \
+          updated_at, updated_by, reconciliation_threshold_pct) \
+         VALUES ($1, 'platform', 'local', 1, NOW(), $2, 0.015)",
+    )
+    .bind(tenant_id)
+    .bind(Uuid::new_v4())
+    .execute(&pool)
+    .await
+    .expect("insert test row with custom threshold");
+
+    let app = app_with_tax(&pool, tenant_id);
+    let req = Request::builder()
+        .method(Method::GET)
+        .uri("/api/ar/tax/tenant-config")
+        .body(Body::empty())
+        .unwrap();
+
+    let resp = app.oneshot(req).await.expect("oneshot");
+    assert_eq!(resp.status(), StatusCode::OK);
+
+    let bytes = resp.into_body().collect().await.unwrap().to_bytes();
+    let json: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+
+    // rust_decimal serializes NUMERIC as a string preserving DB precision ("0.0150" for NUMERIC(6,4))
+    let pct = &json["reconciliation_threshold_pct"];
+    let pct_val: f64 = pct
+        .as_str()
+        .and_then(|s| s.parse().ok())
+        .or_else(|| pct.as_f64())
+        .expect("reconciliation_threshold_pct must be a numeric string or number");
+    assert!(
+        (pct_val - 0.015).abs() < 1e-9,
+        "expected reconciliation_threshold_pct ≈ 0.015, got: {}",
+        pct
+    );
+
+    cleanup_tenant_config(&pool, tenant_id).await;
+}
+
+// ============================================================================
 // Avalara sandbox test (requires AVALARA_* env vars; ignored by default)
 // ============================================================================
 

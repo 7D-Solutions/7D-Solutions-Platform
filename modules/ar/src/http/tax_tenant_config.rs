@@ -6,6 +6,7 @@
 //! Permission: `tenant_admin` or `admin` role required (enforced inside handlers).
 
 use axum::{extract::State, http::StatusCode, response::IntoResponse, Extension, Json};
+use rust_decimal::Decimal;
 use security::VerifiedClaims;
 use serde::{Deserialize, Serialize};
 use sqlx::PgPool;
@@ -31,6 +32,7 @@ pub struct TaxTenantConfigResponse {
     pub provider_name: String,
     pub config_version: i64,
     pub updated_at: chrono::DateTime<chrono::Utc>,
+    pub reconciliation_threshold_pct: Decimal,
 }
 
 #[derive(Debug, Serialize)]
@@ -73,6 +75,7 @@ pub async fn get_tax_tenant_config(
                 provider_name: cfg.provider_name,
                 config_version: cfg.config_version,
                 updated_at: cfg.updated_at,
+                reconciliation_threshold_pct: cfg.reconciliation_threshold_pct,
             }),
         )
             .into_response(),
@@ -202,6 +205,7 @@ pub async fn put_tax_tenant_config(
                     provider_name: cfg.provider_name,
                     config_version: cfg.config_version,
                     updated_at: cfg.updated_at,
+                    reconciliation_threshold_pct: cfg.reconciliation_threshold_pct,
                 }),
             )
                 .into_response()

@@ -8,6 +8,7 @@
 //! invalidate cached quotes, preventing stale values on in-flight invoice batches.
 
 use chrono::{DateTime, Utc};
+use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
 use sqlx::PgPool;
 use uuid::Uuid;
@@ -36,6 +37,8 @@ pub struct TaxTenantConfig {
     pub config_version: i64,
     pub updated_at: DateTime<Utc>,
     pub updated_by: Uuid,
+    /// Fractional divergence threshold that triggers a reconciliation flag (e.g. 0.005 = 0.5%).
+    pub reconciliation_threshold_pct: Decimal,
 }
 
 impl TaxTenantConfig {
@@ -51,6 +54,7 @@ impl TaxTenantConfig {
             config_version: 1,
             updated_at: Utc::now(),
             updated_by: Uuid::nil(),
+            reconciliation_threshold_pct: Decimal::new(5, 3), // 0.005
         }
     }
 
@@ -69,9 +73,10 @@ impl TaxTenantConfig {
 /// The default is: source=external_accounting_software, provider=local, config_version=1.
 /// No row is written for the default — callers must call `set` explicitly to persist.
 pub async fn get(pool: &PgPool, tenant_id: Uuid) -> Result<TaxTenantConfig, sqlx::Error> {
-    let row: Option<(String, String, i64, DateTime<Utc>, Uuid)> = sqlx::query_as(
+    let row: Option<(String, String, i64, DateTime<Utc>, Uuid, Decimal)> = sqlx::query_as(
         r#"
-        SELECT tax_calculation_source, provider_name, config_version, updated_at, updated_by
+        SELECT tax_calculation_source, provider_name, config_version, updated_at, updated_by,
+               reconciliation_threshold_pct
         FROM ar_tenant_tax_config
         WHERE tenant_id = $1
         "#,
@@ -81,13 +86,14 @@ pub async fn get(pool: &PgPool, tenant_id: Uuid) -> Result<TaxTenantConfig, sqlx
     .await?;
 
     Ok(row
-        .map(|(source, provider, version, updated_at, updated_by)| TaxTenantConfig {
+        .map(|(source, provider, version, updated_at, updated_by, threshold)| TaxTenantConfig {
             tenant_id,
             tax_calculation_source: source,
             provider_name: provider,
             config_version: version,
             updated_at,
             updated_by,
+            reconciliation_threshold_pct: threshold,
         })
         .unwrap_or_else(|| TaxTenantConfig::default_for(tenant_id)))
 }
@@ -111,7 +117,7 @@ pub async fn set(
     let mut tx = pool.begin().await?;
 
     // Upsert with atomic config_version increment
-    let row: (String, String, i64, DateTime<Utc>) = sqlx::query_as(
+    let row: (String, String, i64, DateTime<Utc>, Decimal) = sqlx::query_as(
         r#"
         INSERT INTO ar_tenant_tax_config
             (tenant_id, tax_calculation_source, provider_name, config_version, updated_at, updated_by)
@@ -122,7 +128,8 @@ pub async fn set(
             config_version         = ar_tenant_tax_config.config_version + 1,
             updated_at             = NOW(),
             updated_by             = EXCLUDED.updated_by
-        RETURNING tax_calculation_source, provider_name, config_version, updated_at
+        RETURNING tax_calculation_source, provider_name, config_version, updated_at,
+                  reconciliation_threshold_pct
         "#,
     )
     .bind(tenant_id)
@@ -139,6 +146,7 @@ pub async fn set(
         config_version: row.2,
         updated_at: row.3,
         updated_by,
+        reconciliation_threshold_pct: row.4,
     };
 
     // Emit TaxConfigChanged into the outbox before the transaction commits.
