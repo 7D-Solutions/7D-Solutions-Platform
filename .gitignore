@@ -95,7 +95,11 @@ panes/.*.lock
 .no-clear
 
 # Flywheel ephemeral runtime state and secrets (chatgpt.json, auth state, etc.)
-.flywheel/
+# Use .flywheel/* instead of .flywheel/ so file-level negations below work
+# (git does not descend into a directory ignored with a trailing slash).
+.flywheel/*
+# Exception: rehearsal hooks are repo-owned, not ephemeral (AgentCore br-rehearse convention)
+!.flywheel/rehearsal-workspace-check.sh
 
 # Browser profiles (Chrome session data — contains live cookies/tokens/sessions)
 .browser-profiles/
