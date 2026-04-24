@@ -14,6 +14,7 @@ use integrations_rs::domain::external_refs::{
 };
 use integrations_rs::domain::oauth::{ConnectionStatus, OAuthConnectionInfo};
 use integrations_rs::http::qbo_invoice::{UpdateInvoiceRequest, UpdateInvoiceResponse};
+use integrations_rs::http::sync::PushEntityRequest;
 use platform_http_contracts::{ApiError, FieldError, PaginatedResponse, PaginationMeta};
 
 #[derive(OpenApi)]
@@ -52,6 +53,8 @@ use platform_http_contracts::{ApiError, FieldError, PaginatedResponse, Paginatio
         integrations_rs::http::webhooks::inbound_webhook,
         // QBO Invoice
         integrations_rs::http::qbo_invoice::update_invoice,
+        // SyncPush
+        integrations_rs::http::sync::push_entity,
     ),
     components(schemas(
         // External refs
@@ -63,6 +66,8 @@ use platform_http_contracts::{ApiError, FieldError, PaginatedResponse, Paginatio
         OAuthConnectionInfo, ConnectionStatus,
         // QBO Invoice
         UpdateInvoiceRequest, UpdateInvoiceResponse,
+        // SyncPush
+        PushEntityRequest,
         // Shared envelopes
         ApiError, FieldError, PaginatedResponse<ExternalRef>,
         PaginatedResponse<ConnectorCapabilities>, PaginatedResponse<ConnectorConfig>,

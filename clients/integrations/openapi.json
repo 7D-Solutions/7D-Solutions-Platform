@@ -14,7 +14,7 @@
         "tags": [
           "Connectors"
         ],
-        "summary": "GET /api/integrations/connectors \u2014 list this tenant's connector configs",
+        "summary": "GET /api/integrations/connectors — list this tenant's connector configs",
         "operationId": "list_connectors",
         "parameters": [
           {
@@ -49,7 +49,7 @@
         "tags": [
           "Connectors"
         ],
-        "summary": "POST /api/integrations/connectors \u2014 register a connector config for this tenant",
+        "summary": "POST /api/integrations/connectors — register a connector config for this tenant",
         "operationId": "register_connector",
         "requestBody": {
           "content": {
@@ -88,7 +88,7 @@
         "tags": [
           "Connectors"
         ],
-        "summary": "GET /api/integrations/connectors/types \u2014 list all registered connector types and their capabilities",
+        "summary": "GET /api/integrations/connectors/types — list all registered connector types and their capabilities",
         "operationId": "list_connector_types",
         "responses": {
           "200": {
@@ -114,7 +114,7 @@
         "tags": [
           "Connectors"
         ],
-        "summary": "GET /api/integrations/connectors/:id \u2014 fetch a single connector config",
+        "summary": "GET /api/integrations/connectors/:id — fetch a single connector config",
         "operationId": "get_connector",
         "parameters": [
           {
@@ -155,7 +155,7 @@
         "tags": [
           "Connectors"
         ],
-        "summary": "POST /api/integrations/connectors/:id/test \u2014 run the connector's test action",
+        "summary": "POST /api/integrations/connectors/:id/test — run the connector's test action",
         "operationId": "run_connector_test",
         "parameters": [
           {
@@ -463,7 +463,7 @@
           "OAuth"
         ],
         "summary": "GET /api/integrations/oauth/callback/{provider}",
-        "description": "Handles the redirect from the provider after user authorization.\nExchanges the auth code for tokens and persists the connection.",
+        "description": "Handles the redirect from the provider after user authorization.\nAlways returns 302 — never a JSON body (Intuit go-live security requirement).\nThe return destination is extracted from the HMAC-verified state payload.",
         "operationId": "callback",
         "parameters": [
           {
@@ -496,7 +496,7 @@
           {
             "name": "state",
             "in": "query",
-            "description": "State parameter (app_id)",
+            "description": "HMAC-signed state payload",
             "required": false,
             "schema": {
               "type": "string"
@@ -504,18 +504,8 @@
           }
         ],
         "responses": {
-          "201": {
-            "description": "Connection created",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/OAuthConnectionInfo"
-                }
-              }
-            }
-          },
-          "502": {
-            "description": "Token exchange failed"
+          "302": {
+            "description": "Redirect to return_url with connected=1 or error=<reason>"
           }
         }
       }
@@ -526,7 +516,7 @@
           "OAuth"
         ],
         "summary": "GET /api/integrations/oauth/connect/{provider}",
-        "description": "Redirects the user to the provider's authorization page.",
+        "description": "Redirects the user to the provider's authorization page (307).\nOptional `return_url` query param controls post-callback destination.\nThe origin of return_url must be in OAUTH_ALLOWED_RETURN_ORIGINS or 422 is returned.",
         "operationId": "connect",
         "parameters": [
           {
@@ -544,7 +534,7 @@
             "description": "Redirect to provider authorization page"
           },
           "422": {
-            "description": "Unsupported provider"
+            "description": "Unsupported provider or return_url origin not allowed"
           }
         },
         "security": [
@@ -560,7 +550,6 @@
           "OAuth"
         ],
         "summary": "POST /api/integrations/oauth/disconnect/{provider}",
-        "description": "Marks the connection as disconnected.",
         "operationId": "disconnect",
         "parameters": [
           {
@@ -697,6 +686,40 @@
         ]
       }
     },
+    "/api/integrations/sync/push/{entity_type}": {
+      "post": {
+        "tags": [
+          "SyncPush"
+        ],
+        "summary": "POST /api/integrations/sync/push/{entity_type}",
+        "description": "Supported entity types: customer, invoice, payment.\nReturns the full push taxonomy variant as JSON with `\"outcome\"` discriminant.",
+        "operationId": "push_entity",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PushEntityRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Push dispatched"
+          },
+          "409": {
+            "description": "Duplicate intent"
+          },
+          "412": {
+            "description": "Not connected"
+          },
+          "422": {
+            "description": "Invalid entity_type or operation"
+          }
+        }
+      }
+    },
     "/api/webhooks/inbound/{system}": {
       "post": {
         "tags": [
@@ -719,10 +742,7 @@
             "description": "Webhook accepted or duplicate",
             "content": {
               "application/json": {
-                "schema": {
-                  "type": "object",
-                  "additionalProperties": true
-                }
+                "schema": {}
               }
             }
           },
@@ -769,6 +789,15 @@
               "string",
               "null"
             ]
+          },
+          "retry_after_secs": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "Optional `Retry-After` header value in seconds.",
+            "minimum": 0
           }
         }
       },
@@ -938,7 +967,7 @@
       },
       "ExternalRef": {
         "type": "object",
-        "description": "A single external ID mapping: internal entity \u2194 external system identifier.",
+        "description": "A single external ID mapping: internal entity ↔ external system identifier.",
         "required": [
           "id",
           "app_id",
@@ -1188,7 +1217,7 @@
             "type": "array",
             "items": {
               "type": "object",
-              "description": "A single external ID mapping: internal entity \u2194 external system identifier.",
+              "description": "A single external ID mapping: internal entity ↔ external system identifier.",
               "required": [
                 "id",
                 "app_id",
@@ -1267,6 +1296,32 @@
           "total_pages": {
             "type": "integer",
             "format": "int64"
+          }
+        }
+      },
+      "PushEntityRequest": {
+        "type": "object",
+        "required": [
+          "entity_id",
+          "operation",
+          "authority_version",
+          "request_fingerprint",
+          "payload"
+        ],
+        "properties": {
+          "authority_version": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "entity_id": {
+            "type": "string"
+          },
+          "operation": {
+            "type": "string"
+          },
+          "payload": {},
+          "request_fingerprint": {
+            "type": "string"
           }
         }
       },

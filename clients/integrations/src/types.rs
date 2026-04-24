@@ -4,9 +4,9 @@
 
 #![allow(unused_imports)]
 
-use crate::*;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
+use crate::*;
 
 /// Pagination metadata for list endpoints.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -177,6 +177,15 @@ pub struct OAuthConnectionInfo {
     pub updated_at: chrono::DateTime<chrono::Utc>,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PushEntityRequest {
+    pub authority_version: i64,
+    pub entity_id: String,
+    pub operation: String,
+    pub payload: serde_json::Value,
+    pub request_fingerprint: String,
+}
+
 /// Request body for registering a connector.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RegisterConnectorRequest {
@@ -244,3 +253,4 @@ pub struct UpdateInvoiceResponse {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub tracking_num: Option<String>,
 }
+

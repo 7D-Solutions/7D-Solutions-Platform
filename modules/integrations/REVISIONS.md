@@ -4,6 +4,9 @@
 > **Standard:** See `docs/VERSIONING.md` for the rules governing this file.
 
 
+## 2.45.0
+- feat(openapi): tag push_entity handler with SyncPush and register PushEntityRequest in openapi_dump; regenerated clients/integrations picks up pub mod syncpush + SyncpushClient automatically ([bd-0yprd])
+
 ## 2.44.0
 - feat(sync): startup reconciliation for orphaned inflight sync_pull_log rows; configurable via SYNC_PULL_ORPHAN_THRESHOLD_SECS (default 600s) ([bd-vbedx])
 

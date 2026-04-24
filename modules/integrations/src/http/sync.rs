@@ -496,7 +496,7 @@ impl TokenProvider for DbTokenProvider {
     }
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, ToSchema)]
 pub struct PushEntityRequest {
     pub entity_id: String,
     pub operation: String,
@@ -505,6 +505,18 @@ pub struct PushEntityRequest {
     pub payload: Value,
 }
 
+#[utoipa::path(
+    post,
+    path = "/api/integrations/sync/push/{entity_type}",
+    tag = "SyncPush",
+    request_body = PushEntityRequest,
+    responses(
+        (status = 200, description = "Push dispatched"),
+        (status = 409, description = "Duplicate intent"),
+        (status = 412, description = "Not connected"),
+        (status = 422, description = "Invalid entity_type or operation"),
+    ),
+)]
 /// POST /api/integrations/sync/push/{entity_type}
 ///
 /// Supported entity types: customer, invoice, payment.
