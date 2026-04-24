@@ -189,10 +189,12 @@ pub async fn process_ar_invoice_opened(
             amount,
             description: Some(format!("AR Invoice {invoice_id}")),
             item_ref: Some(item_ref),
+            tax_code_ref: None, // tax_source=external_accounting_software: no override
         }],
         due_date,
         doc_number: Some(invoice_id.to_string()),
         currency_ref: None,
+        txn_tax_detail: None, // populated by tax-calc engine when available
     };
 
     let qbo_invoice = qbo
@@ -402,6 +404,7 @@ pub async fn process_order_ingested(
                 amount,
                 description: Some(format!("{} (qty {})", li.title, li.quantity)),
                 item_ref: Some(item_ref.clone()),
+                tax_code_ref: None, // tax_source=external_accounting_software: no override
             }
         })
         .collect();
@@ -412,6 +415,7 @@ pub async fn process_order_ingested(
         due_date: None,
         doc_number: Some(format!("{source}-{order_id}")),
         currency_ref: None,
+        txn_tax_detail: None, // populated by tax-calc engine when available
     };
 
     let qbo_invoice = qbo

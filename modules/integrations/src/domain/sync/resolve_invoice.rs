@@ -278,6 +278,7 @@ mod tests {
             due_date: None,
             doc_number: None,
             currency_ref: None,
+            txn_tax_detail: None,
         });
         assert_eq!(operation_name(&create), "create");
 
@@ -290,6 +291,7 @@ mod tests {
                 due_date: None,
                 doc_number: None,
                 currency_ref: None,
+                txn_tax_detail: None,
             },
         };
         assert_eq!(operation_name(&update), "update");

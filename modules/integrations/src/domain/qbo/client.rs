@@ -21,6 +21,32 @@ pub struct QboLineItem {
     pub description: Option<String>,
     /// QBO Item.Id (e.g. "1" = Services). Optional — omit for untracked line items.
     pub item_ref: Option<String>,
+    /// QBO TaxCode.Id for platform-computed tax override.
+    /// When Some, emitted as SalesItemLineDetail.TaxCodeRef.value.
+    /// When None, field is omitted entirely (preserves existing wire shape).
+    pub tax_code_ref: Option<String>,
+}
+
+/// A single line in a QBO TxnTaxDetail block.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct QboTxnTaxLine {
+    /// QBO TaxRate.Id.
+    pub tax_rate_ref: String,
+    /// Tax amount for this line.
+    pub tax_amount: f64,
+    /// Taxable amount this rate applies to.
+    pub taxable_amount: f64,
+}
+
+/// Invoice-level tax override block (QBO TxnTaxDetail).
+///
+/// When present, QBO accepts the platform-computed tax total instead of
+/// re-computing via its Automated Sales Tax engine.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct QboTxnTaxDetail {
+    /// Total tax override amount. QBO honors this via TotalTaxCalcOverrideAmount.
+    pub total_tax: f64,
+    pub lines: Vec<QboTxnTaxLine>,
 }
 
 /// Payload for creating a QBO invoice via POST /v3/company/{realm}/invoice.
@@ -36,6 +62,10 @@ pub struct QboInvoicePayload {
     /// ISO-4217 currency code. Required for multi-currency realms; omit for
     /// single-currency companies (defaults to realm currency).
     pub currency_ref: Option<String>,
+    /// Platform-computed tax override. When Some, QBO accepts our tax total
+    /// instead of running its Automated Sales Tax engine.
+    /// When None, field is omitted — QBO behavior is unchanged.
+    pub txn_tax_detail: Option<QboTxnTaxDetail>,
 }
 
 impl QboInvoicePayload {
@@ -56,6 +86,9 @@ impl QboInvoicePayload {
                 if let Some(ref ir) = item.item_ref {
                     line["SalesItemLineDetail"]["ItemRef"] = serde_json::json!({"value": ir});
                 }
+                if let Some(ref tcr) = item.tax_code_ref {
+                    line["SalesItemLineDetail"]["TaxCodeRef"] = serde_json::json!({"value": tcr});
+                }
                 if let Some(ref desc) = item.description {
                     line["Description"] = Value::String(desc.clone());
                 }
@@ -75,6 +108,25 @@ impl QboInvoicePayload {
         }
         if let Some(ref currency) = self.currency_ref {
             body["CurrencyRef"] = serde_json::json!({"value": currency});
+        }
+        if let Some(ref ttd) = self.txn_tax_detail {
+            let tax_lines: Vec<Value> = ttd
+                .lines
+                .iter()
+                .map(|tl| {
+                    serde_json::json!({
+                        "TaxLineDetail": {
+                            "TaxRateRef": {"value": &tl.tax_rate_ref},
+                            "TaxAmount": tl.tax_amount,
+                            "TaxableAmount": tl.taxable_amount
+                        }
+                    })
+                })
+                .collect();
+            body["TxnTaxDetail"] = serde_json::json!({
+                "TotalTaxCalcOverrideAmount": ttd.total_tax,
+                "TaxLine": tax_lines
+            });
         }
         body
     }
@@ -1261,10 +1313,12 @@ mod tests {
                 amount: 150.00,
                 description: Some("Service fee".to_string()),
                 item_ref: None,
+                tax_code_ref: None,
             }],
             due_date: Some("2026-05-01".to_string()),
             doc_number: Some("INV-001".to_string()),
             currency_ref: None,
+            txn_tax_detail: None,
         };
 
         let result = client
@@ -1366,10 +1420,12 @@ mod tests {
                 amount: 500.00,
                 description: Some("Consulting".to_string()),
                 item_ref: Some("1".to_string()),
+                tax_code_ref: None,
             }],
             due_date: Some("2026-06-15".to_string()),
             doc_number: Some("DOC-999".to_string()),
             currency_ref: None,
+            txn_tax_detail: None,
         };
         let json = payload.to_qbo_json();
         assert_eq!(json["CustomerRef"]["value"].as_str(), Some("5"));
@@ -1396,6 +1452,7 @@ mod tests {
             due_date: None,
             doc_number: None,
             currency_ref: Some("EUR".to_string()),
+            txn_tax_detail: None,
         };
         let json = payload.to_qbo_json();
         assert_eq!(json["CurrencyRef"]["value"].as_str(), Some("EUR"));
@@ -1623,5 +1680,106 @@ mod tests {
             .await;
         assert!(result.is_ok(), "expected success: {:?}", result);
         assert_eq!(state.post_count.load(Ordering::SeqCst), 2);
+    }
+
+    // ── Tax payload tests ─────────────────────────────────────────────────────
+
+    fn baseline_invoice_payload() -> QboInvoicePayload {
+        QboInvoicePayload {
+            customer_ref: "5".to_string(),
+            line_items: vec![QboLineItem {
+                amount: 100.00,
+                description: Some("Service".to_string()),
+                item_ref: Some("1".to_string()),
+                tax_code_ref: None,
+            }],
+            due_date: Some("2026-12-31".to_string()),
+            doc_number: Some("INV-001".to_string()),
+            currency_ref: None,
+            txn_tax_detail: None,
+        }
+    }
+
+    /// None variants must produce byte-identical JSON to the pre-tax-fields baseline.
+    #[test]
+    fn qbo_invoice_tax_payload_none_byte_identical_to_baseline() -> Result<(), serde_json::Error> {
+        let payload = baseline_invoice_payload();
+        let json = payload.to_qbo_json();
+
+        // Verify no tax fields are present when all Options are None
+        let line = &json["Line"].as_array().expect("Line must be array")[0];
+        assert!(
+            line["SalesItemLineDetail"].get("TaxCodeRef").is_none(),
+            "None tax_code_ref must not emit TaxCodeRef field"
+        );
+        assert!(
+            json.get("TxnTaxDetail").is_none(),
+            "None txn_tax_detail must not emit TxnTaxDetail field"
+        );
+
+        // Byte-identical serialization check against stored baseline shape
+        let baseline_str = serde_json::to_string(&json)?;
+        let reparsed: serde_json::Value = serde_json::from_str(&baseline_str)?;
+        assert_eq!(json, reparsed, "serialization must be idempotent");
+        Ok(())
+    }
+
+    /// Some(tax_code_ref) must emit SalesItemLineDetail.TaxCodeRef.value.
+    #[test]
+    fn qbo_invoice_tax_payload_line_tax_code_ref_serializes_as_intuit_shape() {
+        let payload = QboInvoicePayload {
+            line_items: vec![QboLineItem {
+                amount: 100.00,
+                description: None,
+                item_ref: None,
+                tax_code_ref: Some("TAX".to_string()),
+            }],
+            txn_tax_detail: None,
+            ..baseline_invoice_payload()
+        };
+        let json = payload.to_qbo_json();
+        let line = &json["Line"].as_array().expect("Line must be array")[0];
+        assert_eq!(
+            line["SalesItemLineDetail"]["TaxCodeRef"]["value"].as_str(),
+            Some("TAX"),
+            "tax_code_ref=Some(TAX) must emit SalesItemLineDetail.TaxCodeRef.value=TAX"
+        );
+    }
+
+    /// Some(txn_tax_detail) must emit TxnTaxDetail with TotalTaxCalcOverrideAmount.
+    #[test]
+    fn qbo_invoice_tax_payload_txn_tax_detail_serializes_as_override() {
+        let payload = QboInvoicePayload {
+            txn_tax_detail: Some(QboTxnTaxDetail {
+                total_tax: 8.50,
+                lines: vec![QboTxnTaxLine {
+                    tax_rate_ref: "RATE1".to_string(),
+                    tax_amount: 8.50,
+                    taxable_amount: 100.00,
+                }],
+            }),
+            ..baseline_invoice_payload()
+        };
+        let json = payload.to_qbo_json();
+        let ttd = &json["TxnTaxDetail"];
+        assert!(
+            !ttd.is_null(),
+            "txn_tax_detail=Some must emit TxnTaxDetail block"
+        );
+        assert_eq!(
+            ttd["TotalTaxCalcOverrideAmount"].as_f64(),
+            Some(8.50),
+            "total_tax must appear as TotalTaxCalcOverrideAmount"
+        );
+        let tax_lines = ttd["TaxLine"].as_array().expect("TaxLine must be array");
+        assert_eq!(tax_lines.len(), 1);
+        assert_eq!(
+            tax_lines[0]["TaxLineDetail"]["TaxRateRef"]["value"].as_str(),
+            Some("RATE1")
+        );
+        assert_eq!(
+            tax_lines[0]["TaxLineDetail"]["TaxAmount"].as_f64(),
+            Some(8.50)
+        );
     }
 }

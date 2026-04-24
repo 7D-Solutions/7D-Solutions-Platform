@@ -190,6 +190,117 @@ async fn fetch_key_from_gcp(
     Ok(key)
 }
 
+/// Avalara AvaTax credentials loaded from Secret Manager or env-var fallback.
+///
+/// Returns `None` when Avalara is not configured for this deployment — Avalara
+/// is opt-in per tenant (tenants on external_accounting_software tax source do
+/// not need it). Consumers (AR's AvalaraProvider) use `Option` to decide
+/// whether to instantiate the provider at all.
+#[derive(Clone, Debug)]
+#[allow(dead_code)]
+pub struct AvalaraCredentials {
+    pub account_id: String,
+    pub license_key: String,
+}
+
+/// Load Avalara credentials with the same GCP-first, env-var fallback pattern
+/// as `load_secrets_key`. Returns `None` if neither source yields both values.
+///
+/// Lookup order per field:
+/// 1. Google Secret Manager (if `GOOGLE_APPLICATION_CREDENTIALS` + `GCP_PROJECT_ID` set)
+///    under `avalara-sandbox-account-id` / `avalara-sandbox-license-key`.
+///    Any failure logs a warning and falls through to step 2.
+/// 2. `AVALARA_ACCOUNT_ID` / `AVALARA_LICENSE_KEY` env vars.
+#[allow(dead_code)]
+pub async fn load_avalara_credentials() -> Option<AvalaraCredentials> {
+    let gcp_creds = std::env::var("GOOGLE_APPLICATION_CREDENTIALS").unwrap_or_default();
+    let gcp_project = std::env::var("GCP_PROJECT_ID").unwrap_or_default();
+
+    if !gcp_creds.is_empty() && !gcp_project.is_empty() {
+        let id_secret = std::env::var("AVALARA_ACCOUNT_ID_SECRET_NAME")
+            .unwrap_or_else(|_| "avalara-sandbox-account-id".to_string());
+        let key_secret = std::env::var("AVALARA_LICENSE_KEY_SECRET_NAME")
+            .unwrap_or_else(|_| "avalara-sandbox-license-key".to_string());
+
+        let id = fetch_string_from_gcp(&gcp_creds, &gcp_project, &id_secret).await;
+        let key = fetch_string_from_gcp(&gcp_creds, &gcp_project, &key_secret).await;
+
+        if let (Ok(a), Ok(l)) = (id, key) {
+            if !a.is_empty() && !l.is_empty() {
+                return Some(AvalaraCredentials {
+                    account_id: a,
+                    license_key: l,
+                });
+            }
+        } else {
+            tracing::warn!("GCP fetch for Avalara credentials failed, falling back to env vars");
+        }
+    }
+
+    let id = std::env::var("AVALARA_ACCOUNT_ID").unwrap_or_default();
+    let key = std::env::var("AVALARA_LICENSE_KEY").unwrap_or_default();
+    if id.is_empty() || key.is_empty() {
+        return None;
+    }
+    Some(AvalaraCredentials {
+        account_id: id,
+        license_key: key,
+    })
+}
+
+/// Fetch a UTF-8 string secret from Google Secret Manager. Used for Avalara
+/// credentials; `fetch_key_from_gcp` handles the 32-byte binary case.
+#[allow(dead_code)]
+async fn fetch_string_from_gcp(
+    creds_path: &str,
+    project_id: &str,
+    secret_name: &str,
+) -> Result<String, String> {
+    let sa_key = yup_oauth2::read_service_account_key(creds_path)
+        .await
+        .map_err(|e| format!("read service account key: {e}"))?;
+
+    let auth = yup_oauth2::ServiceAccountAuthenticator::builder(sa_key)
+        .build()
+        .await
+        .map_err(|e| format!("build authenticator: {e}"))?;
+
+    let token = auth
+        .token(&["https://www.googleapis.com/auth/cloud-platform"])
+        .await
+        .map_err(|e| format!("get token: {e}"))?;
+
+    let url = format!(
+        "https://secretmanager.googleapis.com/v1/projects/{project_id}/secrets/{secret_name}/versions/latest:access"
+    );
+    let resp = reqwest::Client::new()
+        .get(&url)
+        .bearer_auth(token.token().ok_or("token has no value")?)
+        .send()
+        .await
+        .map_err(|e| format!("HTTP request: {e}"))?;
+
+    if !resp.status().is_success() {
+        return Err(format!("Secret Manager returned HTTP {}", resp.status()));
+    }
+
+    let body: serde_json::Value = resp
+        .json()
+        .await
+        .map_err(|e| format!("parse response: {e}"))?;
+
+    let b64 = body["payload"]["data"]
+        .as_str()
+        .ok_or("missing payload.data field")?;
+
+    use base64::Engine as _;
+    let bytes = base64::engine::general_purpose::STANDARD
+        .decode(b64)
+        .map_err(|e| format!("base64 decode: {e}"))?;
+
+    String::from_utf8(bytes).map_err(|e| format!("utf8 decode: {e}"))
+}
+
 /// Decode INTEGRATIONS_SECRETS_KEY env var (hex or base64) to exactly 32 bytes.
 /// Panics with an actionable message if absent, undecodable, or wrong length.
 fn load_key_from_env() -> [u8; 32] {
@@ -228,6 +339,10 @@ fn load_key_from_env() -> [u8; 32] {
     let mut key = [0u8; 32];
     key.copy_from_slice(&bytes);
     key
+}
+
+fn validate_oauth_env() {
+    integrations_rs::http::oauth_validation::validate_oauth_env_pub();
 }
 
 /// Validate the QBO env contract before any worker starts.
@@ -296,6 +411,7 @@ async fn main() {
         .migrator(&MIGRATOR)
         .routes(move |ctx| {
             validate_webhook_env();
+            validate_oauth_env();
             let webhooks_key = webhooks_key;
 
             let bus = ctx.bus_arc().expect("Integrations requires event bus");
@@ -583,5 +699,77 @@ mod secrets_key_tests {
     fn secrets_key_neither_set() {
         std::env::remove_var("INTEGRATIONS_SECRETS_KEY");
         load_key_from_env();
+    }
+}
+
+#[cfg(test)]
+mod avalara_credentials_tests {
+    use super::load_avalara_credentials;
+    use serial_test::serial;
+
+    fn clear_avalara_env() {
+        std::env::remove_var("AVALARA_ACCOUNT_ID");
+        std::env::remove_var("AVALARA_LICENSE_KEY");
+        std::env::remove_var("GOOGLE_APPLICATION_CREDENTIALS");
+        std::env::remove_var("GCP_PROJECT_ID");
+    }
+
+    /// No env vars set and no GCP config → returns None (Avalara is opt-in).
+    #[tokio::test]
+    #[serial]
+    async fn load_avalara_credentials_neither_source_returns_none() {
+        clear_avalara_env();
+        assert!(load_avalara_credentials().await.is_none());
+    }
+
+    /// Both env vars populated, no GCP → returns Some with the values.
+    #[tokio::test]
+    #[serial]
+    async fn load_avalara_credentials_env_both_set_returns_some() {
+        clear_avalara_env();
+        std::env::set_var("AVALARA_ACCOUNT_ID", "acct-12345");
+        std::env::set_var("AVALARA_LICENSE_KEY", "lic-abcdef");
+        let creds = load_avalara_credentials().await.expect("expected Some");
+        assert_eq!(creds.account_id, "acct-12345");
+        assert_eq!(creds.license_key, "lic-abcdef");
+        clear_avalara_env();
+    }
+
+    /// Only account id set, license key empty → returns None
+    /// (partial config is useless; refuse to instantiate).
+    #[tokio::test]
+    #[serial]
+    async fn load_avalara_credentials_only_account_id_returns_none() {
+        clear_avalara_env();
+        std::env::set_var("AVALARA_ACCOUNT_ID", "acct-12345");
+        std::env::set_var("AVALARA_LICENSE_KEY", "");
+        assert!(load_avalara_credentials().await.is_none());
+        clear_avalara_env();
+    }
+
+    /// Only license key set, account id empty → returns None.
+    #[tokio::test]
+    #[serial]
+    async fn load_avalara_credentials_only_license_key_returns_none() {
+        clear_avalara_env();
+        std::env::set_var("AVALARA_ACCOUNT_ID", "");
+        std::env::set_var("AVALARA_LICENSE_KEY", "lic-abcdef");
+        assert!(load_avalara_credentials().await.is_none());
+        clear_avalara_env();
+    }
+
+    /// GCP path points at missing file → warn + fall back to env vars.
+    #[tokio::test]
+    #[serial]
+    async fn load_avalara_credentials_gcp_failure_falls_back_to_env() {
+        clear_avalara_env();
+        std::env::set_var("GOOGLE_APPLICATION_CREDENTIALS", "/nonexistent/sa.json");
+        std::env::set_var("GCP_PROJECT_ID", "test-project");
+        std::env::set_var("AVALARA_ACCOUNT_ID", "fallback-acct");
+        std::env::set_var("AVALARA_LICENSE_KEY", "fallback-lic");
+        let creds = load_avalara_credentials().await.expect("expected Some");
+        assert_eq!(creds.account_id, "fallback-acct");
+        assert_eq!(creds.license_key, "fallback-lic");
+        clear_avalara_env();
     }
 }
