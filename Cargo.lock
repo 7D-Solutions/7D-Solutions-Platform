@@ -1532,6 +1532,7 @@ version = "1.0.0"
 dependencies = [
  "glob",
  "jsonschema",
+ "pdf-editor",
  "serde",
  "serde_json",
  "serde_yaml",
@@ -4404,7 +4405,7 @@ dependencies = [
 
 [[package]]
 name = "pdf-editor"
-version = "2.3.4"
+version = "2.4.0"
 dependencies = [
  "anyhow",
  "async-nats",
@@ -6155,7 +6156,7 @@ dependencies = [
 
 [[package]]
 name = "security"
-version = "1.12.1"
+version = "1.13.0"
 dependencies = [
  "axum",
  "base64 0.22.1",
