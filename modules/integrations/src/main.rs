@@ -409,6 +409,21 @@ async fn main() {
 
     ModuleBuilder::from_manifest("module.toml")
         .migrator(&MIGRATOR)
+        .on_startup(|pool| async move {
+            let threshold_secs: i64 = std::env::var("SYNC_PULL_ORPHAN_THRESHOLD_SECS")
+                .ok()
+                .and_then(|s| s.parse().ok())
+                .unwrap_or(600);
+            if let Err(e) = integrations_rs::sync_pull_recovery::reconcile_orphan_inflight_pulls(
+                &pool,
+                threshold_secs,
+            )
+            .await
+            {
+                tracing::error!(error = %e, "orphan reconciliation failed at startup, continuing");
+            }
+            Ok::<_, platform_sdk::StartupError>(())
+        })
         .routes(move |ctx| {
             validate_webhook_env();
             validate_oauth_env();

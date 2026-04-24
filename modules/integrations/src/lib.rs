@@ -6,6 +6,7 @@ pub mod http;
 pub mod metrics;
 pub mod ops;
 pub mod outbox;
+pub mod sync_pull_recovery;
 
 pub use config::Config;
 

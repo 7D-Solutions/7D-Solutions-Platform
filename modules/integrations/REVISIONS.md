@@ -4,6 +4,9 @@
 > **Standard:** See `docs/VERSIONING.md` for the rules governing this file.
 
 
+## 2.44.0
+- feat(sync): startup reconciliation for orphaned inflight sync_pull_log rows; configurable via SYNC_PULL_ORPHAN_THRESHOLD_SECS (default 600s) ([bd-vbedx])
+
 ## 2.43.0
 - feat(oauth): UPS and FedEx token refresh arms in HttpTokenRefresher; serde alias refresh_token_expires_in → x_refresh_token_expires_in ([bd-6rlla])
 
