@@ -9,10 +9,10 @@
 //! Environment:
 //!   DATABASE_URL — pdf-editor database connection string
 
-use pdf_editor_rs::domain::forms::{
+use pdf_editor::domain::forms::{
     CreateFieldRequest, CreateTemplateRequest, FieldRepo, TemplateRepo,
 };
-use pdf_editor_rs::domain::submissions::{CreateSubmissionRequest, SubmissionRepo};
+use pdf_editor::domain::submissions::{CreateSubmissionRequest, SubmissionRepo};
 use sqlx::postgres::PgPoolOptions;
 use sqlx::PgPool;
 use std::time::{Duration, Instant};

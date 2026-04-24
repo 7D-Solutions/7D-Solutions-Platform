@@ -6,7 +6,7 @@ use axum::{
 };
 use utoipa::OpenApi;
 
-use pdf_editor_rs::http as handlers;
+use pdf_editor::http as handlers;
 use platform_sdk::ModuleBuilder;
 use security::{permissions, RequirePermissionsLayer};
 
