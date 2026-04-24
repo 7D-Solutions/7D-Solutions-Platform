@@ -279,6 +279,16 @@ services:
       JWT_PRIVATE_KEY_PEM: ${JWT_PRIVATE_KEY_PEM}
       TILLED_WEBHOOK_SECRET: ${TILLED_WEBHOOK_SECRET:-dev-placeholder-secret}
       RUST_LOG: ${RUST_LOG:-info}
+      # Avalara AvaTax credentials — used by AvalaraProvider (TaxProvider impl).
+      # Leave empty if this tenant/deployment uses external-accounting-software
+      # tax source instead of platform-computed tax.
+      # Rotation: docs/operations/secret-rotation.md §3.
+      AVALARA_ACCOUNT_ID: ${AVALARA_ACCOUNT_ID:-}
+      AVALARA_LICENSE_KEY: ${AVALARA_LICENSE_KEY:-}
+      AVALARA_BASE_URL: ${AVALARA_BASE_URL:-https://sandbox-rest.avatax.com}
+      AVALARA_COMPANY_CODE: ${AVALARA_COMPANY_CODE:-}
+      GCP_PROJECT_ID: ${GCP_PROJECT_ID:-}
+      GOOGLE_APPLICATION_CREDENTIALS: ${GOOGLE_APPLICATION_CREDENTIALS:-}
     volumes:
       - ./target/aarch64-unknown-linux-musl/debug/ar-rs:/app/service:ro
       - ./modules/ar/module.toml:/app/module.toml:ro
@@ -824,6 +834,20 @@ services:
       GCP_PROJECT_ID: ${GCP_PROJECT_ID:-}
       GCP_SECRET_NAME: ${GCP_SECRET_NAME:-integrations-secrets-key}
       GOOGLE_APPLICATION_CREDENTIALS: ${GOOGLE_APPLICATION_CREDENTIALS:-}
+      # OAuth redirect signing and allow-list (bd-5899o).
+      # Required: service panics at startup if any of these are empty.
+      # There is no safe default for OAUTH_STATE_SECRET — set a random 32+ char string in .env.
+      OAUTH_STATE_SECRET: ${OAUTH_STATE_SECRET:-}
+      OAUTH_ALLOWED_RETURN_ORIGINS: ${OAUTH_ALLOWED_RETURN_ORIGINS:-}
+      OAUTH_DEFAULT_RETURN_URL: ${OAUTH_DEFAULT_RETURN_URL:-}
+      # Avalara AvaTax credentials (ISV Partner Program). Loaded by the AR module
+      # for platform-computed sales tax; present here so write-back paths can
+      # forward tax_code_ref to QBO. Sandbox vs prod selected via AVALARA_BASE_URL.
+      # Rotation: docs/operations/secret-rotation.md §3.
+      AVALARA_ACCOUNT_ID: ${AVALARA_ACCOUNT_ID:-}
+      AVALARA_LICENSE_KEY: ${AVALARA_LICENSE_KEY:-}
+      AVALARA_BASE_URL: ${AVALARA_BASE_URL:-https://sandbox-rest.avatax.com}
+      AVALARA_COMPANY_CODE: ${AVALARA_COMPANY_CODE:-}
       # Local dev profile — allows empty INTUIT_WEBHOOK_VERIFIER_TOKEN.
       # Staging/production must NOT set this (startup guard will reject empty token).
       APP_PROFILE: dev-local

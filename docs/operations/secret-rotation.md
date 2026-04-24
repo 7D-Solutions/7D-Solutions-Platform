@@ -51,7 +51,55 @@ rotation.
 - If a service is still running with the old secret, it will reject tokens from
   services already using the new one.
 
-## 3. Database Password Rotation
+## 3. Avalara AvaTax Credentials Rotation
+
+Avalara issues two credentials per environment (sandbox, production) — an Account ID
+and a License Key. Both are treated as equally sensitive; rotate them together,
+never separately.
+
+### Where they live
+
+Primary source of truth: Google Secret Manager. Secret names:
+
+- `avalara-sandbox-account-id`
+- `avalara-sandbox-license-key`
+- `avalara-prod-account-id`
+- `avalara-prod-license-key`
+
+Env-var fallback (used when GCP is unreachable or for local dev):
+`AVALARA_ACCOUNT_ID` and `AVALARA_LICENSE_KEY`, plus `AVALARA_BASE_URL` to select
+sandbox vs prod endpoint.
+
+### Procedure
+
+1. Rotate at Avalara first: log into the Avalara developer portal, reset the
+   License Key for the target account (sandbox or prod). Note the old key — you
+   need it during the overlap window.
+2. Add a new secret version in Google Secret Manager for both `-account-id` and
+   `-license-key` (the Account ID rarely changes, but rotate it if Avalara
+   reissues one).
+3. Roll the modules that read these secrets (today: the module running
+   `AvalaraProvider` — typically AR). Startup picks the latest version
+   automatically.
+4. Verify a live calculation succeeds: run a single invoice through the
+   `TaxProvider.quote_tax` path and confirm a non-error response. The test
+   command is in `modules/ar/tests/avalara_provider_test.rs` (`#[ignore]` —
+   requires credentials).
+5. Revoke the old License Key at Avalara only after 24 hours of clean
+   operation on the new one. This protects against the brief window where
+   in-flight calls still carry the old key in memory.
+
+### Notes
+
+- Avalara rate-limits authentication failures. Rolling the module before the
+  new secret version is visible to it will cause a burst of 401s and may
+  temporarily lock the account — always bump the Secret Manager version
+  first, then roll.
+- The sandbox and prod credentials are completely separate; never use sandbox
+  creds against the prod endpoint or vice versa. Pair the credential set with
+  the matching `AVALARA_BASE_URL` (`sandbox-rest.avatax.com` vs `rest.avatax.com`).
+
+## 4. Database Password Rotation
 
 Each module has its own database secret, usually behind `DATABASE_URL` or a
 module-specific `*_DATABASE_URL`.
