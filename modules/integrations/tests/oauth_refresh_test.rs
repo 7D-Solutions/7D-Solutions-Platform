@@ -1,7 +1,12 @@
 //! Integration tests for HttpTokenRefresher UPS + FedEx arms (bd-6rlla).
 //!
-//! Tests call real provider HTTPS endpoints. They skip automatically when the
-//! required sandbox credentials are absent from the environment.
+//! Tests call real provider HTTPS endpoints and skip automatically when the
+//! required credentials are absent from the environment.
+//!
+//! Required env vars to enable live tests:
+//!   UPS:   UPS_CLIENT_ID, UPS_CLIENT_SECRET, UPS_TOKEN_URL (sandbox URL),
+//!          UPS_SANDBOX_REFRESH_TOKEN
+//!   FedEx: FEDEX_CLIENT_ID, FEDEX_CLIENT_SECRET, FEDEX_TOKEN_URL (sandbox URL)
 //!
 //! Run:
 //!   ./scripts/cargo-slot.sh test -p integrations-rs --test oauth_refresh_test
@@ -18,34 +23,31 @@ fn make_refresher() -> HttpTokenRefresher {
     }
 }
 
+fn env_nonempty(key: &str) -> Option<String> {
+    std::env::var(key).ok().filter(|v| !v.is_empty())
+}
+
 // ── 1. UPS refresh rotates refresh token ─────────────────────────────────────
 
 #[tokio::test]
 #[serial]
 async fn ups_refresh_exchanges_refresh_token() {
-    let client_id = match std::env::var("UPS_SANDBOX_CLIENT_ID").ok().filter(|v| !v.is_empty()) {
+    // Skip unless all required sandbox credentials are present in the environment.
+    let _client_id = match env_nonempty("UPS_CLIENT_ID") {
         Some(v) => v,
         None => return,
     };
-    let client_secret =
-        match std::env::var("UPS_SANDBOX_CLIENT_SECRET").ok().filter(|v| !v.is_empty()) {
-            Some(v) => v,
-            None => return,
-        };
-    let refresh_token_val =
-        match std::env::var("UPS_SANDBOX_REFRESH_TOKEN").ok().filter(|v| !v.is_empty()) {
-            Some(v) => v,
-            None => return,
-        };
-
-    // Point the refresher at sandbox endpoint + credentials.
-    unsafe {
-        std::env::set_var("UPS_CLIENT_ID", &client_id);
-        std::env::set_var("UPS_CLIENT_SECRET", &client_secret);
-        std::env::set_var(
-            "UPS_TOKEN_URL",
-            "https://wwwcie.ups.com/security/v1/oauth/refresh",
-        );
+    let _client_secret = match env_nonempty("UPS_CLIENT_SECRET") {
+        Some(v) => v,
+        None => return,
+    };
+    let refresh_token_val = match env_nonempty("UPS_SANDBOX_REFRESH_TOKEN") {
+        Some(v) => v,
+        None => return,
+    };
+    // UPS_TOKEN_URL must point to the sandbox endpoint; skip if not configured.
+    if env_nonempty("UPS_TOKEN_URL").is_none() {
+        return;
     }
 
     let refresher = make_refresher();
@@ -67,26 +69,22 @@ async fn ups_refresh_exchanges_refresh_token() {
 #[tokio::test]
 #[serial]
 async fn fedex_refresh_mints_new_access_token() {
-    let client_id =
-        match std::env::var("FEDEX_SANDBOX_CLIENT_ID").ok().filter(|v| !v.is_empty()) {
-            Some(v) => v,
-            None => return,
-        };
-    let client_secret =
-        match std::env::var("FEDEX_SANDBOX_CLIENT_SECRET").ok().filter(|v| !v.is_empty()) {
-            Some(v) => v,
-            None => return,
-        };
-
-    // Point the refresher at sandbox endpoint + credentials.
-    unsafe {
-        std::env::set_var("FEDEX_CLIENT_ID", &client_id);
-        std::env::set_var("FEDEX_CLIENT_SECRET", &client_secret);
-        std::env::set_var("FEDEX_TOKEN_URL", "https://apis-sandbox.fedex.com/oauth/token");
+    // Skip unless all required sandbox credentials are present in the environment.
+    let _client_id = match env_nonempty("FEDEX_CLIENT_ID") {
+        Some(v) => v,
+        None => return,
+    };
+    let _client_secret = match env_nonempty("FEDEX_CLIENT_SECRET") {
+        Some(v) => v,
+        None => return,
+    };
+    // FEDEX_TOKEN_URL must point to the sandbox endpoint; skip if not configured.
+    if env_nonempty("FEDEX_TOKEN_URL").is_none() {
+        return;
     }
 
     let refresher = make_refresher();
-    // FedEx client_credentials: refresh_token arg is unused.
+    // FedEx client_credentials: refresh_token arg is unused by the FedEx arm.
     let result = refresher.refresh_token("fedex", "").await;
 
     assert!(
