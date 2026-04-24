@@ -192,7 +192,7 @@ dependencies = [
 
 [[package]]
 name = "ar-rs"
-version = "6.8.0"
+version = "6.8.1"
 dependencies = [
  "async-nats",
  "audit",
@@ -215,6 +215,7 @@ dependencies = [
  "projections",
  "prometheus",
  "reqwest",
+ "rust_decimal",
  "security",
  "serde",
  "serde_json",
@@ -3387,7 +3388,7 @@ dependencies = [
 
 [[package]]
 name = "integrations-rs"
-version = "2.39.0"
+version = "2.40.0"
 dependencies = [
  "aes-gcm",
  "async-nats",
@@ -4303,7 +4304,7 @@ dependencies = [
 
 [[package]]
 name = "party-rs"
-version = "3.2.7"
+version = "3.3.0"
 dependencies = [
  "async-nats",
  "axum",
