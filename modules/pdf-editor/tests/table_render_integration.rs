@@ -5,7 +5,7 @@
 
 mod submission_helpers;
 
-use pdf_editor_rs::domain::tables::{
+use pdf_editor::domain::tables::{
     BorderConfig, RenderTableRequest, TableColumn, TableDefinition, TableRenderRepo, TableRow,
 };
 use serial_test::serial;
@@ -182,7 +182,7 @@ async fn pagination_creates_new_pages_for_long_tables() {
     assert!(output.starts_with(b"%PDF-"));
 
     // Verify the output has more pages than input by loading with pdfium
-    use pdf_editor_rs::domain::generate::create_pdfium;
+    use pdf_editor::domain::generate::create_pdfium;
     let pdfium = create_pdfium().unwrap();
     let doc = pdfium.load_pdf_from_byte_slice(&output, None).unwrap();
     let page_count = doc.pages().len();

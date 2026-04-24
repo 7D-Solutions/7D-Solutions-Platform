@@ -4,7 +4,7 @@
 //! Requires libpdfium.dylib (macOS) or libpdfium.so (Linux) in the module directory
 //! or PDFIUM_LIB_PATH set.
 
-use pdf_editor_rs::domain::annotations::{
+use pdf_editor::domain::annotations::{
     render::{render_annotations, validate_pdf, RenderError, MAX_PDF_SIZE},
     types::{Annotation, AnnotationType, Point, ShapeType, SignaturePoint, StampType, TextRect},
 };

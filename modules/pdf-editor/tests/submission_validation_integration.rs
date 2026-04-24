@@ -5,7 +5,7 @@
 
 mod submission_helpers;
 
-use pdf_editor_rs::domain::submissions::{
+use pdf_editor::domain::submissions::{
     CreateSubmissionRequest, SubmissionError, SubmissionRepo,
 };
 use serial_test::serial;

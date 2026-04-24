@@ -5,11 +5,11 @@
 
 mod submission_helpers;
 
-use pdf_editor_rs::domain::forms::CreateTemplateRequest;
-use pdf_editor_rs::domain::forms::{CreateFieldRequest, FieldRepo, TemplateRepo};
-use pdf_editor_rs::domain::generate::{generate_filled_pdf, validate_pdf, GenerateError};
-use pdf_editor_rs::domain::submissions::{CreateSubmissionRequest, SubmissionRepo};
-use pdf_editor_rs::event_bus::{create_pdf_editor_envelope, enqueue_event};
+use pdf_editor::domain::forms::CreateTemplateRequest;
+use pdf_editor::domain::forms::{CreateFieldRequest, FieldRepo, TemplateRepo};
+use pdf_editor::domain::generate::{generate_filled_pdf, validate_pdf, GenerateError};
+use pdf_editor::domain::submissions::{CreateSubmissionRequest, SubmissionRepo};
+use pdf_editor::event_bus::{create_pdf_editor_envelope, enqueue_event};
 use serial_test::serial;
 use submission_helpers::{setup_db, unique_tenant, valid_field_data};
 use uuid::Uuid;

@@ -7,11 +7,11 @@
 
 mod submission_helpers;
 
-use pdf_editor_rs::domain::forms::{
+use pdf_editor::domain::forms::{
     CreateFieldRequest, CreateTemplateRequest, FieldRepo, FormError, ListTemplatesQuery,
     ReorderFieldsRequest, TemplateRepo, UpdateFieldRequest, UpdateTemplateRequest,
 };
-use pdf_editor_rs::domain::submissions::{
+use pdf_editor::domain::submissions::{
     AutosaveRequest, CreateSubmissionRequest, ListSubmissionsQuery, SubmissionError, SubmissionRepo,
 };
 use serial_test::serial;

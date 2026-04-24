@@ -3,8 +3,8 @@
 
 mod submission_helpers;
 
-use pdf_editor_rs::domain::generate::{inject_images, ImageInjection, ImageInjectionPoint};
-use pdf_editor_rs::domain::images::{
+use pdf_editor::domain::generate::{inject_images, ImageInjection, ImageInjectionPoint};
+use pdf_editor::domain::images::{
     ImageError, ImageRepo, ListImagesQuery, UploadImageRequest, MAX_IMAGE_SIZE,
 };
 use serial_test::serial;

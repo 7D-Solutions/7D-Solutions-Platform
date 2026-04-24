@@ -3,7 +3,7 @@
 //! Covers: template CRUD, field CRUD with display_order, reorder,
 //! validation (empty name, invalid type, duplicate key), tenant isolation.
 
-use pdf_editor_rs::domain::forms::{
+use pdf_editor::domain::forms::{
     CreateFieldRequest, CreateTemplateRequest, FieldRepo, FormError, ListTemplatesQuery,
     ReorderFieldsRequest, TemplateRepo, UpdateFieldRequest, UpdateTemplateRequest,
 };

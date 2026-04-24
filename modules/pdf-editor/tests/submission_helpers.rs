@@ -2,7 +2,7 @@
 
 #![allow(dead_code)]
 
-use pdf_editor_rs::domain::forms::{
+use pdf_editor::domain::forms::{
     CreateFieldRequest, CreateTemplateRequest, FieldRepo, TemplateRepo,
 };
 use sqlx::postgres::PgPoolOptions;
