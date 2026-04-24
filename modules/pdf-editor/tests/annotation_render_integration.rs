@@ -54,7 +54,7 @@ fn base_annotation(ann_type: AnnotationType, page: u32) -> Annotation {
         signature_path: None,
         signature_image: None,
         signature_text: None,
-        schema_version: "1.0".to_string(),
+        schema_version: 1,
     }
 }
 

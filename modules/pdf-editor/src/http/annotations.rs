@@ -49,6 +49,11 @@ pub async fn render_annotations(mut multipart: Multipart) -> Result<Response, Ap
                 })?;
                 let parsed: Vec<Annotation> = serde_json::from_slice(&data)
                     .map_err(|e| ApiError::bad_request(format!("Invalid annotations JSON: {e}")))?;
+                // Validate schema_version on each annotation before accepting the payload.
+                for ann in &parsed {
+                    ann.validate_schema_version()
+                        .map_err(|e| ApiError::bad_request(e.to_string()))?;
+                }
                 annotations = Some(parsed);
             }
             _ => {}

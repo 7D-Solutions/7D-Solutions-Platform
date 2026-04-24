@@ -1,7 +1,30 @@
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
+
+/// Current supported annotation schema version.
+pub const CURRENT_ANNOTATION_SCHEMA_VERSION: u32 = 1;
+
+/// Range of schema versions this module can handle.
+const MIN_SUPPORTED_VERSION: u32 = 1;
+const MAX_SUPPORTED_VERSION: u32 = CURRENT_ANNOTATION_SCHEMA_VERSION;
+
+/// Error returned when a payload carries an unrecognized schema_version.
+#[derive(Debug)]
+pub struct UnsupportedSchemaVersion {
+    pub version: u32,
+}
+
+impl std::fmt::Display for UnsupportedSchemaVersion {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "unsupported annotation schema_version={}, this module supports {}-{}",
+            self.version, MIN_SUPPORTED_VERSION, MAX_SUPPORTED_VERSION
+        )
+    }
+}
 
 /// Annotation types matching the frontend's AnnotationType union.
-#[derive(Debug, Clone, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum AnnotationType {
     Callout,
@@ -16,7 +39,7 @@ pub enum AnnotationType {
     Whiteout,
 }
 
-#[derive(Debug, Clone, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum StampType {
     Approved,
@@ -28,7 +51,7 @@ pub enum StampType {
     Custom,
 }
 
-#[derive(Debug, Clone, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum ShapeType {
     Rectangle,
@@ -38,7 +61,7 @@ pub enum ShapeType {
     RevisionCloud,
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TextRect {
     pub x: f32,
     pub y: f32,
@@ -46,13 +69,13 @@ pub struct TextRect {
     pub height: f32,
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Point {
     pub x: f32,
     pub y: f32,
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SignaturePoint {
     pub x: f32,
     pub y: f32,
@@ -64,7 +87,10 @@ pub struct SignaturePoint {
 ///
 /// All coordinates are in PDF user-space units (points) relative to the page.
 /// The page_number field is 1-based.
-#[derive(Debug, Clone, Deserialize)]
+///
+/// `schema_version` is a u32 that defaults to 1 when absent from the wire.
+/// Call `validate_schema_version()` after deserialization to reject unknown versions.
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Annotation {
     pub id: String,
@@ -131,13 +157,29 @@ pub struct Annotation {
     pub signature_text: Option<String>,
 
     #[serde(default = "default_schema_version")]
-    pub schema_version: String,
+    pub schema_version: u32,
+}
+
+impl Annotation {
+    /// Validate that schema_version is within the supported range.
+    ///
+    /// Call this after deserialization when you need strict version enforcement.
+    pub fn validate_schema_version(&self) -> Result<(), UnsupportedSchemaVersion> {
+        if self.schema_version < MIN_SUPPORTED_VERSION
+            || self.schema_version > MAX_SUPPORTED_VERSION
+        {
+            return Err(UnsupportedSchemaVersion {
+                version: self.schema_version,
+            });
+        }
+        Ok(())
+    }
 }
 
 fn default_font_family() -> Option<String> {
     None
 }
 
-fn default_schema_version() -> String {
-    "1.0".to_string()
+fn default_schema_version() -> u32 {
+    CURRENT_ANNOTATION_SCHEMA_VERSION
 }

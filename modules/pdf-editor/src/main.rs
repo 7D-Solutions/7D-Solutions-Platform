@@ -106,6 +106,10 @@ async fn main() {
                         .layer(DefaultBodyLimit::max(52_428_800)),
                 )
                 .route("/api/openapi.json", get(openapi_json))
+                .route(
+                    "/api/schemas/annotations/v{version}",
+                    get(handlers::schemas::annotation_schema),
+                )
         })
         .run()
         .await

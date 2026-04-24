@@ -1,6 +1,7 @@
 pub mod annotations;
 pub mod fields;
 pub mod generate;
+pub mod schemas;
 pub mod submissions;
 pub mod templates;
 pub mod tenant;
