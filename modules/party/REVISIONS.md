@@ -4,6 +4,9 @@
 > **Standard:** See `docs/VERSIONING.md` for the rules governing this file.
 
 
+## 3.3.1
+- chore(notifications): land bd-kv15d implementation files (domain/notifications.rs, http/notification_prefs.rs, migrations, integration tests) that were authored but not yet committed ([bd-kv15d])
+
 ## 3.3.0
 - feat(notifications): notification_events + notification_channels columns on party_parties and party_contacts with per-column independent inheritance; PATCH /api/customers/:id/notifications and PATCH /api/customers/:id/ship-to/:contact_id/notifications endpoints; GIN indexes; NotificationEvent/Channel enums; outbox event on party-level changes ([bd-kv15d])
 
