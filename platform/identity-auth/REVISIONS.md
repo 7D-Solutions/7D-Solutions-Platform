@@ -4,6 +4,9 @@
 > **Standard:** See `docs/VERSIONING.md` for the rules governing this file.
 
 
+## 1.12.3
+- fix: remove stale VerifiedClaims arg from tenant_registry get_entitlements / get_tenant_status calls to match regenerated client (client switched to get_anon in bd-44hil) — was breaking workspace build for 24+ hours ([bd-ny9v9])
+
 ## 1.12.2
 - chore: workspace rustfmt pass (no behavioral changes) ([bd-44hil])
 

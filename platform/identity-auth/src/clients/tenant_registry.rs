@@ -138,9 +138,8 @@ impl TenantRegistryClient {
             }
         }
 
-        // --- 2. Fetch via typed client ---
-        let svc_claims = PlatformClient::service_claims(tenant_id);
-        match self.inner.get_entitlements(&svc_claims, tenant_id).await {
+        // --- 2. Fetch via typed client (anonymous endpoint) ---
+        match self.inner.get_entitlements(tenant_id).await {
             Ok(row) => {
                 let limit = row.concurrent_user_limit as i64;
                 self.cache.insert(
@@ -195,9 +194,8 @@ impl TenantRegistryClient {
             }
         }
 
-        // --- 2. Fetch via typed client ---
-        let svc_claims = PlatformClient::service_claims(tenant_id);
-        match self.inner.get_tenant_status(&svc_claims, tenant_id).await {
+        // --- 2. Fetch via typed client (anonymous endpoint) ---
+        match self.inner.get_tenant_status(tenant_id).await {
             Ok(row) => {
                 let status = row.status;
                 self.status_cache.insert(
