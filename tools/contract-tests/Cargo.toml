@@ -1,6 +1,6 @@
 [package]
 name = "contract-tests"
-version = "1.0.0"
+version = "1.1.0"
 edition = "2021"
 description = "Event schema and OpenAPI contract validation tests"
 
@@ -19,6 +19,18 @@ path = "tests/openapi_tests.rs"
 name = "consumer_tests"
 path = "tests/consumer_tests.rs"
 
+[[test]]
+name = "pdf_editor_consumer_test"
+path = "tests/pdf_editor_consumer_test.rs"
+
+[[test]]
+name = "golden_fixtures"
+path = "tests/golden_fixtures.rs"
+
+[[test]]
+name = "coord_round_trip"
+path = "tests/coord_round_trip.rs"
+
 [dependencies]
 jsonschema = "0.18"
 serde = { version = "1.0", features = ["derive"] }
@@ -28,6 +40,7 @@ thiserror = "1.0"
 
 [dev-dependencies]
 glob = "0.3"
+pdf-editor = { path = "../../modules/pdf-editor" }
 
 [lints]
 workspace = true

@@ -1,0 +1,13 @@
+{
+  "schemaVersion": 1,
+  "id": "fixture-shape-rect",
+  "type": "SHAPE",
+  "x": 80.0,
+  "y": 90.0,
+  "pageNumber": 1,
+  "shapeType": "RECTANGLE",
+  "width": 150.0,
+  "height": 80.0,
+  "borderColor": "#0000ff",
+  "strokeWidth": 1.5
+}

@@ -1,0 +1,9 @@
+{
+  "id": "fixture-text-legacy",
+  "type": "TEXT",
+  "x": 70.0,
+  "y": 180.0,
+  "pageNumber": 1,
+  "text": "Legacy payload — no schemaVersion field (defaults to 1)",
+  "fontSize": 10.0
+}

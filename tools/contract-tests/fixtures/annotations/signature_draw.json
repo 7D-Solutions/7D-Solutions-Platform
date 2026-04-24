@@ -1,0 +1,14 @@
+{
+  "schemaVersion": 1,
+  "id": "fixture-signature-draw",
+  "type": "SIGNATURE",
+  "x": 200.0,
+  "y": 700.0,
+  "pageNumber": 1,
+  "signatureMethod": "DRAW",
+  "signaturePath": [
+    { "x": 200.0, "y": 700.0, "newStroke": true },
+    { "x": 210.0, "y": 705.0 },
+    { "x": 220.0, "y": 700.0 }
+  ]
+}

@@ -1,0 +1,17 @@
+{
+  "id": "fixture-stamp-001",
+  "type": "STAMP",
+  "x": 306,
+  "y": 475.2,
+  "pageNumber": 1,
+  "timestamp": "2024-01-15T10:00:00.000Z",
+  "stampType": "APPROVED",
+  "stampUsername": "jsmith",
+  "stampDate": "2024-01-15",
+  "stampTime": "10:00",
+  "width": 122.4,
+  "height": 48.96,
+  "color": "#276749",
+  "bgColor": "#f0fff4",
+  "borderColor": "#276749"
+}

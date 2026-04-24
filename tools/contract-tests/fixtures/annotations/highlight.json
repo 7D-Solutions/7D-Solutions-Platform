@@ -1,0 +1,13 @@
+{
+  "schemaVersion": 1,
+  "id": "fixture-highlight",
+  "type": "HIGHLIGHT",
+  "x": 50.0,
+  "y": 120.0,
+  "pageNumber": 1,
+  "color": "#ffff00",
+  "opacity": 0.5,
+  "textRects": [
+    { "x": 50.0, "y": 120.0, "width": 200.0, "height": 14.0 }
+  ]
+}

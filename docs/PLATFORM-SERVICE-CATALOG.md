@@ -91,7 +91,7 @@ CLI tools and test harnesses.
 |------|-------|---------|-------------|------|
 | client-codegen | client-codegen | 0.1.0 | Reads OpenAPI JSON and emits a compilable Rust typed-client crate |  |
 | compliance-export | compliance-export | 1.0.0 | Compliance evidence pack generation for audit and regulatory export | [Revisions](tools/compliance-export/REVISIONS.md) |
-| contract-tests | contract-tests | 1.0.0 | Event schema and OpenAPI contract validation tests | [Revisions](tools/contract-tests/REVISIONS.md) |
+| contract-tests | contract-tests | 1.1.0 | Event schema and OpenAPI contract validation tests | [Revisions](tools/contract-tests/REVISIONS.md) |
 | demo-seed | demo-seed | 1.0.0 | Deterministic demo data seeding for development and testing | [Revisions](tools/demo-seed/REVISIONS.md) |
 | erp-invariant-tests | erp-invariant-tests | 0.1.0 | Adversarial ERP invariant test harness — real Postgres, real HTTP, no mocks |  |
 | migration-safety-test | migration-safety-test | 0.1.0 | Shared helpers for per-module migration safety integration tests |  |

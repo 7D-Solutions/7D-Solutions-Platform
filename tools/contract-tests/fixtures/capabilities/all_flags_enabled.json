@@ -1,0 +1,9 @@
+{
+  "tenant_id": "00000000-0000-0000-0000-000000000001",
+  "schema_version": 1,
+  "flags": {
+    "pdf_editor_enabled": true,
+    "advanced_annotations": true,
+    "signature_capture": true
+  }
+}

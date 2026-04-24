@@ -1,0 +1,13 @@
+{
+  "schemaVersion": 1,
+  "id": "fixture-stamp-approved",
+  "type": "STAMP",
+  "x": 400.0,
+  "y": 500.0,
+  "pageNumber": 3,
+  "stampType": "APPROVED",
+  "stampUsername": "j.smith",
+  "stampDate": "2026-04-24",
+  "stampTime": "09:00",
+  "color": "#008000"
+}

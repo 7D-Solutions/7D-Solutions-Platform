@@ -1,0 +1,13 @@
+{
+  "schemaVersion": 1,
+  "id": "fixture-arrow-full",
+  "type": "ARROW",
+  "x": 100.0,
+  "y": 200.0,
+  "x2": 300.0,
+  "y2": 400.0,
+  "pageNumber": 2,
+  "color": "#ff0000",
+  "strokeWidth": 2.0,
+  "arrowheadSize": 8.0
+}
