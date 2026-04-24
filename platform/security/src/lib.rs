@@ -16,6 +16,7 @@
 pub mod audit_log;
 pub mod authz_middleware;
 pub mod claims;
+pub mod error_codes;
 pub mod middleware;
 pub mod permissions;
 pub mod ratelimit;
@@ -59,6 +60,9 @@ pub use claims::{ActorType, JwtVerifier, VerifiedClaims};
 
 // Re-export rate limit types
 pub use ratelimit::{RateLimitKeyStrategy, TierDef};
+
+// Re-export stable error code taxonomy
+pub use error_codes::AuthErrorCode;
 
 /// Error type for security operations
 #[derive(Debug, thiserror::Error)]
