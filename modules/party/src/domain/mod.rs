@@ -2,6 +2,7 @@
 
 pub mod address;
 pub mod address_service;
+pub mod notifications;
 pub mod contact;
 pub mod contact_role;
 pub mod contact_role_service;

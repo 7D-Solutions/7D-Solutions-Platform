@@ -4,6 +4,12 @@
 > **Standard:** See `docs/VERSIONING.md` for the rules governing this file.
 
 
+## 3.3.0
+- feat(notifications): notification_events + notification_channels columns on party_parties and party_contacts with per-column independent inheritance; PATCH /api/customers/:id/notifications and PATCH /api/customers/:id/ship-to/:contact_id/notifications endpoints; GIN indexes; NotificationEvent/Channel enums; outbox event on party-level changes ([bd-kv15d])
+
+## 3.2.7
+- chore: workspace rustfmt pass (no behavioral changes)
+
 ## 3.2.6
 - chore: rustfmt reflow + regenerate typed clients (no behavior change)
 

@@ -1,5 +1,5 @@
 use axum::{
-    routing::{delete, get, post, put},
+    routing::{delete, get, patch, post, put},
     Router,
 };
 use security::{permissions, RequirePermissionsLayer};
@@ -9,6 +9,7 @@ use crate::AppState;
 
 pub mod addresses;
 pub mod contacts;
+pub mod notification_prefs;
 pub mod party;
 
 /// Build the Party HTTP router with all endpoints.
@@ -49,6 +50,15 @@ pub fn router(state: Arc<AppState>) -> Router {
         .route(
             "/api/party/addresses/{id}",
             delete(addresses::delete_address),
+        )
+        // Customer notification preferences — write (role-checked in handler)
+        .route(
+            "/api/customers/{id}/notifications",
+            patch(notification_prefs::patch_party_notifications),
+        )
+        .route(
+            "/api/customers/{id}/ship-to/{contact_id}/notifications",
+            patch(notification_prefs::patch_contact_notifications),
         )
         .route_layer(RequirePermissionsLayer::new(&[permissions::PARTY_MUTATE]))
         .with_state(state.clone());
