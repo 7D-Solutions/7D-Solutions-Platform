@@ -1,5 +1,6 @@
 pub mod carrier_credentials;
 pub mod connectors;
+pub mod oauth_validation;
 pub mod external_refs;
 pub mod internal;
 pub mod oauth;
