@@ -13,6 +13,7 @@ pub enum AnnotationType {
     Text,
     Bubble,
     Signature,
+    Whiteout,
 }
 
 #[derive(Debug, Clone, Deserialize, PartialEq)]

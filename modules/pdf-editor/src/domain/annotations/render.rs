@@ -144,6 +144,9 @@ pub fn render_annotations(
                 AnnotationType::Signature => {
                     renderers::render_signature(&mut page, &fonts, ann, pdf_y)?;
                 }
+                AnnotationType::Whiteout => {
+                    renderers::render_whiteout(&mut page, ann, page_height)?;
+                }
             }
         }
     }

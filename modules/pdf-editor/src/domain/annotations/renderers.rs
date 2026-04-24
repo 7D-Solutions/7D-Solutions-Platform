@@ -340,6 +340,24 @@ pub(crate) fn render_bubble(
     Ok(())
 }
 
+pub(crate) fn render_whiteout(
+    page: &mut PdfPage,
+    ann: &Annotation,
+    page_height: f32,
+) -> Result<(), RenderError> {
+    let w = ann.width.unwrap_or(100.0);
+    let h = ann.height.unwrap_or(30.0);
+    let top = page_height - ann.y;
+
+    page.objects_mut().create_path_object_rect(
+        rect(ann.x, top - h, ann.x + w, top),
+        Some(PdfColor::new(255, 255, 255, 255)),
+        None,
+        None,
+    )?;
+    Ok(())
+}
+
 pub(crate) fn render_signature(
     page: &mut PdfPage,
     fonts: &FontTokens,

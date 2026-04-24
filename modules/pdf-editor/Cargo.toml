@@ -1,6 +1,6 @@
 [package]
 name = "pdf-editor"
-version = "2.3.5"
+version = "2.4.0"
 edition = "2021"
 description = "PDF template management, form submissions, annotations, and document generation"
 

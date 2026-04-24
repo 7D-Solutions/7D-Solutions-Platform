@@ -4,6 +4,9 @@
 > **Standard:** See `docs/VERSIONING.md` for the rules governing this file.
 
 
+## 2.4.0
+- feat: add Whiteout annotation type + renderer (bd-rsp36) — new `AnnotationType::Whiteout` variant (SCREAMING_SNAKE_CASE wire: WHITEOUT); renders as solid opaque white rectangle over annotation bounds; exhaustive match arm added in render.rs; consumer contract fixture WHITEOUT.json added and skip removed
+
 ## 2.3.5
 - chore: rename crate from pdf-editor-rs to pdf-editor (no behavioral change)
 
