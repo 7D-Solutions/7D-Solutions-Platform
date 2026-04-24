@@ -4,6 +4,9 @@
 > **Standard:** See `docs/VERSIONING.md` for the rules governing this file.
 
 
+## 6.8.0
+- feat(tax): reconciliation worker — detects divergence between platform-computed tax and QBO AST for dual-source tenants; writes to ar_tax_reconciliation_log with outlier flagging ([bd-jsbai])
+
 ## 6.7.0
 - feat(tax): tenant-scoped tax_calculation_source config — ar_tenant_tax_config table with config_version for cache invalidation, PUT/GET /api/ar/tax/tenant-config, TaxConfigChanged outbox event, per-tenant provider dispatch in the quote path (platform vs external_accounting_software) ([bd-kkhf4])
 
