@@ -137,7 +137,7 @@ pub async fn get_party(
         SELECT id, app_id, party_type::TEXT AS party_type, status::TEXT AS status,
                display_name, email, phone, website,
                address_line1, address_line2, city, state, postal_code, country,
-               metadata, tags, created_at, updated_at
+               metadata, tags, notification_events, notification_channels, created_at, updated_at
         FROM party_parties
         WHERE id = $1 AND app_id = $2
         "#,
@@ -186,7 +186,7 @@ pub async fn list_parties(
             SELECT id, app_id, party_type::TEXT AS party_type, status::TEXT AS status,
                    display_name, email, phone, website,
                    address_line1, address_line2, city, state, postal_code, country,
-                   metadata, tags, created_at, updated_at
+                   metadata, tags, notification_events, notification_channels, created_at, updated_at
             FROM party_parties
             WHERE app_id = $1
             ORDER BY display_name ASC
@@ -213,7 +213,7 @@ pub async fn list_parties(
             SELECT id, app_id, party_type::TEXT AS party_type, status::TEXT AS status,
                    display_name, email, phone, website,
                    address_line1, address_line2, city, state, postal_code, country,
-                   metadata, tags, created_at, updated_at
+                   metadata, tags, notification_events, notification_channels, created_at, updated_at
             FROM party_parties
             WHERE app_id = $1 AND status = 'active'
             ORDER BY display_name ASC
@@ -319,7 +319,7 @@ pub async fn search_parties(
         SELECT id, app_id, party_type::TEXT AS party_type, status::TEXT AS status,
                display_name, email, phone, website,
                address_line1, address_line2, city, state, postal_code, country,
-               metadata, tags, created_at, updated_at
+               metadata, tags, notification_events, notification_channels, created_at, updated_at
         FROM party_parties
         WHERE app_id = $1
           AND ($2::TEXT IS NULL OR status::TEXT = $2)
@@ -353,7 +353,7 @@ pub async fn fetch_party_for_update_tx(
         SELECT id, app_id, party_type::TEXT AS party_type, status::TEXT AS status,
                display_name, email, phone, website,
                address_line1, address_line2, city, state, postal_code, country,
-               metadata, tags, created_at, updated_at
+               metadata, tags, notification_events, notification_channels, created_at, updated_at
         FROM party_parties
         WHERE id = $1 AND app_id = $2
         FOR UPDATE

@@ -56,7 +56,8 @@ pub async fn list_contacts(
     Ok(sqlx::query_as(
         r#"
         SELECT id, party_id, app_id, first_name, last_name, email, phone,
-               role, is_primary, metadata, created_at, updated_at, deactivated_at
+               role, is_primary, metadata, notification_events, notification_channels,
+               created_at, updated_at, deactivated_at
         FROM party_contacts
         WHERE party_id = $1 AND app_id = $2 AND deactivated_at IS NULL
         ORDER BY is_primary DESC, last_name ASC, first_name ASC
@@ -76,7 +77,8 @@ pub async fn get_contact(
     Ok(sqlx::query_as(
         r#"
         SELECT id, party_id, app_id, first_name, last_name, email, phone,
-               role, is_primary, metadata, created_at, updated_at, deactivated_at
+               role, is_primary, metadata, notification_events, notification_channels,
+               created_at, updated_at, deactivated_at
         FROM party_contacts
         WHERE id = $1 AND app_id = $2 AND deactivated_at IS NULL
         "#,
@@ -95,7 +97,8 @@ pub async fn list_primary_contacts(
     Ok(sqlx::query_as(
         r#"
         SELECT id, party_id, app_id, first_name, last_name, email, phone,
-               role, is_primary, metadata, created_at, updated_at, deactivated_at
+               role, is_primary, metadata, notification_events, notification_channels,
+               created_at, updated_at, deactivated_at
         FROM party_contacts
         WHERE party_id = $1 AND app_id = $2
           AND is_primary = true AND deactivated_at IS NULL
@@ -153,7 +156,8 @@ pub async fn fetch_contact_for_update_tx(
     Ok(sqlx::query_as(
         r#"
         SELECT id, party_id, app_id, first_name, last_name, email, phone,
-               role, is_primary, metadata, created_at, updated_at, deactivated_at
+               role, is_primary, metadata, notification_events, notification_channels,
+               created_at, updated_at, deactivated_at
         FROM party_contacts
         WHERE id = $1 AND app_id = $2 AND deactivated_at IS NULL
         FOR UPDATE
@@ -232,7 +236,8 @@ pub async fn fetch_contact_for_primary_set_tx(
     Ok(sqlx::query_as(
         r#"
         SELECT id, party_id, app_id, first_name, last_name, email, phone,
-               role, is_primary, metadata, created_at, updated_at, deactivated_at
+               role, is_primary, metadata, notification_events, notification_channels,
+               created_at, updated_at, deactivated_at
         FROM party_contacts
         WHERE id = $1 AND app_id = $2 AND party_id = $3 AND deactivated_at IS NULL
         FOR UPDATE

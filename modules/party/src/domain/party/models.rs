@@ -48,6 +48,10 @@ pub struct Party {
     pub country: Option<String>,
     pub metadata: Option<serde_json::Value>,
     pub tags: Vec<String>,
+    #[sqlx(json)]
+    pub notification_events: Vec<String>,
+    #[sqlx(json)]
+    pub notification_channels: Vec<String>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }

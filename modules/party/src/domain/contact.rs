@@ -23,6 +23,12 @@ pub struct Contact {
     pub role: Option<String>,
     pub is_primary: bool,
     pub metadata: Option<serde_json::Value>,
+    /// NULL in DB = inherit from parent party (per-column independent).
+    /// Some(vec![]) = explicit empty override (distinct from NULL).
+    #[sqlx(json)]
+    pub notification_events: Option<Vec<String>>,
+    #[sqlx(json)]
+    pub notification_channels: Option<Vec<String>>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
     pub deactivated_at: Option<DateTime<Utc>>,

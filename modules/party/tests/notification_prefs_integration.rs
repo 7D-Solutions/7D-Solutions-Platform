@@ -452,3 +452,134 @@ async fn notification_prefs_gin_index_party() {
         plan.0
     );
 }
+
+// ── GET response tests (bd-w7qrs) ─────────────────────────────────────────────
+
+/// GET /api/party/parties/{id} includes notification_events and notification_channels.
+#[tokio::test]
+#[serial]
+async fn notification_get_party_includes_prefs() {
+    use axum::http::Method;
+    let pool = setup_db().await;
+    let tenant_id = Uuid::new_v4();
+    let party_id = create_test_party(&pool, tenant_id).await;
+
+    // Seed prefs directly via SQL
+    sqlx::query(
+        "UPDATE party_parties SET notification_events = $1, notification_channels = $2 WHERE id = $3",
+    )
+    .bind(serde_json::json!(["shipped", "delivered"]))
+    .bind(serde_json::json!(["email"]))
+    .bind(party_id)
+    .execute(&pool)
+    .await
+    .unwrap();
+
+    let router = build_router_with_claims(pool, admin_claims(tenant_id));
+    let req = Request::builder()
+        .method(Method::GET)
+        .uri(format!("/api/party/parties/{party_id}"))
+        .body(Body::empty())
+        .unwrap();
+    let resp = router.oneshot(req).await.expect("oneshot");
+    assert_eq!(resp.status(), StatusCode::OK);
+
+    let bytes = axum::body::to_bytes(resp.into_body(), usize::MAX).await.unwrap();
+    let body: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+
+    let events = body["party"]["notification_events"].as_array().unwrap();
+    let channels = body["party"]["notification_channels"].as_array().unwrap();
+    assert!(events.iter().any(|v| v == "shipped"), "must contain shipped");
+    assert!(events.iter().any(|v| v == "delivered"), "must contain delivered");
+    assert!(channels.iter().any(|v| v == "email"), "must contain email");
+}
+
+/// GET contact with NULL notification columns returns JSON null (inherits from party).
+#[tokio::test]
+#[serial]
+async fn notification_get_contact_null_inherits() {
+    use axum::http::Method;
+    let pool = setup_db().await;
+    let tenant_id = Uuid::new_v4();
+    let party_id = create_test_party(&pool, tenant_id).await;
+    let contact_id = create_test_contact(&pool, party_id, tenant_id).await;
+
+    // Confirm contact columns are NULL (migration default)
+    let (evts,): (Option<serde_json::Value>,) =
+        sqlx::query_as("SELECT notification_events FROM party_contacts WHERE id = $1")
+            .bind(contact_id)
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+    assert!(evts.is_none(), "contact notification_events must start NULL");
+
+    let router = build_router_with_claims(pool, admin_claims(tenant_id));
+    let req = Request::builder()
+        .method(Method::GET)
+        .uri(format!("/api/party/contacts/{contact_id}"))
+        .body(Body::empty())
+        .unwrap();
+    let resp = router.oneshot(req).await.expect("oneshot");
+    assert_eq!(resp.status(), StatusCode::OK);
+
+    let bytes = axum::body::to_bytes(resp.into_body(), usize::MAX).await.unwrap();
+    let body: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+
+    assert!(body["notification_events"].is_null(), "null DB column must be JSON null");
+    assert!(body["notification_channels"].is_null(), "null DB column must be JSON null");
+}
+
+/// GET contact with notification_events=[] (explicit empty) returns Some([]), NOT null.
+/// Pins the NULL-vs-empty-array invariant critical for resolve_for_contact.
+#[tokio::test]
+#[serial]
+async fn notification_get_contact_empty_override() {
+    use axum::http::Method;
+    let pool = setup_db().await;
+    let tenant_id = Uuid::new_v4();
+    let party_id = create_test_party(&pool, tenant_id).await;
+    let contact_id = create_test_contact(&pool, party_id, tenant_id).await;
+
+    // Seed party with events, contact with explicit empty events (opt-out)
+    sqlx::query(
+        "UPDATE party_parties SET notification_events = $1 WHERE id = $2",
+    )
+    .bind(serde_json::json!(["shipped"]))
+    .bind(party_id)
+    .execute(&pool)
+    .await
+    .unwrap();
+
+    sqlx::query(
+        "UPDATE party_contacts SET notification_events = $1 WHERE id = $2",
+    )
+    .bind(serde_json::json!([]))
+    .bind(contact_id)
+    .execute(&pool)
+    .await
+    .unwrap();
+
+    let router = build_router_with_claims(pool, admin_claims(tenant_id));
+    let req = Request::builder()
+        .method(Method::GET)
+        .uri(format!("/api/party/contacts/{contact_id}"))
+        .body(Body::empty())
+        .unwrap();
+    let resp = router.oneshot(req).await.expect("oneshot");
+    assert_eq!(resp.status(), StatusCode::OK);
+
+    let bytes = axum::body::to_bytes(resp.into_body(), usize::MAX).await.unwrap();
+    let body: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+
+    let events = &body["notification_events"];
+    assert!(
+        events.is_array(),
+        "explicit-empty override must be JSON array (not null), got: {:?}",
+        events
+    );
+    assert_eq!(
+        events.as_array().unwrap().len(),
+        0,
+        "explicit-empty override must be empty array"
+    );
+}

@@ -4,6 +4,9 @@
 > **Standard:** See `docs/VERSIONING.md` for the rules governing this file.
 
 
+## 3.4.0
+- feat(notifications): expose notification_events + notification_channels in Party and Contact response structs; SELECT queries in party_repo and contact_repo now read the JSONB columns; #[sqlx(json)] attribute + sqlx json feature added; GET /api/party/parties and GET /api/party/parties/{id}/contacts now include notification prefs ([bd-w7qrs] [bd-c67qi])
+
 ## 3.3.1
 - chore(notifications): land bd-kv15d implementation files (domain/notifications.rs, http/notification_prefs.rs, migrations, integration tests) that were authored but not yet committed ([bd-kv15d])
 
