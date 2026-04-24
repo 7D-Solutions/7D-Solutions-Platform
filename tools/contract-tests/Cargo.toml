@@ -19,6 +19,10 @@ path = "tests/openapi_tests.rs"
 name = "consumer_tests"
 path = "tests/consumer_tests.rs"
 
+[[test]]
+name = "pdf_editor_consumer_test"
+path = "tests/pdf_editor_consumer_test.rs"
+
 [dependencies]
 jsonschema = "0.18"
 serde = { version = "1.0", features = ["derive"] }
@@ -28,6 +32,7 @@ thiserror = "1.0"
 
 [dev-dependencies]
 glob = "0.3"
+pdf-editor = { path = "../../modules/pdf-editor" }
 
 [lints]
 workspace = true

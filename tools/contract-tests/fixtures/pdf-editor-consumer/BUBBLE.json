@@ -1,0 +1,20 @@
+{
+  "id": "fixture-bubble-001",
+  "type": "BUBBLE",
+  "x": 183.6,
+  "y": 316.8,
+  "pageNumber": 1,
+  "timestamp": "2024-01-15T10:00:00.000Z",
+  "bubbleNumber": 1,
+  "bubbleSize": 24.48,
+  "bubbleShape": "circle",
+  "bubbleColor": "#4299e1",
+  "bubbleBorderColor": "#2b6cb0",
+  "textColor": "#ffffff",
+  "bubbleFontSize": 0.022,
+  "hasLeaderLine": true,
+  "leaderX": 244.8,
+  "leaderY": 396,
+  "leaderColor": "#4299e1",
+  "leaderStrokeWidth": 2
+}

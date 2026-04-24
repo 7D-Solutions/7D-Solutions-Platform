@@ -1,0 +1,21 @@
+{
+  "id": "fixture-highlight-001",
+  "type": "HIGHLIGHT",
+  "x": 61.2,
+  "y": 316.8,
+  "pageNumber": 1,
+  "timestamp": "2024-01-15T10:00:00.000Z",
+  "color": "#faf089",
+  "opacity": 0.5,
+  "highlightedText": "highlighted content",
+  "width": 183.6,
+  "height": 15.3,
+  "textRects": [
+    {
+      "x": 61.2,
+      "y": 316.8,
+      "width": 183.6,
+      "height": 15.3
+    }
+  ]
+}
