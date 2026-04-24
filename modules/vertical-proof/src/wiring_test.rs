@@ -443,25 +443,24 @@ pub async fn test_doc_mgmt_wiring() -> Result<(), String> {
     let docs = platform_client_doc_mgmt::DocumentsClient::from_platform_client(client);
     let claims = test_claims();
 
+    let _ = &claims; // retained for future auth rewiring
+
     let doc = docs
-        .create_document(
-            &claims,
-            &platform_client_doc_mgmt::CreateDocumentRequest {
-                doc_number: format!(
-                    "DOC-PROOF-{}",
-                    &uuid::Uuid::new_v4().simple().to_string()[..6]
-                ),
-                doc_type: "procedure".into(),
-                title: "Vertical proof doc-mgmt test".into(),
-                body: None,
-            },
-        )
+        .create_document(&platform_client_doc_mgmt::CreateDocumentRequest {
+            doc_number: format!(
+                "DOC-PROOF-{}",
+                &uuid::Uuid::new_v4().simple().to_string()[..6]
+            ),
+            doc_type: "procedure".into(),
+            title: "Vertical proof doc-mgmt test".into(),
+            body: None,
+        })
         .await
         .map_err(|e| format!("Doc-Mgmt create_document failed: {e}"))?;
     tracing::info!(doc_id = %doc.document.id, "Doc-Mgmt: document created");
 
     let list = docs
-        .list_documents(&claims)
+        .list_documents()
         .await
         .map_err(|e| format!("Doc-Mgmt list_documents failed: {e}"))?;
     tracing::info!(count = list.documents.len(), "Doc-Mgmt: listed documents");

@@ -4,6 +4,9 @@
 > **Standard:** See `docs/VERSIONING.md` for the rules governing this file.
 
 
+## 2.3.4
+- fix: drop stale claims arg from list_distributions call site — match regenerated platform-client-doc-mgmt ([bd-ny9v9])
+
 ## 2.3.3
 - chore: rustfmt reflow + regenerate typed clients (no behavior change)
 

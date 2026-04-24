@@ -53,10 +53,10 @@ impl TenantRegistryClient {
     /// Returns `Err(TenantRegistryError::NoAppId)` if app_id is not yet assigned.
     pub async fn get_app_id(
         &self,
-        claims: &VerifiedClaims,
+        _claims: &VerifiedClaims,
         tenant_id: Uuid,
     ) -> Result<String, TenantRegistryError> {
-        match self.inner.get_app_id(claims, tenant_id).await {
+        match self.inner.get_app_id(tenant_id).await {
             Ok(row) => Ok(row.app_id),
             Err(ClientError::Api { status: 404, .. })
             | Err(ClientError::Unexpected { status: 404, .. }) => {

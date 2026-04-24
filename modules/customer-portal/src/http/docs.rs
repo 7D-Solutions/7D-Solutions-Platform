@@ -113,8 +113,7 @@ async fn fetch_authorized_distribution(
     document_id: Uuid,
     user_email: &str,
 ) -> Result<Option<platform_client_doc_mgmt::DocumentDistribution>, ApiError> {
-    let claims = platform_sdk::PlatformClient::service_claims(tenant_id);
-    let payload = match client.list_distributions(&claims, document_id).await {
+    let payload = match client.list_distributions(document_id).await {
         Ok(resp) => resp,
         Err(
             platform_sdk::ClientError::Api { .. } | platform_sdk::ClientError::Unexpected { .. },

@@ -4,6 +4,9 @@
 > **Standard:** See `docs/VERSIONING.md` for the rules governing this file.
 
 
+## 4.0.4
+- fix: drop stale claims arg from tenant_registry::get_app_id call site — match regenerated platform-client-tenant-registry (get_anon) ([bd-ny9v9])
+
 ## 4.0.3
 - chore: rustfmt reflow + regenerate typed clients (no behavior change)
 
