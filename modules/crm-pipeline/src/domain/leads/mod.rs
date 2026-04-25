@@ -207,6 +207,9 @@ pub struct Lead {
     pub created_by: String,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
+    /// AR customer ID linked when ar.customer_created fires with a matching party_id.
+    #[sqlx(default)]
+    pub ar_customer_id: Option<i32>,
 }
 
 // ============================================================================

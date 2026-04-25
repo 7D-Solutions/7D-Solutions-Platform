@@ -4,6 +4,9 @@
 > **Standard:** See `docs/VERSIONING.md` for the rules governing this file.
 
 
+## 6.10.0
+- feat(bd-1xqzh.2.1): emit `ar.customer.created` event when a customer is inserted via POST /api/ar/customers; payload carries customer_id, party_id, app_id, tenant_id for downstream CRM lead/opportunity linkage. New event contract `ArCustomerCreatedPayload` (`EVENT_TYPE_AR_CUSTOMER_CREATED`). Customer insert now wraps in a transaction with outbox enqueue.
+
 ## 6.9.1
 - fix(bd-1n4am.4): integration test default DATABASE_URL used port 5444; AR DB runs on 5434 per .env DATABASE_URL_AR. Update fallback so tests pass without explicit env var.
 

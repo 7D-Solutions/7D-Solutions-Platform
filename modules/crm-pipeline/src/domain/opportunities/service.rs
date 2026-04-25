@@ -99,6 +99,7 @@ pub async fn create_opportunity(
         created_by: actor.clone(),
         created_at: Utc::now(),
         updated_at: Utc::now(),
+        ar_customer_id: None,
     };
 
     let created = repo::insert_opportunity(&mut *tx, &opp).await?;

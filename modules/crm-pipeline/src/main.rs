@@ -47,6 +47,10 @@ async fn main() {
                     ctx.pool().clone(),
                 );
                 crm_pipeline_rs::consumers::order_booked::start_order_booked_consumer(
+                    bus.clone(),
+                    ctx.pool().clone(),
+                );
+                crm_pipeline_rs::consumers::customer_created::start_customer_created_consumer(
                     bus,
                     ctx.pool().clone(),
                 );

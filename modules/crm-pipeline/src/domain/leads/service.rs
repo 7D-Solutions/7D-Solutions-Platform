@@ -60,6 +60,7 @@ pub async fn create_lead(
         created_by,
         created_at: Utc::now(),
         updated_at: Utc::now(),
+        ar_customer_id: None,
     };
 
     let created = repo::insert_lead(&mut *tx, &lead).await?;

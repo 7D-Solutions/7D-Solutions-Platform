@@ -5,6 +5,7 @@ use axum::{
 };
 use security::VerifiedClaims;
 use sqlx::PgPool;
+use uuid::Uuid;
 
 use crate::domain::customers;
 use crate::idempotency::log_event_async;
@@ -51,8 +52,13 @@ pub async fn create_customer(
         ));
     }
 
+    let mut tx = db.begin().await.map_err(|e| {
+        tracing::error!(error = %e, "Failed to begin transaction");
+        ApiError::internal("Internal database error")
+    })?;
+
     let customer = customers::insert_customer(
-        &db,
+        &mut *tx,
         &app_id,
         req.external_customer_id,
         email,
@@ -74,7 +80,40 @@ pub async fn create_customer(
         ApiError::internal("Internal database error")
     })?;
 
-    // Log event asynchronously
+    // Emit ar.customer_created atomically with the insert
+    let event_payload = crate::events::contracts::ArCustomerCreatedPayload {
+        customer_id: customer.id,
+        tenant_id: app_id.clone(),
+        email: customer.email.clone(),
+        name: customer.name.clone(),
+        party_id: customer.party_id,
+    };
+    let envelope = crate::events::build_ar_customer_created_envelope(
+        Uuid::new_v4(),
+        app_id.clone(),
+        Uuid::new_v4().to_string(),
+        None,
+        event_payload,
+    );
+    crate::events::outbox::enqueue_event_tx(
+        &mut tx,
+        crate::events::EVENT_TYPE_AR_CUSTOMER_CREATED,
+        "customer",
+        &customer.id.to_string(),
+        &envelope,
+    )
+    .await
+    .map_err(|e| {
+        tracing::error!(error = %e, "Failed to enqueue ar.customer_created event");
+        ApiError::internal("Internal database error")
+    })?;
+
+    tx.commit().await.map_err(|e| {
+        tracing::error!(error = %e, "Failed to commit transaction");
+        ApiError::internal("Internal database error")
+    })?;
+
+    // Log event asynchronously (local audit log, fire-and-forget)
     log_event_async(
         db.clone(),
         app_id,

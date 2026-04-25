@@ -7,6 +7,7 @@ pub mod publisher;
 
 pub use consumer::{is_event_processed, mark_event_processed, process_event_idempotent};
 pub use contracts::{
+    build_ar_customer_created_envelope,
     build_ar_aging_updated_envelope,
     build_credit_memo_approved_envelope,
     build_credit_memo_created_envelope,
@@ -30,6 +31,8 @@ pub use contracts::{
     build_tax_voided_envelope,
     build_usage_captured_envelope,
     build_usage_invoiced_envelope,
+    ArCustomerCreatedPayload,
+    EVENT_TYPE_AR_CUSTOMER_CREATED,
     // Phase 21 types
     AgingBuckets,
     // Phase 22 types

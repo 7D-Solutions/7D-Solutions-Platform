@@ -26,7 +26,7 @@ use uuid::Uuid;
 async fn setup_db() -> sqlx::PgPool {
     dotenvy::dotenv().ok();
     let url = std::env::var("DATABASE_URL").unwrap_or_else(|_| {
-        "postgresql://crm_pipeline_user:crm_pipeline_pass@localhost:5465/crm_pipeline_db"
+        "postgresql://crm_pipeline_user:crm_pipeline_pass@127.0.0.1:5465/crm_pipeline_db"
             .to_string()
     });
     let pool = PgPoolOptions::new()

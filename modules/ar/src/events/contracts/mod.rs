@@ -23,6 +23,7 @@
 
 mod aging_dunning;
 mod credit_writeoff;
+mod customer;
 mod invoice_lifecycle;
 mod progress_billing;
 mod recon_allocation;
@@ -51,6 +52,7 @@ pub const MUTATION_CLASS_LIFECYCLE: &str = "LIFECYCLE";
 
 pub use aging_dunning::*;
 pub use credit_writeoff::*;
+pub use customer::*;
 pub use invoice_lifecycle::*;
 pub use progress_billing::*;
 pub use recon_allocation::*;
