@@ -156,7 +156,7 @@ checksum = "7f202df86484c868dbad7eaa557ef785d5c66295e41b460ef922eca0723b842c"
 
 [[package]]
 name = "ap"
-version = "3.8.0"
+version = "3.8.1"
 dependencies = [
  "async-nats",
  "audit",
@@ -192,7 +192,7 @@ dependencies = [
 
 [[package]]
 name = "ar-rs"
-version = "6.9.0"
+version = "6.9.1"
 dependencies = [
  "async-nats",
  "audit",
