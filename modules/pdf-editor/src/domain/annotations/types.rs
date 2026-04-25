@@ -61,6 +61,14 @@ pub enum ShapeType {
     RevisionCloud,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "SCREAMING_SNAKE_CASE")]
+pub enum BubbleShape {
+    Circle,
+    Square,
+    Oval,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TextRect {
     pub x: f32,
@@ -144,6 +152,7 @@ pub struct Annotation {
     pub bubble_border_color: Option<String>,
     pub text_color: Option<String>,
     pub bubble_font_size: Option<f32>,
+    pub bubble_shape: Option<BubbleShape>,
     pub has_leader_line: Option<bool>,
     pub leader_x: Option<f32>,
     pub leader_y: Option<f32>,

@@ -98,6 +98,7 @@ fn build_schema_v1() -> Value {
     properties.insert("bubbleBorderColor".into(), json!({"type":["string","null"]}));
     properties.insert("textColor".into(), json!({"type":["string","null"]}));
     properties.insert("bubbleFontSize".into(), json!({"type":["number","null"]}));
+    properties.insert("bubbleShape".into(), json!({"type":["string","null"],"enum":["CIRCLE","SQUARE","OVAL",null]}));
     properties.insert("hasLeaderLine".into(), json!({"type":["boolean","null"]}));
     properties.insert("leaderX".into(), json!({"type":["number","null"]}));
     properties.insert("leaderY".into(), json!({"type":["number","null"]}));

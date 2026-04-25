@@ -32,6 +32,8 @@ export type ShapeType =
   | 'POLYGON'
   | 'REVISION_CLOUD';
 
+export type BubbleShape = 'CIRCLE' | 'SQUARE' | 'OVAL';
+
 export interface TextRect {
   x: number;
   y: number;
@@ -100,6 +102,7 @@ export interface Annotation {
   bubbleBorderColor?: string;
   textColor?: string;
   bubbleFontSize?: number;
+  bubbleShape?: BubbleShape;
   hasLeaderLine?: boolean;
   leaderX?: number;
   leaderY?: number;

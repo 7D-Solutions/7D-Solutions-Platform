@@ -4,9 +4,11 @@
 > **Standard:** See `docs/VERSIONING.md` for the rules governing this file.
 
 
+## 2.7.0
+- feat(bd-w0pbp): BUBBLE annotation now supports configurable shape — `oval` (default, prior behaviour), `circle`, `square`. Wire field `bubbleShape` on the annotation payload. Renderer dispatches on shape; consumer contract fixture and JSON Schema updated. Frontend types now include the discriminator.
+
 ## 2.6.1
 - fix(bd-iah29.1): add `PDFIUM_ABI_CANARY` env knob to `assert_pdfium_abi()` — three modes: `panic` (default, prod), `warn` (log error and continue), `skip` (no-op). Set `PDFIUM_ABI_CANARY=warn` in the dev container to restore previous behaviour where pdf-editor starts despite an unloadable libpdfium.so; prod stays on `panic`.
-- chore(bd-gprmj): add `[package.metadata.cross]` declaring `deploy_target = "x86_64-unknown-linux-gnu"` and `targets = ["x86_64-unknown-linux-gnu"]`; standardizes multi-arch packaging — arm64 dev containers build natively inside Dockerfile.workspace, amd64 prod artifact cross-compiled via `cargo-slot.sh build -p pdf-editor --target x86_64-unknown-linux-gnu --release`.
 
 ## 2.6.0
 - feat(bd-iah29): startup ABI canary `assert_pdfium_abi()` — verifies pdfium-render crate ↔ packaged libpdfium.so compatibility by binding the library and calling FPDF_LoadMemDocument64 once at boot. Crashes early with an actionable message if the version on disk is incompatible, instead of failing on the first annotation request. No-op when PDFIUM_LIB_PATH is unset.

@@ -45,6 +45,7 @@ fn base_annotation(ann_type: AnnotationType, page: u32) -> Annotation {
         bubble_border_color: None,
         text_color: None,
         bubble_font_size: None,
+        bubble_shape: None,
         has_leader_line: None,
         leader_x: None,
         leader_y: None,

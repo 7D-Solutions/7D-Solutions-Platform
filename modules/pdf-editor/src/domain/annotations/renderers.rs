@@ -6,7 +6,7 @@
 use pdfium_render::prelude::*;
 
 use super::render::{FontTokens, RenderError};
-use super::types::{Annotation, ShapeType, StampType};
+use super::types::{Annotation, BubbleShape, ShapeType, StampType};
 
 fn to_pdf_color(hex: &str) -> Result<PdfColor, RenderError> {
     let (r, g, b) = super::render::parse_hex_color(hex)?;
@@ -298,14 +298,39 @@ pub(crate) fn render_bubble(
     let cx = ann.x + radius;
     let cy = pdf_y - radius;
 
-    page.objects_mut().create_path_object_circle_at(
-        PdfPoints::new(cx),
-        PdfPoints::new(cy),
-        PdfPoints::new(radius),
-        Some(fill),
-        Some(PdfPoints::new(1.5)),
-        Some(border),
-    )?;
+    match ann.bubble_shape.as_ref().unwrap_or(&BubbleShape::Circle) {
+        BubbleShape::Circle => {
+            page.objects_mut().create_path_object_circle_at(
+                PdfPoints::new(cx),
+                PdfPoints::new(cy),
+                PdfPoints::new(radius),
+                Some(fill),
+                Some(PdfPoints::new(1.5)),
+                Some(border),
+            )?;
+        }
+        BubbleShape::Square => {
+            page.objects_mut().create_path_object_rect(
+                rect(cx - radius, cy - radius, cx + radius, cy + radius),
+                Some(fill),
+                Some(PdfPoints::new(1.5)),
+                Some(border),
+            )?;
+        }
+        BubbleShape::Oval => {
+            let rx = radius;
+            let ry = radius * 0.6;
+            page.objects_mut().create_path_object_ellipse_at(
+                PdfPoints::new(cx),
+                PdfPoints::new(cy),
+                PdfPoints::new(rx),
+                PdfPoints::new(ry),
+                Some(fill),
+                Some(PdfPoints::new(1.5)),
+                Some(border),
+            )?;
+        }
+    }
 
     if let Some(num) = ann.bubble_number {
         let fs = ann.bubble_font_size.unwrap_or(12.0);
