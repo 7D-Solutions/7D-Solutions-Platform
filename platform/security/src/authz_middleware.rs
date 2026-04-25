@@ -25,6 +25,7 @@
 
 use crate::audit_log::{security_event, SecurityOutcome};
 use crate::claims::{JwtVerifier, VerifiedClaims};
+use crate::error_codes::AuthErrorCode;
 use axum::{
     extract::{Request, State},
     http::StatusCode,
@@ -37,6 +38,15 @@ use std::pin::Pin;
 use std::sync::Arc;
 use std::task::{Context, Poll};
 use tower::{Layer, Service};
+
+fn request_id_from_headers(headers: &http::HeaderMap) -> Option<String> {
+    headers
+        .get("x-request-id")
+        .or_else(|| headers.get("x-trace-id"))
+        .and_then(|v| v.to_str().ok())
+        .filter(|s| !s.trim().is_empty())
+        .map(|s| s.to_string())
+}
 
 /// The raw Bearer token string extracted from the `Authorization` header.
 ///
@@ -143,10 +153,17 @@ where
                             SecurityOutcome::Denied,
                             &format!("strict mode rejected — {e}"),
                         );
-                        let body = serde_json::json!({
-                            "error": "unauthorized",
+                        let error_code = match e {
+                            crate::SecurityError::TokenExpired => AuthErrorCode::ExpiredJwt,
+                            _ => AuthErrorCode::InvalidJwt,
+                        };
+                        let mut body = serde_json::json!({
+                            "error": error_code.as_str(),
                             "message": "Missing or invalid authentication"
                         });
+                        if let Some(rid) = request_id_from_headers(req.headers()) {
+                            body["request_id"] = serde_json::Value::String(rid);
+                        }
                         return Ok((StatusCode::UNAUTHORIZED, axum::Json(body)).into_response());
                     }
                 }
@@ -162,10 +179,13 @@ where
                     SecurityOutcome::Denied,
                     "strict mode rejected — no valid claims",
                 );
-                let body = serde_json::json!({
-                    "error": "unauthorized",
+                let mut body = serde_json::json!({
+                    "error": AuthErrorCode::InvalidJwt.as_str(),
                     "message": "Missing or invalid authentication"
                 });
+                if let Some(rid) = request_id_from_headers(req.headers()) {
+                    body["request_id"] = serde_json::Value::String(rid);
+                }
                 return Ok((StatusCode::UNAUTHORIZED, axum::Json(body)).into_response());
             }
 
@@ -301,14 +321,17 @@ where
                             SecurityOutcome::Denied,
                             &format!("insufficient permissions, missing: {missing:?}"),
                         );
+                        let request_id = req
+                            .extensions()
+                            .get::<event_bus::TracingContext>()
+                            .and_then(|ctx| ctx.trace_id.clone())
+                            .or_else(|| request_id_from_headers(req.headers()));
                         let mut body = serde_json::json!({
-                            "error": "forbidden",
+                            "error": AuthErrorCode::InsufficientPermissions.as_str(),
                             "message": "Insufficient permissions"
                         });
-                        if let Some(ctx) = req.extensions().get::<event_bus::TracingContext>() {
-                            if let Some(tid) = &ctx.trace_id {
-                                body["request_id"] = serde_json::Value::String(tid.clone());
-                            }
+                        if let Some(rid) = request_id {
+                            body["request_id"] = serde_json::Value::String(rid);
                         }
                         return Ok((StatusCode::FORBIDDEN, axum::Json(body)).into_response());
                     }
@@ -322,14 +345,17 @@ where
                         SecurityOutcome::Denied,
                         "no claims present — permission check failed",
                     );
+                    let request_id = req
+                        .extensions()
+                        .get::<event_bus::TracingContext>()
+                        .and_then(|ctx| ctx.trace_id.clone())
+                        .or_else(|| request_id_from_headers(req.headers()));
                     let mut body = serde_json::json!({
-                        "error": "unauthorized",
+                        "error": AuthErrorCode::InvalidJwt.as_str(),
                         "message": "Missing or invalid authentication"
                     });
-                    if let Some(ctx) = req.extensions().get::<event_bus::TracingContext>() {
-                        if let Some(tid) = &ctx.trace_id {
-                            body["request_id"] = serde_json::Value::String(tid.clone());
-                        }
+                    if let Some(rid) = request_id {
+                        body["request_id"] = serde_json::Value::String(rid);
                     }
                     return Ok((StatusCode::UNAUTHORIZED, axum::Json(body)).into_response());
                 }

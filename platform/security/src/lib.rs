@@ -12,6 +12,27 @@
 //! let claims = verifier.verify(bearer_token)?;
 //! println!("user={} tenant={}", claims.user_id, claims.tenant_id);
 //! ```
+//!
+//! ## Request ID propagation contract
+//!
+//! All modules must read and write `X-Request-Id` identically:
+//!
+//! | Direction | Header             | Behavior                                              |
+//! |-----------|--------------------|-------------------------------------------------------|
+//! | Inbound   | `X-Request-Id`     | Echo as-is; if absent, alias to the generated trace ID |
+//! | Inbound   | `X-Trace-Id`       | Seed the distributed trace; generate UUID if absent   |
+//! | Outbound  | `X-Request-Id`     | Always present in every response                      |
+//! | Outbound  | `X-Trace-Id`       | Same as trace ID                                      |
+//! | Outbound  | `X-Correlation-Id` | Same as correlation ID (falls back to trace ID)       |
+//!
+//! Error payloads from auth/authz failures always include `request_id` (from
+//! the inbound `X-Request-Id` or `X-Trace-Id` header) and a stable `error_code`
+//! from [`AuthErrorCode`] so support can trace cross-module flows.
+//!
+//! Use [`tracing_context_from_headers`] to extract a [`event_bus::TracingContext`]
+//! from inbound headers, and [`tracing_context_middleware`] to wire it into Axum.
+//! The platform-sdk `platform_trace_middleware` extends this with tenant/actor
+//! enrichment from JWT claims and W3C `traceparent` support.
 
 pub mod audit_log;
 pub mod authz_middleware;
@@ -63,6 +84,9 @@ pub use ratelimit::{RateLimitKeyStrategy, TierDef};
 
 // Re-export stable error code taxonomy
 pub use error_codes::AuthErrorCode;
+
+// Re-export tracing context utilities — canonical request_id propagation contract
+pub use tracing::{tracing_context_from_headers, tracing_context_middleware};
 
 /// Error type for security operations
 #[derive(Debug, thiserror::Error)]

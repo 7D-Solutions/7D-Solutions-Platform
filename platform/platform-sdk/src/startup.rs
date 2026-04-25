@@ -979,3 +979,108 @@ pub(crate) fn build_observability_routes(
 
     health_routes.merge(metrics_route)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use axum::{body::Body, routing::get, Router};
+    use http::{Request as HttpRequest, StatusCode};
+    use tower::ServiceExt;
+
+    fn trace_test_app() -> Router {
+        Router::new()
+            .route("/test", get(|| async { "ok" }))
+            .layer(axum::middleware::from_fn(platform_trace_middleware))
+    }
+
+    /// X-Request-Id provided by caller is echoed back unchanged.
+    #[tokio::test]
+    async fn test_request_id_propagation_echoes_provided_id() {
+        let app = trace_test_app();
+        let req = HttpRequest::builder()
+            .uri("/test")
+            .header("x-request-id", "req-abc-123")
+            .body(Body::empty())
+            .expect("test setup");
+
+        let resp = app.oneshot(req).await.expect("test setup");
+        assert_eq!(resp.status(), StatusCode::OK);
+        assert_eq!(
+            resp.headers().get("x-request-id").expect("test setup").to_str().expect("test setup"),
+            "req-abc-123"
+        );
+    }
+
+    /// When no X-Request-Id is provided, middleware generates a UUID.
+    #[tokio::test]
+    async fn test_request_id_propagation_generates_uuid_when_absent() {
+        let app = trace_test_app();
+        let req = HttpRequest::builder()
+            .uri("/test")
+            .body(Body::empty())
+            .expect("test setup");
+
+        let resp = app.oneshot(req).await.expect("test setup");
+        assert_eq!(resp.status(), StatusCode::OK);
+
+        let request_id = resp.headers().get("x-request-id").expect("test setup").to_str().expect("test setup");
+        assert!(
+            Uuid::parse_str(request_id).is_ok(),
+            "auto-generated x-request-id must be a valid UUID, got: {request_id}"
+        );
+    }
+
+    /// When no X-Request-Id is provided, x-request-id and x-trace-id are identical.
+    #[tokio::test]
+    async fn test_request_id_propagation_aliases_trace_id_when_absent() {
+        let app = trace_test_app();
+        let req = HttpRequest::builder()
+            .uri("/test")
+            .body(Body::empty())
+            .expect("test setup");
+
+        let resp = app.oneshot(req).await.expect("test setup");
+        let request_id = resp.headers().get("x-request-id").expect("test setup").to_str().expect("test setup");
+        let trace_id = resp.headers().get("x-trace-id").expect("test setup").to_str().expect("test setup");
+
+        assert_eq!(
+            request_id, trace_id,
+            "x-request-id must equal x-trace-id when neither was provided"
+        );
+    }
+
+    /// W3C traceparent takes precedence over X-Trace-Id for the trace ID.
+    #[tokio::test]
+    async fn test_request_id_propagation_w3c_traceparent_wins_over_x_trace_id() {
+        let app = trace_test_app();
+        let traceparent = "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01";
+        let req = HttpRequest::builder()
+            .uri("/test")
+            .header("traceparent", traceparent)
+            .header("x-trace-id", "should-be-ignored")
+            .body(Body::empty())
+            .expect("test setup");
+
+        let resp = app.oneshot(req).await.expect("test setup");
+        let trace_id = resp.headers().get("x-trace-id").expect("test setup").to_str().expect("test setup");
+        assert_eq!(trace_id, "4bf92f35-77b3-4da6-a3ce-929d0e0e4736");
+    }
+
+    /// All three correlation headers are present in every response.
+    #[tokio::test]
+    async fn test_request_id_propagation_all_headers_present() {
+        let app = trace_test_app();
+        let req = HttpRequest::builder()
+            .uri("/test")
+            .header("x-request-id", "req-hdr-1")
+            .header("x-trace-id", "trace-hdr-1")
+            .header("x-correlation-id", "corr-hdr-1")
+            .body(Body::empty())
+            .expect("test setup");
+
+        let resp = app.oneshot(req).await.expect("test setup");
+        assert_eq!(resp.headers().get("x-request-id").expect("test setup"), "req-hdr-1");
+        assert_eq!(resp.headers().get("x-trace-id").expect("test setup"), "trace-hdr-1");
+        assert_eq!(resp.headers().get("x-correlation-id").expect("test setup"), "corr-hdr-1");
+    }
+}

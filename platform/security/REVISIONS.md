@@ -3,6 +3,9 @@
 > **What this file is:** The complete record of every change to this module after it was proven. Agents modifying this module must add a row here before committing. Products adopting a new version read this file to understand what changed.
 > **Standard:** See `docs/VERSIONING.md` for the rules governing this file.
 
+## 1.15.0
+- feat(bd-0le82): observability correlation — `AuthErrorCode` now carries `request_id` in error responses so tenant/JWT failures can be traced through nginx → service → caller. New re-exports in `lib.rs` for the error-taxonomy types so verticals consume the same enum across services. `authz_middleware.rs` propagates request_id from incoming X-Request-ID header (or generates one) and includes it in every emitted error.
+
 ## 1.14.0
 - feat(permissions): add INTEGRATIONS_SYNC_PULL constant for prod-safe manual sync-pull endpoint ([bd-sqo0q])
 
