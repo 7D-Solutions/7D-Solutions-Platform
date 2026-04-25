@@ -1,0 +1,73 @@
+name: pdf-editor Container Image Scan
+
+# Builds the pdf-editor container image and scans it with Trivy.
+# Fails the build if any CRITICAL CVE is found.
+#
+# This catches OS-layer and native-library CVEs (including the bundled
+# libpdfium.so) that cargo-audit and cargo-deny cannot see.
+#
+# Suppressions: add entries to .trivyignore at the repo root with a comment
+# linking to a patch-deferrals bead and the expected resolution date.
+#
+# See docs/operations/pdfium-patching.md for the full patch SLA and
+# rollout procedure.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'modules/pdf-editor/**'
+      - '.github/workflows/pdf-editor-image-scan.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'modules/pdf-editor/**'
+      - '.github/workflows/pdf-editor-image-scan.yml'
+  schedule:
+    # Weekly scan — every Monday at 04:00 UTC (catches newly published CVEs)
+    - cron: '0 4 * * 1'
+  workflow_dispatch:
+
+jobs:
+  trivy-image-scan:
+    name: "Security: trivy (pdf-editor image)"
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build pdf-editor container image
+        run: |
+          docker build \
+            --file modules/pdf-editor/deploy/Dockerfile.workspace \
+            --tag pdf-editor:scan \
+            .
+
+      - name: Run Trivy — fail on CRITICAL CVEs
+        uses: aquasecurity/trivy-action@0.20.0
+        with:
+          image-ref: pdf-editor:scan
+          format: table
+          exit-code: '1'
+          severity: CRITICAL
+          # Ignore unfixed vulnerabilities — only fail on issues with available patches
+          ignore-unfixed: true
+          # Suppress known false positives or accepted deferrals via .trivyignore
+          trivyignores: .trivyignore
+
+      - name: Run Trivy — full report (informational, no fail)
+        if: always()
+        uses: aquasecurity/trivy-action@0.20.0
+        with:
+          image-ref: pdf-editor:scan
+          format: sarif
+          output: trivy-results.sarif
+          severity: CRITICAL,HIGH,MEDIUM
+          ignore-unfixed: false
+
+      - name: Upload Trivy SARIF to GitHub Security tab
+        if: always()
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: trivy-results.sarif
+          category: trivy-pdf-editor
