@@ -4,7 +4,7 @@
 //! - Connection CRUD (create from callback, status query, disconnect)
 //! - Background token refresh worker (proactive, prevents expiry)
 //!
-//! Tokens are encrypted at rest via pgcrypto `pgp_sym_encrypt`.
+//! Tokens are encrypted at rest via pgcrypto `pgp_sym_encrypt` with AES-256.
 
 pub mod refresh;
 pub mod repo;

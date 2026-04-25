@@ -4,6 +4,9 @@
 > **Standard:** See `docs/VERSIONING.md` for the rules governing this file.
 
 
+## 2.47.0
+- refactor(bd-2u1na): pgp_sym_encrypt/decrypt OAuth tokens now pass `cipher-algo=aes256` for cipher consistency with rest of platform. Schema unchanged; new tokens use AES-256, existing Blowfish-encrypted tokens continue to decrypt (pgp_sym_decrypt auto-detects). All four call sites in `domain/oauth/repo.rs` updated.
+
 ## 2.46.0
 - feat(bd-96iab): QBO TaxRate read proxy — `GET /api/integrations/qbo/taxrate?realm_id=...`. Handler validates realm_id against stored oauth_connection (403 on mismatch) and returns 412 when no connection exists. `QboClient::list_taxrates(active_only)` added; uses `query_all("SELECT * FROM TaxRate")`. No rate-limit middleware applied (none exists in platform yet). Registered in openapi_dump under tag "QBO TaxRate". Integration tests: realm_mismatch→403, not_connected→412, requires_permission→403, sandbox happy-path skips when QBO_SANDBOX absent.
 

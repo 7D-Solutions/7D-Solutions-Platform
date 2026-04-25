@@ -1,6 +1,6 @@
 //! OAuth connection service — CRUD for `integrations_oauth_connections`.
 //!
-//! All token values are encrypted at rest via pgcrypto `pgp_sym_encrypt`.
+//! All token values are encrypted at rest via pgcrypto `pgp_sym_encrypt` with AES-256.
 //! The encryption key is read from `OAUTH_ENCRYPTION_KEY` env var.
 
 use chrono::{Duration, Utc};

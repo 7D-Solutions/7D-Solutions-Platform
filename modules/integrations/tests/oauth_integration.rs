@@ -645,7 +645,61 @@ async fn test_same_tenant_reconnect_preserves_row_id() {
 }
 
 // ============================================================================
-// 11. Callback rejects missing state (CSRF guard)
+// 11. AES-256: roundtrip + backward compat with old AES-128 ciphertext
+// ============================================================================
+
+#[tokio::test]
+#[serial]
+async fn test_aes256_cipher_roundtrip_and_backward_compat() {
+    let pool = setup_db().await;
+
+    // New writes use AES-256 — verify roundtrip
+    let (ct_256,): (Vec<u8>,) =
+        sqlx::query_as("SELECT pgp_sym_encrypt('new-token', 'test-key', 'cipher-algo=aes256')")
+            .fetch_one(&pool)
+            .await
+            .expect("aes256 encrypt failed");
+
+    assert!(ct_256.len() > 10, "aes256 ciphertext should be a non-trivial blob");
+
+    let (pt_256,): (String,) =
+        sqlx::query_as("SELECT pgp_sym_decrypt($1, 'test-key', 'cipher-algo=aes256')")
+            .bind(&ct_256)
+            .fetch_one(&pool)
+            .await
+            .expect("aes256 decrypt failed");
+
+    assert_eq!(pt_256, "new-token", "aes256 decrypt must return original plaintext");
+
+    // Existing AES-128 ciphertext (no cipher option = pgcrypto default AES-128)
+    // must still decrypt — pgp_sym_decrypt auto-detects cipher from the ciphertext header.
+    let (ct_128,): (Vec<u8>,) =
+        sqlx::query_as("SELECT pgp_sym_encrypt('old-token', 'test-key')")
+            .fetch_one(&pool)
+            .await
+            .expect("aes128 encrypt failed");
+
+    let (pt_128,): (String,) =
+        sqlx::query_as("SELECT pgp_sym_decrypt($1, 'test-key')")
+            .bind(&ct_128)
+            .fetch_one(&pool)
+            .await
+            .expect("aes128 backward-compat decrypt failed");
+
+    assert_eq!(pt_128, "old-token", "old aes128 ciphertext must still decrypt");
+
+    // AES-256 ciphertext should be longer than AES-128 for the same plaintext
+    // (AES-256 session key is 32 bytes vs 16 bytes for AES-128 in the OpenPGP header)
+    assert!(
+        ct_256.len() >= ct_128.len(),
+        "aes256 ciphertext ({} bytes) should be >= aes128 ({} bytes)",
+        ct_256.len(),
+        ct_128.len()
+    );
+}
+
+// ============================================================================
+// 12. Callback rejects missing state (CSRF guard)
 // ============================================================================
 
 #[tokio::test]

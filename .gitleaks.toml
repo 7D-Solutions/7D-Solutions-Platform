@@ -21,3 +21,7 @@
 [[allowlists]]
   description = "Publish gate bypass token is a public escape-hatch marker, not a secret — bd-91xyd"
   regexes = ['''BR_PUBLISH_GATE_BYPASS=1''']
+
+[[allowlists]]
+  description = "Postgres pgcrypto cipher-algo parameter is a public algorithm name, not a secret — bd-2u1na"
+  regexes = ['''cipher-algo=aes\d+''']

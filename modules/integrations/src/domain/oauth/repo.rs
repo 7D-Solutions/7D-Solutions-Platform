@@ -36,7 +36,7 @@ pub async fn get_decrypted_access_token(
 ) -> Result<Option<(String,)>, sqlx::Error> {
     sqlx::query_as(
         r#"
-        SELECT pgp_sym_decrypt(access_token, $3)
+        SELECT pgp_sym_decrypt(access_token, $3, 'cipher-algo=aes256')
         FROM integrations_oauth_connections
         WHERE app_id = $1 AND provider = $2
           AND connection_status = 'connected'
@@ -72,7 +72,7 @@ pub async fn upsert_connection(
         )
         VALUES (
             $1, $2, $3,
-            pgp_sym_encrypt($4, $5), pgp_sym_encrypt($6, $5),
+            pgp_sym_encrypt($4, $5, 'cipher-algo=aes256'), pgp_sym_encrypt($6, $5, 'cipher-algo=aes256'),
             $7, $8,
             $9, 'connected',
             NOW(), NOW()
@@ -147,7 +147,7 @@ pub async fn get_refresh_candidates(
     sqlx::query_as::<_, RefreshCandidate>(
         r#"
         SELECT id, app_id, provider,
-               pgp_sym_decrypt(refresh_token, $1) AS refresh_token_plaintext
+               pgp_sym_decrypt(refresh_token, $1, 'cipher-algo=aes256') AS refresh_token_plaintext
         FROM integrations_oauth_connections
         WHERE connection_status = 'connected'
           AND access_token_expires_at < NOW() + INTERVAL '10 minutes'
@@ -172,8 +172,8 @@ pub async fn update_tokens(
     sqlx::query(
         r#"
         UPDATE integrations_oauth_connections
-        SET access_token = pgp_sym_encrypt($2, $3),
-            refresh_token = pgp_sym_encrypt($4, $3),
+        SET access_token = pgp_sym_encrypt($2, $3, 'cipher-algo=aes256'),
+            refresh_token = pgp_sym_encrypt($4, $3, 'cipher-algo=aes256'),
             access_token_expires_at = $5,
             refresh_token_expires_at = $6,
             last_successful_refresh = $7,
