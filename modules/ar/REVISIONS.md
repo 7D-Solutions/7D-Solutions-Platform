@@ -4,6 +4,9 @@
 > **Standard:** See `docs/VERSIONING.md` for the rules governing this file.
 
 
+## 6.9.1
+- fix(bd-1n4am.4): integration test default DATABASE_URL used port 5444; AR DB runs on 5434 per .env DATABASE_URL_AR. Update fallback so tests pass without explicit env var.
+
 ## 6.9.0
 - feat(bd-1n4am): add `consumers::shipping_cost_consumer` — subscribes to `shipping_receiving.shipping_cost.incurred`, appends shipping line to open/draft invoices matched by order_ref; emits `ar.customer_charge_after_post` warning for immutable invoices.
 

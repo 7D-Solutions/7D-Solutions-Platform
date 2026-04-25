@@ -21,7 +21,7 @@ const TEST_TENANT: &str = "test-tenant-shipping-cost-ar";
 
 fn db_url() -> String {
     std::env::var("DATABASE_URL")
-        .unwrap_or_else(|_| "postgres://ar_user:ar_pass@localhost:5444/ar_db".to_string())
+        .unwrap_or_else(|_| "postgres://ar_user:ar_pass@localhost:5434/ar_db".to_string())
 }
 
 async fn test_pool() -> PgPool {

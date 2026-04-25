@@ -4,6 +4,9 @@
 > **Standard:** See `docs/VERSIONING.md` for the rules governing this file.
 
 
+## 3.8.1
+- fix(bd-1n4am.4): shipping_cost_consumer was inserting vendor_bills with status='pending' but migration 20260218000009 renamed pending→open. Constraint rejected the insert. Change to status='open' to match the current schema.
+
 ## 3.8.0
 - feat(bd-1n4am): add `shipping_cost_consumer` — subscribes to `shipping_receiving.shipping_cost.incurred`, creates pending vendor_bill + bill_line for configured carriers. New `ap_carrier_vendor_mapping` table maps carrier_code → vendor_id per tenant.
 

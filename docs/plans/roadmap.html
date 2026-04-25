@@ -199,7 +199,7 @@
 <div class="header">
   <div>
     <h1>Manufacturing Roadmap</h1>
-    <span class="refresh-note">Auto-refreshes every 30s &middot; Last generated: 2026-04-25 00:47</span>
+    <span class="refresh-note">Auto-refreshes every 30s &middot; Last generated: 2026-04-25 02:23</span>
   </div>
   <div class="meta">Roadmap updated: 2026-03-04</div>
 </div>
@@ -221,85 +221,3 @@
 <span class="arrow" style="margin-left:12px">|</span>
 <span class="dep-chip complete">Phase C1</span>
 <span class="dep-chip complete">Phase D</span>
-<span class="dep-chip complete">Phase E</span>
-</div>
-<div class="extraction-section">
-  <h3>Pre-B Infrastructure (Fireproof Extraction)</h3>
-  <div class="item"><span class="status-done item-status">DONE</span> — Event consumer crate (platform/event-consumer/)</div>
-  <div class="item"><span class="status-not-started item-status">NOT STARTED</span> — Security audit log (platform/security/src/security_event.rs)</div>
-</div>
-<div class="phase " onclick="this.classList.toggle('open')">
-  <div class="phase-header">
-    <div>
-      <span class="toggle-icon">&#9654;</span>
-      <span class="phase-title">Phase 0</span>
-      <span class="phase-goal">Design Lock — Prevent one-way-door mistakes</span>
-    </div>
-    <div style="display:flex;align-items:center;gap:12px">
-      <span style="color:var(--text-dim);font-size:12px">9/9</span>
-      <span class="phase-badge badge-complete">COMPLETE</span>
-    </div>
-  </div>
-  <div class="phase-progress"><div class="phase-progress-bar complete" style="width:100%"></div></div>
-  <div class="phase-body">
-    <table>
-      <thead><tr><th>Deliverable</th><th>Status</th><th>Bead</th><th>Date</th></tr></thead>
-      <tbody>
-        <tr>
-          <td class="deliverable-cell">Cost rollup flow design (component FIFO → FG unit cost → GL journal)</td>
-          <td><span class="status-done">DONE</span></td>
-          <td><span class="bead-link">bd-p4mx2</span></td>
-          <td class="date-cell">2026-03-05</td>
-        </tr>
-        <tr>
-          <td class="deliverable-cell">Manufacturing identity graph (part/rev, WO/build, lot/serial, inspection IDs)</td>
-          <td><span class="status-done">DONE</span></td>
-          <td><span class="bead-link">bd-p4mx2</span></td>
-          <td class="date-cell">2026-03-05</td>
-        </tr>
-        <tr>
-          <td class="deliverable-cell">WIP representation decision (inventory location vs ledger-only)</td>
-          <td><span class="status-done">DONE</span></td>
-          <td><span class="bead-link">bd-p4mx2</span></td>
-          <td class="date-cell">2026-03-05</td>
-        </tr>
-        <tr>
-          <td class="deliverable-cell">Variance handling policy v1 (explicitly disallow OR define minimal allowed cases)</td>
-          <td><span class="status-done">DONE</span></td>
-          <td><span class="bead-link">bd-p4mx2</span></td>
-          <td class="date-cell">2026-03-05</td>
-        </tr>
-        <tr>
-          <td class="deliverable-cell">GL posting trigger model (which event triggers GL, who posts, minimal payload)</td>
-          <td><span class="status-done">DONE</span></td>
-          <td><span class="bead-link">bd-p4mx2</span></td>
-          <td class="date-cell">2026-03-05</td>
-        </tr>
-        <tr>
-          <td class="deliverable-cell">BOM schema decisions confirmed (depth model, effectivity model, from prerequisites doc)</td>
-          <td><span class="status-done">DONE</span></td>
-          <td><span class="bead-link">bd-p4mx2</span></td>
-          <td class="date-cell">2026-03-05</td>
-        </tr>
-        <tr>
-          <td class="deliverable-cell">Workcenter ownership path confirmed (Production owns from Phase B; Maintenance workcenter_id unvalidated until Phase E)</td>
-          <td><span class="status-done">DONE</span></td>
-          <td><span class="bead-link">bd-p4mx2</span></td>
-          <td class="date-cell">2026-03-05</td>
-        </tr>
-        <tr>
-          <td class="deliverable-cell">Event contract naming review (existing modules + new manufacturing subjects)</td>
-          <td><span class="status-done">DONE</span></td>
-          <td><span class="bead-link">bd-p4mx2</span></td>
-          <td class="date-cell">2026-03-05</td>
-        </tr>
-        <tr>
-          <td class="deliverable-cell">Design doc signed off by all reviewers</td>
-          <td><span class="status-done">DONE</span></td>
-          <td><span class="bead-link">bd-p4mx2</span></td>
-          <td class="date-cell">2026-03-05</td>
-        </tr>
-      </tbody>
-    </table>
-  </div>
-</div>

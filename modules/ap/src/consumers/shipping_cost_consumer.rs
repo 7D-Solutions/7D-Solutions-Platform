@@ -81,7 +81,7 @@ pub async fn handle_shipping_cost_incurred(
         r#"INSERT INTO vendor_bills
            (bill_id, tenant_id, vendor_id, vendor_invoice_ref, currency,
             total_minor, invoice_date, due_date, status, entered_by, entered_at)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $7 + INTERVAL '30 days', 'pending',
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $7 + INTERVAL '30 days', 'open',
                    'system:shipping-cost-consumer', NOW())
            ON CONFLICT (tenant_id, vendor_id, vendor_invoice_ref) DO NOTHING
            RETURNING bill_id"#,
