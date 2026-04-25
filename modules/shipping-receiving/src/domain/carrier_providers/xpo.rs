@@ -24,8 +24,8 @@ use reqwest::Client;
 use serde_json::Value;
 
 use super::{
-    CarrierProvider, CarrierProviderError, ChildLabel, LabelPdfResponse, LabelResult,
-    MultiPackageLabelRequest, MultiPackageLabelResponse, RateQuote, TrackingEvent, TrackingResult,
+    CarrierProvider, CarrierProviderError, LabelPdfResponse, LabelResult, MultiPackageLabelRequest,
+    MultiPackageLabelResponse, RateQuote, TrackingEvent, TrackingResult,
 };
 
 const XPO_DEFAULT_URL: &str = "https://api.ltl.xpo.com";
