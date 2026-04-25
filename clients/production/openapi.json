@@ -3322,7 +3322,6 @@
           "order_number",
           "status",
           "item_id",
-          "bom_revision_id",
           "planned_quantity",
           "completed_quantity",
           "material_cost_minor",
@@ -3347,7 +3346,10 @@
             "format": "date-time"
           },
           "bom_revision_id": {
-            "type": "string",
+            "type": [
+              "string",
+              "null"
+            ],
             "format": "uuid"
           },
           "completed_quantity": {

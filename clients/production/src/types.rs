@@ -4,9 +4,9 @@
 
 #![allow(unused_imports)]
 
-use crate::*;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
+use crate::*;
 
 /// Pagination metadata for list endpoints.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -314,7 +314,8 @@ pub struct WorkOrder {
     pub actual_end: Option<chrono::DateTime<chrono::Utc>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub actual_start: Option<chrono::DateTime<chrono::Utc>>,
-    pub bom_revision_id: uuid::Uuid,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub bom_revision_id: Option<uuid::Uuid>,
     pub completed_quantity: i32,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub correlation_id: Option<String>,
@@ -394,3 +395,4 @@ pub struct WorkcenterDowntime {
     pub updated_at: chrono::DateTime<chrono::Utc>,
     pub workcenter_id: uuid::Uuid,
 }
+
