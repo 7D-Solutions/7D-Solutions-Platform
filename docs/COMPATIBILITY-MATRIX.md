@@ -7,6 +7,9 @@ set of module versions has already been exercised together.
 Keep this file aligned with [docs/PLATFORM-SERVICE-CATALOG.md](PLATFORM-SERVICE-CATALOG.md)
 and the per-crate `REVISIONS.md` files.
 
+For the rules governing contract shape changes, deprecation windows, and
+rollback procedures, see [docs/CROSS-REPO-CONTRACT-POLICY.md](CROSS-REPO-CONTRACT-POLICY.md).
+
 ## Current Release Train
 
 **Snapshot date:** 2026-04-14
