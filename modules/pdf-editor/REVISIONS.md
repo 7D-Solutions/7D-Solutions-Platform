@@ -4,6 +4,9 @@
 > **Standard:** See `docs/VERSIONING.md` for the rules governing this file.
 
 
+## 2.6.0
+- feat(bd-iah29): startup ABI canary `assert_pdfium_abi()` — verifies pdfium-render crate ↔ packaged libpdfium.so compatibility by binding the library and calling FPDF_LoadMemDocument64 once at boot. Crashes early with an actionable message if the version on disk is incompatible, instead of failing on the first annotation request. No-op when PDFIUM_LIB_PATH is unset.
+
 ## 2.5.0
 - feat: schema_version field on annotation payload; JSON Schema published at GET /api/schemas/annotations/v{N} ([bd-rxvbr])
 

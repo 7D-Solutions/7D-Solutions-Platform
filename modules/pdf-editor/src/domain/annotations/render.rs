@@ -82,6 +82,49 @@ pub(crate) struct FontTokens {
     pub(crate) helvetica_oblique: PdfFontToken,
 }
 
+/// pdfium-render crate series this binary was compiled against.
+const PDFIUM_RENDER_VERSION: &str = "0.8";
+
+/// Assert pdfium FFI ABI compatibility at startup.
+///
+/// Panics with an actionable message if the packaged libpdfium.so cannot be
+/// bound. Also exercises FPDF_LoadMemDocument64 so a symbol-resolution or
+/// calling-convention mismatch crashes here (startup) instead of on the first
+/// annotation request in prod. Skips silently when PDFIUM_LIB_PATH is unset
+/// (dev environments without a pinned binary).
+pub fn assert_pdfium_abi() {
+    let lib_path = match std::env::var("PDFIUM_LIB_PATH") {
+        Ok(p) => p,
+        Err(_) => return,
+    };
+
+    tracing::info!(pdfium_lib = %lib_path, "pdfium ABI canary: binding library");
+
+    let pdfium = match create_pdfium() {
+        Ok(p) => p,
+        Err(e) => panic!(
+            "pdfium ABI canary FAILED: could not bind to libpdfium.so\n\
+             Expected: pdfium-render v{PDFIUM_RENDER_VERSION} compatible binary\n\
+             PDFIUM_LIB_PATH: {lib_path}\n\
+             Error: {e}\n\
+             Fix: rebuild the container image with a libpdfium.so \
+             compatible with pdfium-render v{PDFIUM_RENDER_VERSION}"
+        ),
+    };
+
+    // Exercise FPDF_LoadMemDocument64 through the FFI binding. An ABI mismatch
+    // would cause a SIGSEGV here (startup) instead of on the first real request.
+    // The result is intentionally ignored — parse failure is not an ABI failure.
+    tracing::info!("pdfium ABI canary: exercising FFI surface");
+    let _ = pdfium.load_pdf_from_byte_slice(b"%PDF-1.4\n%%EOF", None);
+
+    tracing::info!(
+        pdfium_lib = %lib_path,
+        pdfium_render_version = PDFIUM_RENDER_VERSION,
+        "pdfium ABI canary OK"
+    );
+}
+
 /// Render annotations onto a PDF document, returning the modified PDF bytes.
 pub fn render_annotations(
     pdf_bytes: &[u8],
@@ -157,6 +200,13 @@ pub fn render_annotations(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn pdfium_abi_canary() {
+        // In dev (PDFIUM_LIB_PATH unset) the canary returns early — correct behavior.
+        // In CI containers with PDFIUM_LIB_PATH set, this exercises the live binding.
+        assert_pdfium_abi();
+    }
 
     #[test]
     fn test_validate_pdf_magic() {

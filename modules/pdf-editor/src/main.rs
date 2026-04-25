@@ -18,6 +18,8 @@ static MIGRATOR: sqlx::migrate::Migrator = sqlx::migrate!("./db/migrations");
 
 #[tokio::main]
 async fn main() {
+    pdf_editor::domain::annotations::render::assert_pdfium_abi();
+
     ModuleBuilder::from_manifest("module.toml")
         .migrator(&MIGRATOR)
         .routes(|ctx| {
