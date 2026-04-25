@@ -157,6 +157,56 @@ pub async fn find_shipment_by_tracking(
     .await
 }
 
+/// Look up an inbound shipment by its expected_tracking_number.
+///
+/// Returns `(shipment_id, tenant_id)` or `None`.
+/// Only matches direction='inbound' rows — outbound tracking numbers are
+/// separate and handled by find_shipment_by_tracking.
+pub async fn find_inbound_by_expected_tracking(
+    pool: &PgPool,
+    tracking_number: &str,
+) -> Result<Option<(Uuid, String)>, sqlx::Error> {
+    sqlx::query_as(
+        r#"
+        SELECT id, tenant_id::text
+          FROM shipments
+         WHERE expected_tracking_number = $1
+           AND direction = 'inbound'
+         LIMIT 1
+        "#,
+    )
+    .bind(tracking_number)
+    .fetch_optional(pool)
+    .await
+}
+
+/// Update latest_tracking_status, latest_tracking_dttm, and latest_tracking_location
+/// on an inbound shipment. Does NOT touch inbound_status — visibility only.
+pub async fn update_inbound_latest_tracking(
+    pool: &PgPool,
+    shipment_id: Uuid,
+    status: &str,
+    status_dttm: DateTime<Utc>,
+    location: Option<&str>,
+) -> Result<(), sqlx::Error> {
+    sqlx::query(
+        r#"
+        UPDATE shipments
+           SET latest_tracking_status   = $1,
+               latest_tracking_dttm     = $2,
+               latest_tracking_location = $3
+         WHERE id = $4
+        "#,
+    )
+    .bind(status)
+    .bind(status_dttm)
+    .bind(location)
+    .bind(shipment_id)
+    .execute(pool)
+    .await?;
+    Ok(())
+}
+
 // ── Hash utility ──────────────────────────────────────────────
 
 /// Compute SHA-256 hex digest of `data`. Used to populate `raw_payload_hash`.

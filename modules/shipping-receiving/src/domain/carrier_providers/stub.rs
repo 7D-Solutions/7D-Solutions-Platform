@@ -8,8 +8,8 @@ use async_trait::async_trait;
 use serde_json::Value;
 
 use super::{
-    CarrierProvider, CarrierProviderError, ChildLabel, LabelResult, MultiPackageLabelRequest,
-    MultiPackageLabelResponse, RateQuote, TrackingEvent, TrackingResult,
+    CarrierProvider, CarrierProviderError, ChildLabel, LabelPdfResponse, LabelResult,
+    MultiPackageLabelRequest, MultiPackageLabelResponse, RateQuote, TrackingEvent, TrackingResult,
 };
 
 pub struct StubCarrierProvider;
@@ -111,6 +111,23 @@ impl CarrierProvider for StubCarrierProvider {
                 description: "Package picked up".to_string(),
                 location: Some("STUB ORIGIN".to_string()),
             }],
+        })
+    }
+
+    async fn fetch_label(
+        &self,
+        tracking_number: &str,
+        _config: &Value,
+    ) -> Result<LabelPdfResponse, CarrierProviderError> {
+        if tracking_number.starts_with("NOTFOUND") {
+            return Err(CarrierProviderError::NotFound(
+                "stub: tracking number not found".to_string(),
+            ));
+        }
+        Ok(LabelPdfResponse {
+            pdf_bytes: b"%PDF-1.4 stub label".to_vec(),
+            content_type: "application/pdf".to_string(),
+            carrier_reference: tracking_number.to_string(),
         })
     }
 }

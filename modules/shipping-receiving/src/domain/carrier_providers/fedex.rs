@@ -27,12 +27,13 @@ use std::sync::{Mutex, OnceLock};
 use std::time::{Duration, Instant};
 
 use async_trait::async_trait;
+use base64::Engine as _;
 use reqwest::Client;
 use serde_json::Value;
 
 use super::{
-    CarrierProvider, CarrierProviderError, ChildLabel, LabelResult, MultiPackageLabelRequest,
-    MultiPackageLabelResponse, RateQuote, TrackingEvent, TrackingResult,
+    CarrierProvider, CarrierProviderError, ChildLabel, LabelPdfResponse, LabelResult,
+    MultiPackageLabelRequest, MultiPackageLabelResponse, RateQuote, TrackingEvent, TrackingResult,
 };
 
 const FEDEX_PRODUCTION_URL: &str = "https://apis.fedex.com";
@@ -776,6 +777,14 @@ fn parse_track_response(
     })
 }
 
+// ── Base64 helper ─────────────────────────────────────────────
+
+fn base64_decode(data: &str) -> Result<Vec<u8>, CarrierProviderError> {
+    base64::engine::general_purpose::STANDARD
+        .decode(data)
+        .map_err(|e| CarrierProviderError::ApiError(format!("FedEx base64 decode error: {e}")))
+}
+
 // ── CarrierProvider implementation ───────────────────────────
 
 #[async_trait]
@@ -868,6 +877,53 @@ impl CarrierProvider for FedexCarrierProvider {
         let body = build_track_request(tracking_number);
         let response = fedex_post(base_url, "/track/v1/trackingnumbers", &token, body).await?;
         parse_track_response(&response, tracking_number)
+    }
+
+    async fn fetch_label(
+        &self,
+        tracking_number: &str,
+        config: &Value,
+    ) -> Result<LabelPdfResponse, CarrierProviderError> {
+        let client_id = get_client_id(config)?;
+        let client_secret = get_client_secret(config)?;
+        let account_number = get_account_number(config)?;
+        let base_url = get_base_url(config);
+
+        let token = acquire_token(base_url, client_id, client_secret).await?;
+
+        let body = serde_json::json!({
+            "accountNumber": { "value": account_number },
+            "trackingInfo": {
+                "trackingNumberInfo": { "trackingNumber": tracking_number }
+            },
+            "labelResponseOptions": "LABEL",
+            "requestedShipment": {
+                "labelSpecification": { "imageType": "PDF", "labelStockType": "PAPER_85X11_TOP_HALF_LABEL" }
+            }
+        });
+
+        let response = fedex_post(base_url, "/ship/v1/shipments/retrieve", &token, body).await?;
+
+        // FedEx retrieve: same structure as ship response.
+        let label_result = parse_ship_response(&response).map_err(|_| {
+            CarrierProviderError::NotFound(format!(
+                "FedEx: label not found or purged for {tracking_number}"
+            ))
+        })?;
+
+        let pdf_bytes = if label_result.label_data.is_empty() {
+            return Err(CarrierProviderError::NotFound(format!(
+                "FedEx: no label data returned for {tracking_number}"
+            )));
+        } else {
+            base64_decode(&label_result.label_data)?
+        };
+
+        Ok(LabelPdfResponse {
+            pdf_bytes,
+            content_type: "application/pdf".to_string(),
+            carrier_reference: tracking_number.to_string(),
+        })
     }
 }
 

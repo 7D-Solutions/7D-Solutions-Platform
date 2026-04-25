@@ -28,6 +28,10 @@ pub fn build_router() -> Router<Arc<AppState>> {
             get(http::shipments::get_shipment),
         )
         .route(
+            "/api/shipping-receiving/shipments/{id}/label",
+            get(http::label_reprint::reprint_label),
+        )
+        .route(
             "/api/shipping-receiving/shipments/{id}/routings",
             get(http::inspection_routing::list_routings),
         )
@@ -142,5 +146,9 @@ pub fn build_mutation_router() -> Router<Arc<AppState>> {
         .route(
             "/api/shipping-receiving/shipments/multi-package",
             post(http::multi_package::create_multi_package_shipment),
+        )
+        .route(
+            "/api/shipping-receiving/inbound-shipments/{id}/expected-tracking",
+            post(http::inbound_tracking::set_expected_tracking),
         )
 }

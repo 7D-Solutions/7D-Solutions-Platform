@@ -31,7 +31,7 @@ use reqwest::Client;
 use serde_json::Value;
 
 use super::{
-    CarrierProvider, CarrierProviderError, LabelResult, MultiPackageLabelRequest,
+    CarrierProvider, CarrierProviderError, LabelPdfResponse, LabelResult, MultiPackageLabelRequest,
     MultiPackageLabelResponse, RateQuote, TrackingEvent, TrackingResult,
 };
 
@@ -528,6 +528,54 @@ impl CarrierProvider for SaiaCarrierProvider {
         let url = format!("{base_url}/tracking/v2/{tracking_number}");
         let json = saia_get(&client, &api_key, &account_number, &url).await?;
         parse_track_response(&json, tracking_number)
+    }
+
+    async fn fetch_label(
+        &self,
+        tracking_number: &str,
+        config: &Value,
+    ) -> Result<LabelPdfResponse, CarrierProviderError> {
+        let api_key = get_api_key(config)?.to_string();
+        let account_number = get_account_number(config)?.to_string();
+        let base_url = get_base_url(config).to_string();
+        let client = Client::new();
+
+        // Fetch the BOL document to get the PDF URL.
+        let url = format!("{base_url}/shipments/v2/bol/{tracking_number}/documents");
+        let json = saia_get(&client, &api_key, &account_number, &url).await?;
+
+        let pdf_url = json["documentUrl"]
+            .as_str()
+            .filter(|s| !s.is_empty())
+            .ok_or_else(|| {
+                CarrierProviderError::NotFound(format!(
+                    "Saia: no BOL document URL for PRO {tracking_number}"
+                ))
+            })?;
+
+        let pdf_resp = client
+            .get(pdf_url)
+            .send()
+            .await
+            .map_err(|e| CarrierProviderError::ApiError(format!("Saia PDF fetch error: {e}")))?;
+
+        if !pdf_resp.status().is_success() {
+            return Err(CarrierProviderError::ApiError(format!(
+                "Saia: PDF download failed: HTTP {}",
+                pdf_resp.status()
+            )));
+        }
+
+        let bytes = pdf_resp
+            .bytes()
+            .await
+            .map_err(|e| CarrierProviderError::ApiError(format!("Saia: PDF read error: {e}")))?;
+
+        Ok(LabelPdfResponse {
+            pdf_bytes: bytes.to_vec(),
+            content_type: "application/pdf".to_string(),
+            carrier_reference: tracking_number.to_string(),
+        })
     }
 }
 

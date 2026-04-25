@@ -22,7 +22,20 @@ pub mod ups;
 pub mod usps;
 pub mod xpo;
 
-// ── Response types ────────────────────────────────────────────
+// ── Response types ─────────────────────────────────────────────
+
+/// Label PDF bytes returned by a fetch_label() reprint call.
+#[derive(Debug, Clone)]
+pub struct LabelPdfResponse {
+    /// Raw PDF bytes (first four bytes should be b"%PDF").
+    pub pdf_bytes: Vec<u8>,
+    /// MIME type, typically "application/pdf".
+    pub content_type: String,
+    /// Carrier-assigned reference (tracking number or PRO number).
+    pub carrier_reference: String,
+}
+
+// ─────────────────────────────────────────────────────────────
 
 /// One physical box in a multi-package shipment request.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -210,6 +223,17 @@ pub trait CarrierProvider: Send + Sync {
         tracking_number: &str,
         config: &serde_json::Value,
     ) -> Result<TrackingResult, CarrierProviderError>;
+
+    /// Fetch the label PDF for an existing shipment by tracking/PRO number.
+    ///
+    /// The platform never stores label PDFs locally — every reprint is a live
+    /// pass-through to the carrier. Returns `NotFound` when the carrier has
+    /// purged the label (USPS purges after ~30 days; LTL carriers indefinitely).
+    async fn fetch_label(
+        &self,
+        tracking_number: &str,
+        config: &serde_json::Value,
+    ) -> Result<LabelPdfResponse, CarrierProviderError>;
 }
 
 // ── Registry ──────────────────────────────────────────────────

@@ -30,8 +30,8 @@ use serde_json::Value;
 use tokio::sync::RwLock;
 
 use super::{
-    CarrierProvider, CarrierProviderError, ChildLabel, LabelResult, MultiPackageLabelRequest,
-    MultiPackageLabelResponse, RateQuote, TrackingEvent, TrackingResult,
+    CarrierProvider, CarrierProviderError, ChildLabel, LabelPdfResponse, LabelResult,
+    MultiPackageLabelRequest, MultiPackageLabelResponse, RateQuote, TrackingEvent, TrackingResult,
 };
 
 const UPS_SANDBOX_URL: &str = "https://wwwcie.ups.com";
@@ -858,6 +858,51 @@ impl CarrierProvider for UpsCarrierProvider {
         );
         let json = ups_get(&client, &token, &url).await?;
         parse_track_response(&json, tracking_number)
+    }
+
+    async fn fetch_label(
+        &self,
+        tracking_number: &str,
+        config: &Value,
+    ) -> Result<LabelPdfResponse, CarrierProviderError> {
+        let base_url = get_base_url(config).to_string();
+        let client = Client::new();
+        let token = self.get_token(&client, config).await?;
+        let url = format!("{base_url}/api/labels/v2409/retrieve/{tracking_number}");
+
+        let resp = client
+            .get(&url)
+            .bearer_auth(&token)
+            .header("transId", uuid::Uuid::new_v4().to_string())
+            .header("transactionSrc", "7D-Solutions")
+            .header("Accept", "application/pdf")
+            .send()
+            .await
+            .map_err(|e| CarrierProviderError::ApiError(format!("UPS HTTP error: {e}")))?;
+
+        let status = resp.status();
+        if status.as_u16() == 404 {
+            return Err(CarrierProviderError::NotFound(format!(
+                "UPS: label not found for {tracking_number}"
+            )));
+        }
+
+        if !status.is_success() {
+            let text = resp.text().await.unwrap_or_default();
+            return Err(CarrierProviderError::ApiError(format!(
+                "UPS Labels API error (HTTP {status}): {text}"
+            )));
+        }
+
+        let pdf_bytes = resp.bytes().await.map_err(|e| {
+            CarrierProviderError::ApiError(format!("UPS label response read error: {e}"))
+        })?;
+
+        Ok(LabelPdfResponse {
+            pdf_bytes: pdf_bytes.to_vec(),
+            content_type: "application/pdf".to_string(),
+            carrier_reference: tracking_number.to_string(),
+        })
     }
 }
 

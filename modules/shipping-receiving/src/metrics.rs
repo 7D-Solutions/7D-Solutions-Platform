@@ -21,6 +21,8 @@ pub struct ShippingReceivingMetrics {
     pub http_request_duration_seconds: HistogramVec,
     pub http_requests_total: IntCounterVec,
     pub event_consumer_lag_messages: IntGaugeVec,
+    /// label_reprint_total{carrier, result} — result is ok|carrier_not_found|carrier_error
+    pub label_reprint_total: IntCounterVec,
     registry: Registry,
 }
 
@@ -64,11 +66,21 @@ impl ShippingReceivingMetrics {
         )?;
         registry.register(Box::new(event_consumer_lag_messages.clone()))?;
 
+        let label_reprint_total = IntCounterVec::new(
+            Opts::new(
+                "shipping_receiving_label_reprint_total",
+                "Total label reprint requests by carrier and result",
+            ),
+            &["carrier", "result"],
+        )?;
+        registry.register(Box::new(label_reprint_total.clone()))?;
+
         Ok(Self {
             shipping_receiving_operations_total,
             http_request_duration_seconds,
             http_requests_total,
             event_consumer_lag_messages,
+            label_reprint_total,
             registry,
         })
     }
@@ -146,17 +158,20 @@ mod tests {
     }
 
     #[test]
-    fn metrics_all_four_families_present() {
+    fn metrics_all_five_families_present() {
         let m = ShippingReceivingMetrics::new().expect("ShippingReceivingMetrics::new");
         // Trigger all metrics so they appear in gather
         m.shipping_receiving_operations_total.inc();
         m.record_http_request("GET", "/test", "200", 0.01);
         m.record_consumer_lag("test_group", 0);
+        m.label_reprint_total
+            .with_label_values(&["ups", "ok"])
+            .inc();
         let families = m.registry().gather();
         assert_eq!(
             families.len(),
-            4,
-            "Expected 4 metric families, got {}",
+            5,
+            "Expected 5 metric families, got {}",
             families.len()
         );
     }

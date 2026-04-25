@@ -121,4 +121,27 @@ impl CarrierRequestRepo {
         .fetch_all(pool)
         .await
     }
+
+    /// Return the most recently created label-type carrier request for a shipment.
+    ///
+    /// Used by the label reprint endpoint to resolve carrier_code without storing
+    /// it redundantly on the shipment row.
+    pub async fn find_latest_label(
+        pool: &PgPool,
+        shipment_id: Uuid,
+        tenant_id: Uuid,
+    ) -> Result<Option<CarrierRequest>, sqlx::Error> {
+        sqlx::query_as::<_, CarrierRequest>(
+            r#"
+            SELECT * FROM sr_carrier_requests
+            WHERE shipment_id = $1 AND tenant_id = $2 AND request_type = 'label'
+            ORDER BY created_at DESC
+            LIMIT 1
+            "#,
+        )
+        .bind(shipment_id)
+        .bind(tenant_id)
+        .fetch_optional(pool)
+        .await
+    }
 }

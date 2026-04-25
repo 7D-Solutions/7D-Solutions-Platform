@@ -53,6 +53,11 @@ pub const EVENT_TYPE_RECEIPT_ROUTED_TO_STOCK: &str = "sr.receipt_routed_to_stock
 /// Downstream consumers use this for UI visibility updates and notifications.
 pub const EVENT_TYPE_TRACKING_EVENT_RECEIVED: &str = "shipping_receiving.tracking.event_received";
 
+/// Carrier webhook matched an inbound PO's expected_tracking_number.
+/// latest_tracking_status/dttm/location updated. inbound_status NOT changed.
+/// Downstream consumers use this for procurement dashboard visibility.
+pub const EVENT_TYPE_INBOUND_TRACKING_UPDATED: &str = "shipping_receiving.inbound.tracking_updated";
+
 // ============================================================================
 // Payload: shipping_receiving.shipment_created
 // ============================================================================

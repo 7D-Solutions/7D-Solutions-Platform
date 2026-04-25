@@ -54,6 +54,11 @@ pub struct Shipment {
     pub parent_shipment_id: Option<Uuid>,
     pub master_tracking_number: Option<String>,
     pub package_count: i32,
+    pub expected_carrier_code: Option<String>,
+    pub expected_tracking_number: Option<String>,
+    pub latest_tracking_status: Option<String>,
+    pub latest_tracking_dttm: Option<DateTime<Utc>>,
+    pub latest_tracking_location: Option<String>,
 }
 
 // ── Request types ─────────────────────────────────────────────

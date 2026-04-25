@@ -24,8 +24,8 @@ use reqwest::Client;
 use serde_json::Value;
 
 use super::{
-    CarrierProvider, CarrierProviderError, LabelResult, MultiPackageLabelRequest,
-    MultiPackageLabelResponse, RateQuote, TrackingEvent, TrackingResult,
+    CarrierProvider, CarrierProviderError, ChildLabel, LabelPdfResponse, LabelResult,
+    MultiPackageLabelRequest, MultiPackageLabelResponse, RateQuote, TrackingEvent, TrackingResult,
 };
 
 const XPO_DEFAULT_URL: &str = "https://api.ltl.xpo.com";
@@ -423,6 +423,52 @@ impl CarrierProvider for XpoCarrierProvider {
         let url = format!("{base_url}/tracking/1.0/shipments/{tracking_number}");
         let json = xpo_get(&client, &api_key, &url).await?;
         parse_track_response(&json, tracking_number)
+    }
+
+    async fn fetch_label(
+        &self,
+        tracking_number: &str,
+        config: &Value,
+    ) -> Result<LabelPdfResponse, CarrierProviderError> {
+        let api_key = get_api_key(config)?.to_string();
+        let base_url = get_base_url(config).to_string();
+        let client = Client::new();
+
+        let url = format!("{base_url}/bol/1.0/bolDocuments/{tracking_number}");
+        let json = xpo_get(&client, &api_key, &url).await?;
+
+        let pdf_url = json["bolPdfUrl"]
+            .as_str()
+            .filter(|s| !s.is_empty())
+            .ok_or_else(|| {
+                CarrierProviderError::NotFound(format!(
+                    "XPO: no BOL PDF URL for PRO {tracking_number}"
+                ))
+            })?;
+
+        let pdf_resp = client
+            .get(pdf_url)
+            .send()
+            .await
+            .map_err(|e| CarrierProviderError::ApiError(format!("XPO PDF fetch error: {e}")))?;
+
+        if !pdf_resp.status().is_success() {
+            return Err(CarrierProviderError::ApiError(format!(
+                "XPO PDF fetch HTTP {}: {}",
+                pdf_resp.status(),
+                pdf_url
+            )));
+        }
+
+        let pdf_bytes = pdf_resp.bytes().await.map_err(|e| {
+            CarrierProviderError::ApiError(format!("XPO PDF read error: {e}"))
+        })?;
+
+        Ok(LabelPdfResponse {
+            pdf_bytes: pdf_bytes.to_vec(),
+            content_type: "application/pdf".to_string(),
+            carrier_reference: tracking_number.to_string(),
+        })
     }
 }
 

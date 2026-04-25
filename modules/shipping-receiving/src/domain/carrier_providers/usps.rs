@@ -25,7 +25,8 @@ use reqwest::Client;
 use serde_json::Value;
 
 use super::{
-    CarrierProvider, CarrierProviderError, LabelResult, RateQuote, TrackingEvent, TrackingResult,
+    CarrierProvider, CarrierProviderError, LabelPdfResponse, LabelResult, RateQuote, TrackingEvent,
+    TrackingResult,
 };
 
 const USPS_PRODUCTION_URL: &str = "https://production.shippingapis.com/ShippingAPI.dll";
@@ -525,6 +526,63 @@ impl CarrierProvider for UspsCarrierProvider {
         let xml = track_v2_xml(uid, tracking_number);
         let response = usps_get(url, "TrackV2", &xml).await?;
         parse_track_response(&response, tracking_number)
+    }
+
+    async fn fetch_label(
+        &self,
+        tracking_number: &str,
+        config: &Value,
+    ) -> Result<LabelPdfResponse, CarrierProviderError> {
+        // Requires new USPS REST API credentials in the config:
+        //   rest_base_url:    optional, defaults to https://api.usps.com
+        //   rest_access_token: OAuth2 bearer token for the USPS REST API
+        let rest_base_url = config["rest_base_url"]
+            .as_str()
+            .filter(|s| !s.is_empty())
+            .unwrap_or("https://api.usps.com");
+        let token = config["rest_access_token"]
+            .as_str()
+            .filter(|s| !s.is_empty())
+            .ok_or_else(|| {
+                CarrierProviderError::CredentialsError(
+                    "USPS config missing 'rest_access_token' for label re-fetch".to_string(),
+                )
+            })?;
+
+        let client = Client::new();
+        let url = format!("{rest_base_url}/labels/v3/{tracking_number}");
+
+        let resp = client
+            .get(&url)
+            .bearer_auth(token)
+            .header("Accept", "application/pdf")
+            .send()
+            .await
+            .map_err(|e| CarrierProviderError::ApiError(format!("USPS REST HTTP error: {e}")))?;
+
+        let status = resp.status();
+        if status.as_u16() == 404 {
+            return Err(CarrierProviderError::NotFound(format!(
+                "USPS: label not found or purged for {tracking_number}"
+            )));
+        }
+
+        if !status.is_success() {
+            let text = resp.text().await.unwrap_or_default();
+            return Err(CarrierProviderError::ApiError(format!(
+                "USPS Labels API error (HTTP {status}): {text}"
+            )));
+        }
+
+        let pdf_bytes = resp.bytes().await.map_err(|e| {
+            CarrierProviderError::ApiError(format!("USPS label response read error: {e}"))
+        })?;
+
+        Ok(LabelPdfResponse {
+            pdf_bytes: pdf_bytes.to_vec(),
+            content_type: "application/pdf".to_string(),
+            carrier_reference: tracking_number.to_string(),
+        })
     }
 }
 

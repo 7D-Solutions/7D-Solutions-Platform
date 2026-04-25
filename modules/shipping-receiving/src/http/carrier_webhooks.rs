@@ -26,7 +26,7 @@ use axum::{
 use chrono::{DateTime, TimeZone, Utc};
 use hmac::{Hmac, Mac};
 use serde::{Deserialize, Serialize};
-use sha2::{Digest, Sha256};
+use sha2::Sha256;
 use std::sync::Arc;
 use uuid::Uuid;
 
@@ -67,40 +67,140 @@ struct WebhookEvent<'a> {
     location: Option<&'a str>,
 }
 
-/// Shared tail of the webhook pipeline: persist event, update carrier_status,
+/// Shared tail of the webhook pipeline: persist event, update visibility fields,
 /// recompute master if this is a child shipment, emit outbox event.
+///
+/// Lookup order:
+///   1. `shipments.tracking_number` — outbound or pre-assigned inbound tracking.
+///      Updates carrier_status. Emits tracking.event_received.
+///   2. `shipments.expected_tracking_number` (direction=inbound) — supplier-provided
+///      tracking on a PO. Updates latest_tracking_* visibility fields only.
+///      Does NOT touch inbound_status. Emits inbound.tracking_updated.
 async fn process_webhook_event(
     state: &AppState,
     event: WebhookEvent<'_>,
     raw_payload_hash: &str,
 ) -> Result<(), sqlx::Error> {
-    let lookup =
+    // Step 1: look up by shipments.tracking_number (outbound / direct-assigned)
+    let outbound_lookup =
         tracking::find_shipment_by_tracking(&state.pool, event.tracking_number).await?;
 
-    let (shipment_id, tenant_id, parent_id) = match lookup {
-        Some(row) => row,
-        None => {
-            // Tracking number not yet known — record the event without a shipment link
-            tracking::record_tracking_event(
-                &state.pool,
-                "unknown",
-                None,
-                event.tracking_number,
-                event.carrier_code,
-                event.status,
-                event.status_dttm,
-                event.location,
-                raw_payload_hash,
-            )
-            .await?;
+    if let Some((shipment_id, tenant_id, parent_id)) = outbound_lookup {
+        let inserted = tracking::record_tracking_event(
+            &state.pool,
+            &tenant_id,
+            Some(shipment_id),
+            event.tracking_number,
+            event.carrier_code,
+            event.status,
+            event.status_dttm,
+            event.location,
+            raw_payload_hash,
+        )
+        .await?;
+
+        // Idempotent replay: nothing new inserted → skip downstream effects
+        if inserted.is_none() {
             return Ok(());
         }
-    };
 
-    let inserted = tracking::record_tracking_event(
+        tracking::update_shipment_carrier_status(&state.pool, shipment_id, event.status).await?;
+
+        if let Some(master_id) = parent_id {
+            tracking::recompute_master_status(&state.pool, master_id).await?;
+        }
+
+        let outbox_payload = serde_json::json!({
+            "shipment_id": shipment_id,
+            "tenant_id": tenant_id,
+            "tracking_number": event.tracking_number,
+            "carrier_code": event.carrier_code,
+            "status": event.status,
+            "status_dttm": event.status_dttm,
+        });
+        let event_id = Uuid::new_v5(
+            &Uuid::NAMESPACE_OID,
+            format!("tracking:{}:{}", event.tracking_number, raw_payload_hash).as_bytes(),
+        );
+        let _ = outbox::enqueue_event_tx_pool(
+            &state.pool,
+            event_id,
+            events::EVENT_TYPE_TRACKING_EVENT_RECEIVED,
+            "shipment",
+            &shipment_id.to_string(),
+            &tenant_id,
+            &outbox_payload,
+        )
+        .await;
+
+        return Ok(());
+    }
+
+    // Step 2: look up by expected_tracking_number on inbound shipments
+    let inbound_lookup =
+        tracking::find_inbound_by_expected_tracking(&state.pool, event.tracking_number).await?;
+
+    if let Some((shipment_id, tenant_id)) = inbound_lookup {
+        let inserted = tracking::record_tracking_event(
+            &state.pool,
+            &tenant_id,
+            Some(shipment_id),
+            event.tracking_number,
+            event.carrier_code,
+            event.status,
+            event.status_dttm,
+            event.location,
+            raw_payload_hash,
+        )
+        .await?;
+
+        // Idempotent replay: skip downstream effects
+        if inserted.is_none() {
+            return Ok(());
+        }
+
+        // Visibility update only — inbound_status is NOT touched
+        tracking::update_inbound_latest_tracking(
+            &state.pool,
+            shipment_id,
+            event.status,
+            event.status_dttm,
+            event.location,
+        )
+        .await?;
+
+        let outbox_payload = serde_json::json!({
+            "shipment_id": shipment_id,
+            "tenant_id": tenant_id,
+            "tracking_number": event.tracking_number,
+            "carrier_code": event.carrier_code,
+            "status": event.status,
+            "status_dttm": event.status_dttm,
+            "location": event.location,
+        });
+        let event_id = Uuid::new_v5(
+            &Uuid::NAMESPACE_OID,
+            format!("inbound-tracking:{}:{}", event.tracking_number, raw_payload_hash).as_bytes(),
+        );
+        let _ = outbox::enqueue_event_tx_pool(
+            &state.pool,
+            event_id,
+            events::EVENT_TYPE_INBOUND_TRACKING_UPDATED,
+            "shipment",
+            &shipment_id.to_string(),
+            &tenant_id,
+            &outbox_payload,
+        )
+        .await;
+
+        return Ok(());
+    }
+
+    // Tracking number unknown — record without a shipment link
+    tracking::record_tracking_event(
         &state.pool,
-        &tenant_id,
-        Some(shipment_id),
+        "unknown",
+        None,
         event.tracking_number,
         event.carrier_code,
         event.status,
@@ -109,44 +209,6 @@ async fn process_webhook_event(
         raw_payload_hash,
     )
     .await?;
-
-    // Idempotent replay: nothing new inserted → skip downstream effects
-    if inserted.is_none() {
-        return Ok(());
-    }
-
-    tracking::update_shipment_carrier_status(&state.pool, shipment_id, event.status).await?;
-
-    if let Some(master_id) = parent_id {
-        tracking::recompute_master_status(&state.pool, master_id).await?;
-    }
-
-    // Emit tracking.event_received outbox event (best-effort; non-fatal)
-    let outbox_payload = serde_json::json!({
-        "shipment_id": shipment_id,
-        "tenant_id": tenant_id,
-        "tracking_number": event.tracking_number,
-        "carrier_code": event.carrier_code,
-        "status": event.status,
-        "status_dttm": event.status_dttm,
-    });
-
-    // Deterministic event_id from tracking_number + hash so replay is safe
-    let event_id = Uuid::new_v5(
-        &Uuid::NAMESPACE_OID,
-        format!("tracking:{}:{}", event.tracking_number, raw_payload_hash).as_bytes(),
-    );
-
-    let _ = outbox::enqueue_event_tx_pool(
-        &state.pool,
-        event_id,
-        events::EVENT_TYPE_TRACKING_EVENT_RECEIVED,
-        "shipment",
-        &shipment_id.to_string(),
-        &tenant_id,
-        &outbox_payload,
-    )
-    .await;
 
     Ok(())
 }
