@@ -92,24 +92,49 @@ const PDFIUM_RENDER_VERSION: &str = "0.8";
 /// calling-convention mismatch crashes here (startup) instead of on the first
 /// annotation request in prod. Skips silently when PDFIUM_LIB_PATH is unset
 /// (dev environments without a pinned binary).
+///
+/// Behaviour is controlled by PDFIUM_ABI_CANARY (default: "panic"):
+///   panic — fail fast; prod default
+///   warn  — log error and continue; use in dev when libpdfium.so is unloadable
+///   skip  — do not attempt to bind at all
 pub fn assert_pdfium_abi() {
     let lib_path = match std::env::var("PDFIUM_LIB_PATH") {
         Ok(p) => p,
         Err(_) => return,
     };
 
-    tracing::info!(pdfium_lib = %lib_path, "pdfium ABI canary: binding library");
+    let mode = std::env::var("PDFIUM_ABI_CANARY").unwrap_or_else(|_| "panic".to_string());
+
+    if mode == "skip" {
+        tracing::info!(
+            pdfium_lib = %lib_path,
+            pdfium_abi_canary = "skip",
+            "pdfium ABI canary: skipped via PDFIUM_ABI_CANARY=skip"
+        );
+        return;
+    }
+
+    tracing::info!(pdfium_lib = %lib_path, pdfium_abi_canary = %mode, "pdfium ABI canary: binding library");
 
     let pdfium = match create_pdfium() {
         Ok(p) => p,
-        Err(e) => panic!(
-            "pdfium ABI canary FAILED: could not bind to libpdfium.so\n\
-             Expected: pdfium-render v{PDFIUM_RENDER_VERSION} compatible binary\n\
-             PDFIUM_LIB_PATH: {lib_path}\n\
-             Error: {e}\n\
-             Fix: rebuild the container image with a libpdfium.so \
-             compatible with pdfium-render v{PDFIUM_RENDER_VERSION}"
-        ),
+        Err(e) => {
+            let msg = format!(
+                "pdfium ABI canary FAILED: could not bind to libpdfium.so\n\
+                 Expected: pdfium-render v{PDFIUM_RENDER_VERSION} compatible binary\n\
+                 PDFIUM_LIB_PATH: {lib_path}\n\
+                 Error: {e}\n\
+                 Fix: rebuild the container image with a libpdfium.so \
+                 compatible with pdfium-render v{PDFIUM_RENDER_VERSION}"
+            );
+            match mode.as_str() {
+                "warn" => {
+                    tracing::warn!("{msg}");
+                    return;
+                }
+                _ => panic!("{msg}"),
+            }
+        }
     };
 
     // Exercise FPDF_LoadMemDocument64 through the FFI binding. An ABI mismatch

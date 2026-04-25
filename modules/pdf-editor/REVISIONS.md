@@ -4,6 +4,10 @@
 > **Standard:** See `docs/VERSIONING.md` for the rules governing this file.
 
 
+## 2.6.1
+- fix(bd-iah29.1): add `PDFIUM_ABI_CANARY` env knob to `assert_pdfium_abi()` — three modes: `panic` (default, prod), `warn` (log error and continue), `skip` (no-op). Set `PDFIUM_ABI_CANARY=warn` in the dev container to restore previous behaviour where pdf-editor starts despite an unloadable libpdfium.so; prod stays on `panic`.
+- chore(bd-gprmj): add `[package.metadata.cross]` declaring `deploy_target = "x86_64-unknown-linux-gnu"` and `targets = ["x86_64-unknown-linux-gnu"]`; standardizes multi-arch packaging — arm64 dev containers build natively inside Dockerfile.workspace, amd64 prod artifact cross-compiled via `cargo-slot.sh build -p pdf-editor --target x86_64-unknown-linux-gnu --release`.
+
 ## 2.6.0
 - feat(bd-iah29): startup ABI canary `assert_pdfium_abi()` — verifies pdfium-render crate ↔ packaged libpdfium.so compatibility by binding the library and calling FPDF_LoadMemDocument64 once at boot. Crashes early with an actionable message if the version on disk is incompatible, instead of failing on the first annotation request. No-op when PDFIUM_LIB_PATH is unset.
 
@@ -54,6 +58,7 @@ Every row in the Revisions table must have these fields filled in (no placeholde
 
 | Version | Date | Bead | What Changed | Why | Breaking? |
 |---------|------|------|-------------|-----|-----------|
+| 2.6.1 | 2026-04-25 | bd-iah29.1 | Add `PDFIUM_ABI_CANARY` env knob to `assert_pdfium_abi()`: `panic` (default), `warn` (log + continue), `skip` (no bind). Startup mode logged at info level. | Dev container has arch-mismatched libpdfium.so; canary was crashing the service at startup. `PDFIUM_ABI_CANARY=warn` restores pre-canary partial-failure behaviour without weakening prod. | No |
 | 2.2.0 | 2026-04-02 | bd-binuj | Remove dead health.rs (health/ready/version handlers). SDK ModuleBuilder provides these endpoints; the file was unreferenced dead code. | Dead code cleanup — annotation audit revealed health.rs handlers were never mounted after SDK conversion. | No |
 | 2.1.4 | 2026-03-31 | bd-5vmu6 | Convert to platform-sdk ModuleBuilder. Replaces manual dotenv/tracing/pool/bus/outbox/middleware/health/shutdown boilerplate with SDK startup sequence. Bus and outbox publisher now configured via module.toml. | SDK batch conversion — eliminate two classes of modules. | No |
 | 2.1.3 | 2026-03-31 | bd-vnuvp.9 | Add tenant_id filter to 3 form_fields queries (MAX display_order, SELECT list, SELECT reorder) via form_templates subquery. Defense-in-depth tenant isolation. | P0 tenant isolation sweep: queries must filter by tenant_id to prevent cross-tenant data leakage. | No |
