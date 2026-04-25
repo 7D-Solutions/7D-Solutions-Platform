@@ -100,6 +100,8 @@ panes/.*.lock
 .flywheel/*
 # Exception: rehearsal hooks are repo-owned, not ephemeral (AgentCore br-rehearse convention)
 !.flywheel/rehearsal-workspace-check.sh
+# Nested .flywheel/ dirs at any depth (per-package runtime state — cm-reflect-counter.json, retro/, etc.)
+**/.flywheel/
 
 # Browser profiles (Chrome session data — contains live cookies/tokens/sessions)
 .browser-profiles/
