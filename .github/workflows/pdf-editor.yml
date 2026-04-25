@@ -1,0 +1,100 @@
+name: pdf-editor Integration Tests
+
+# Runs the pdf-editor test suite inside a container that mirrors the deployment
+# runtime: same pdfium release (chromium/7699) installed at the same path as
+# Dockerfile.workspace.  This ensures native-library ABI differences between
+# developer machines and production Linux cannot mask test failures.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'modules/pdf-editor/**'
+      - '.github/workflows/pdf-editor.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'modules/pdf-editor/**'
+      - '.github/workflows/pdf-editor.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  integration-tests:
+    name: "Integration tests (in deployment container)"
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      # Write the test-runner Dockerfile to /tmp so no repo file is needed.
+      # The image is rust:slim (same Debian bookworm base as the runtime stage)
+      # plus pdfium at the same chromium/7699 release and install path.
+      - name: Write test-runner Dockerfile
+        run: |
+          cat > /tmp/pdf-editor.Dockerfile <<'EOF'
+          FROM rust:slim
+          RUN apt-get update && apt-get install -y --no-install-recommends \
+              pkg-config libssl-dev curl ca-certificates \
+              && rm -rf /var/lib/apt/lists/*
+          # Pinned to the same release used in modules/pdf-editor/deploy/Dockerfile.workspace.
+          # Update both files together when bumping pdfium.
+          RUN ARCH=$(uname -m); \
+              [ "$ARCH" = "aarch64" ] && PKG=pdfium-linux-arm64 || PKG=pdfium-linux-x64; \
+              curl -fsSL "https://github.com/bblanchon/pdfium-binaries/releases/download/chromium%2F7699/${PKG}.tgz" \
+                  | tar -xzf - -C /usr/local/lib --strip-components=1 lib/libpdfium.so \
+              && ldconfig
+          ENV PDFIUM_LIB_PATH=/usr/local/lib/libpdfium.so
+          WORKDIR /workspace
+          EOF
+
+      # Cache Docker layers so apt + pdfium download only re-run when the
+      # Dockerfile content changes (detected by the GHA layer hash).
+      - name: Build test-runner image
+        run: |
+          docker buildx build \
+            --file /tmp/pdf-editor.Dockerfile \
+            --tag pdf-editor-test:ci \
+            --load \
+            --cache-from type=gha,scope=pdf-editor-test \
+            --cache-to type=gha,mode=max,scope=pdf-editor-test \
+            /tmp
+
+      # Cache the cargo registry (downloaded crates) across runs.
+      # Keyed on Cargo.lock so a lockfile bump triggers a fresh download.
+      # Mounted into the container at /cargo-home so the runner user owns
+      # the files and actions/cache can read them without permission issues.
+      - name: Cache cargo registry
+        uses: actions/cache@v4
+        with:
+          path: /tmp/pdf-editor-cargo
+          key: ${{ runner.os }}-pdf-editor-cargo-${{ hashFiles('Cargo.lock') }}
+          restore-keys: ${{ runner.os }}-pdf-editor-cargo-
+
+      # Run as the runner user (not root) so files written to the mounted
+      # volumes remain readable by subsequent steps and the cache post-action.
+      # HOME=/tmp satisfies tools that probe $HOME; CARGO_HOME overrides
+      # cargo's own home-dir resolution so it uses the mounted cache dir.
+      - name: Run integration tests
+        run: |
+          mkdir -p /tmp/pdf-editor-cargo
+          docker run --rm \
+            --user "$(id -u):$(id -g)" \
+            --volume "$GITHUB_WORKSPACE:/workspace" \
+            --volume "/tmp/pdf-editor-cargo:/cargo-home" \
+            --env CARGO_HOME=/cargo-home \
+            --env HOME=/tmp \
+            --env PDFIUM_LIB_PATH=/usr/local/lib/libpdfium.so \
+            --env RUST_BACKTRACE=1 \
+            pdf-editor-test:ci \
+            cargo test -p pdf-editor
