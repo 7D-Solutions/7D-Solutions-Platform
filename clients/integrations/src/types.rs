@@ -205,6 +205,25 @@ pub struct RunTestActionRequest {
     pub idempotency_key: String,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TaxRateItem {
+    pub active: bool,
+    /// Tax agency name from QBO AgencyRef.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub agency_ref: Option<String>,
+    /// QBO TaxRate.Id — reference value for txn_tax_detail lines.
+    pub id: String,
+    pub name: String,
+    /// Rate as percentage (e.g. 8.5 = 8.5%).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub rate_value: Option<f64>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TaxrateListResponse {
+    pub taxrates: Vec<TaxRateItem>,
+}
+
 /// Outcome of a connector test action.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TestActionResult {

@@ -686,6 +686,63 @@
         ]
       }
     },
+    "/api/integrations/qbo/taxrate": {
+      "get": {
+        "tags": [
+          "QBO TaxRate"
+        ],
+        "operationId": "list_taxrates",
+        "parameters": [
+          {
+            "name": "realm_id",
+            "in": "query",
+            "description": "QBO realm (company) ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "active",
+            "in": "query",
+            "description": "Return only active rates when true",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "TaxRate list",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TaxrateListResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "realm_id does not match connected QBO realm"
+          },
+          "412": {
+            "description": "No active QBO connection for this tenant"
+          },
+          "429": {
+            "description": "QBO rate limit exceeded"
+          },
+          "502": {
+            "description": "QBO API error"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
     "/api/integrations/sync/push/{entity_type}": {
       "post": {
         "tags": [
@@ -1367,6 +1424,55 @@
           "idempotency_key": {
             "type": "string",
             "description": "Caller-supplied idempotency key."
+          }
+        }
+      },
+      "TaxRateItem": {
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "active"
+        ],
+        "properties": {
+          "active": {
+            "type": "boolean"
+          },
+          "agency_ref": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Tax agency name from QBO AgencyRef."
+          },
+          "id": {
+            "type": "string",
+            "description": "QBO TaxRate.Id — reference value for txn_tax_detail lines."
+          },
+          "name": {
+            "type": "string"
+          },
+          "rate_value": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double",
+            "description": "Rate as percentage (e.g. 8.5 = 8.5%)."
+          }
+        }
+      },
+      "TaxrateListResponse": {
+        "type": "object",
+        "required": [
+          "taxrates"
+        ],
+        "properties": {
+          "taxrates": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TaxRateItem"
+            }
           }
         }
       },

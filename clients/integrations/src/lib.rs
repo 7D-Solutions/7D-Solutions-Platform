@@ -7,6 +7,7 @@ pub mod connectors;
 pub mod external_refs;
 pub mod oauth;
 pub mod qbo_invoice;
+pub mod qbo_taxrate;
 pub mod sync_push;
 pub mod webhooks;
 
@@ -15,6 +16,7 @@ pub use connectors::ConnectorsClient;
 pub use external_refs::ExternalRefsClient;
 pub use oauth::OauthClient;
 pub use qbo_invoice::QboInvoiceClient;
+pub use qbo_taxrate::QboTaxrateClient;
 pub use sync_push::SyncPushClient;
 pub use webhooks::WebhooksClient;
 
@@ -42,6 +44,13 @@ impl platform_sdk::PlatformService for OauthClient {
 }
 
 impl platform_sdk::PlatformService for QboInvoiceClient {
+    const SERVICE_NAME: &'static str = "integrations";
+    fn from_platform_client(client: platform_sdk::PlatformClient) -> Self {
+        Self::new(client)
+    }
+}
+
+impl platform_sdk::PlatformService for QboTaxrateClient {
     const SERVICE_NAME: &'static str = "integrations";
     fn from_platform_client(client: platform_sdk::PlatformClient) -> Self {
         Self::new(client)
