@@ -318,6 +318,9 @@ pub fn build_receipt_routed_envelope(
     .with_schema_version(SHIPPING_RECEIVING_EVENT_SCHEMA_VERSION.to_string())
 }
 
+/// Shipping cost event contract (schema_version 1)
+pub mod shipping_cost;
+
 #[cfg(test)]
 #[path = "contracts_tests.rs"]
 mod tests;

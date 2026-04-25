@@ -4,6 +4,9 @@
 > **Standard:** See `docs/VERSIONING.md` for the rules governing this file.
 
 
+## 6.9.0
+- feat(bd-1n4am): add `consumers::shipping_cost_consumer` — subscribes to `shipping_receiving.shipping_cost.incurred`, appends shipping line to open/draft invoices matched by order_ref; emits `ar.customer_charge_after_post` warning for immutable invoices.
+
 ## 6.8.1
 - fix(tax): expose reconciliation_threshold_pct in TaxTenantConfigResponse and TaxTenantConfig repo struct; adds SELECT/RETURNING column and round-trip test ([bd-v2qxt])
 

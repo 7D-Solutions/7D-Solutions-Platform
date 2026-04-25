@@ -4,6 +4,9 @@
 > **Standard:** See `docs/VERSIONING.md` for the rules governing this file.
 
 
+## 3.8.0
+- feat(bd-1n4am): add `shipping_cost_consumer` — subscribes to `shipping_receiving.shipping_cost.incurred`, creates pending vendor_bill + bill_line for configured carriers. New `ap_carrier_vendor_mapping` table maps carrier_code → vendor_id per tenant.
+
 ## 3.7.1
 - chore: workspace rustfmt pass (no behavioral changes) ([bd-44hil])
 

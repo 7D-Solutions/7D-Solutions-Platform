@@ -1,4 +1,4 @@
-use ar_rs::{consumer_tasks, events, http, metrics, models::PaymentSucceededPayload};
+use ar_rs::{consumer_tasks, consumers, events, http, metrics, models::PaymentSucceededPayload};
 use axum::Extension;
 use platform_sdk::{ConsumerError, EventEnvelope, ModuleBuilder, ModuleContext};
 use std::sync::Arc;
@@ -10,6 +10,10 @@ async fn main() {
     ModuleBuilder::from_manifest("module.toml")
         .migrator(&MIGRATOR)
         .consumer("payments.events.payment.succeeded", on_payment_succeeded)
+        .consumer(
+            "shipping_receiving.shipping_cost.incurred",
+            on_shipping_cost_incurred,
+        )
         .routes(|ctx| {
             // Register AR prometheus metrics with the global registry.
             // The SDK's /metrics endpoint uses prometheus::gather() which
@@ -39,6 +43,23 @@ async fn main() {
         .run()
         .await
         .expect("ar module failed");
+}
+
+/// SDK consumer handler for shipping_receiving.shipping_cost.incurred.
+async fn on_shipping_cost_incurred(
+    ctx: ModuleContext,
+    envelope: EventEnvelope<serde_json::Value>,
+) -> Result<(), ConsumerError> {
+    let pool = ctx.pool();
+    let event_id = envelope.event_id;
+
+    let payload: consumers::shipping_cost_consumer::ShippingCostIncurredPayload =
+        serde_json::from_value(envelope.payload)
+            .map_err(|e| ConsumerError::Processing(format!("payload parse: {e}")))?;
+
+    consumers::shipping_cost_consumer::handle_shipping_cost_incurred(pool, event_id, &payload)
+        .await
+        .map_err(|e| ConsumerError::Processing(e.to_string()))
 }
 
 /// SDK consumer handler for payments.events.payment.succeeded.

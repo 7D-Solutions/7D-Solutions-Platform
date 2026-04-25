@@ -1,5 +1,6 @@
 pub mod aging;
 pub mod config;
+pub mod consumers;
 pub mod consumer_tasks;
 pub mod credit_notes;
 pub mod db;

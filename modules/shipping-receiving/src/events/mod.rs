@@ -5,13 +5,14 @@
 //!
 //! ## Event Types
 //!
-//! | Event Type                                  | mutation_class | Consumer       |
-//! |---------------------------------------------|----------------|----------------|
-//! | shipping_receiving.shipment_created          | DATA_MUTATION  | projections    |
-//! | shipping_receiving.shipment_status_changed   | DATA_MUTATION  | projections    |
-//! | shipping_receiving.inbound_closed            | DATA_MUTATION  | inventory (receipt) |
-//! | shipping_receiving.outbound_shipped          | DATA_MUTATION  | inventory (issue)   |
-//! | shipping_receiving.outbound_delivered        | DATA_MUTATION  | projections    |
+//! | Event Type                                    | mutation_class | Consumer           |
+//! |-----------------------------------------------|----------------|--------------------|
+//! | shipping_receiving.shipment_created           | DATA_MUTATION  | projections        |
+//! | shipping_receiving.shipment_status_changed    | DATA_MUTATION  | projections        |
+//! | shipping_receiving.inbound_closed             | DATA_MUTATION  | inventory (receipt)|
+//! | shipping_receiving.outbound_shipped           | DATA_MUTATION  | inventory (issue)  |
+//! | shipping_receiving.outbound_delivered         | DATA_MUTATION  | projections        |
+//! | shipping_receiving.shipping_cost.incurred     | DATA_MUTATION  | ap, ar             |
 
 pub mod contracts;
 
@@ -38,6 +39,11 @@ pub use contracts::{
     EVENT_TYPE_INBOUND_CLOSED, EVENT_TYPE_OUTBOUND_DELIVERED, EVENT_TYPE_OUTBOUND_SHIPPED,
     EVENT_TYPE_RECEIPT_ROUTED_TO_INSPECTION, EVENT_TYPE_RECEIPT_ROUTED_TO_STOCK,
     EVENT_TYPE_SHIPMENT_CREATED, EVENT_TYPE_SHIPMENT_STATUS_CHANGED,
+};
+
+pub use contracts::shipping_cost::{
+    build_shipping_cost_incurred_envelope, ShippingCostIncurredPayload,
+    EVENT_TYPE_SHIPPING_COST_INCURRED,
 };
 
 // ============================================================================

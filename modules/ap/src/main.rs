@@ -37,10 +37,14 @@ async fn main() {
 
             if let Ok(bus) = ctx.bus_arc() {
                 ap::consumers::attachment_linked::start_attachment_linked_consumer(
-                    bus,
+                    Arc::clone(&bus),
                     ctx.pool().clone(),
                 );
-                tracing::info!("AP: attachment_linked consumer started");
+                ap::consumers::shipping_cost_consumer::start_shipping_cost_consumer(
+                    Arc::clone(&bus),
+                    ctx.pool().clone(),
+                );
+                tracing::info!("AP: consumers started (attachment_linked, shipping_cost)");
             }
 
             let ap_mutations = Router::new()

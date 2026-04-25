@@ -4,6 +4,9 @@
 > **Standard:** See `docs/VERSIONING.md` for the rules governing this file.
 
 
+## 3.7.0
+- feat(bd-1n4am): wire cost-event emission end-to-end — event contract file moved to src/events/contracts/shipping_cost.rs (submodule); routes.rs registers POST /api/shipping-receiving/shipments/{id}/label; integration test shipping_cost_event_emission_test.rs covers outbox emission path. Cross-module with AP 3.8.0 + AR 6.9.0 consumers.
+
 ## 3.6.0
 - feat(bd-1n4am): add `shipping_receiving.shipping_cost.incurred` event contract + `POST /api/shipping-receiving/shipments/{id}/label` endpoint. Emits one canonical cost event per label into the outbox; AP and AR consume downstream.
 
