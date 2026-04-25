@@ -19,6 +19,7 @@ pub mod rl;
 pub mod stub;
 pub mod ups;
 pub mod usps;
+pub mod xpo;
 
 // ── Response types ────────────────────────────────────────────
 
@@ -145,6 +146,7 @@ pub fn get_provider(carrier_code: &str) -> Option<Box<dyn CarrierProvider>> {
         "stub" => Some(Box::new(stub::StubCarrierProvider)),
         "ups" => Some(Box::new(ups::UpsCarrierProvider::new())),
         "usps" => Some(Box::new(usps::UspsCarrierProvider)),
+        "xpo" => Some(Box::new(xpo::XpoCarrierProvider)),
         _ => None,
     }
 }

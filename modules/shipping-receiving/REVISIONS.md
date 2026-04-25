@@ -4,6 +4,9 @@
 > **Standard:** See `docs/VERSIONING.md` for the rules governing this file.
 
 
+## 3.9.0
+- feat(bd-owtje): XPO Logistics LTL `CarrierProvider` impl (`xpo.rs`). API-key Bearer auth, rate quote (`POST /rating/1.0/rates`), BOL creation (`POST /shipping/1.0/bol`), tracking (`GET /tracking/1.0/shipments/{pro}`). Registered as "xpo" in provider registry. Integration test skips when `XPO_SANDBOX_API_KEY` absent.
+
 ## 3.8.0
 - feat(bd-3kp9s): Old Dominion (ODFL) LTL `CarrierProvider` impl (`odfl.rs`). API-key + account-number auth (`Authorization: Bearer` + `X-OD-Account-Number`), rate quote (`POST /rating/1.0/quote`), BOL creation (`POST /bol/1.0`), tracking (`GET /tracking/1.0/{pro}`). Account number included in BOL request body as `shipperAccountNumber` (required by ODFL in addition to auth header). Integration test skips when `ODFL_SANDBOX_API_KEY`/`ODFL_SANDBOX_ACCOUNT` absent.
 
