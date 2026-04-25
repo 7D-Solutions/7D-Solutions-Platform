@@ -99,7 +99,68 @@ sandbox vs prod endpoint.
   creds against the prod endpoint or vice versa. Pair the credential set with
   the matching `AVALARA_BASE_URL` (`sandbox-rest.avatax.com` vs `rest.avatax.com`).
 
-## 4. Database Password Rotation
+## 4. Carrier Sandbox Credentials
+
+Carrier sandbox credentials are used by CI to run live integration tests against
+carrier APIs. They are NOT rate-limited the same way production credentials are,
+but they still require periodic rotation.
+
+### UPS (CIE sandbox — `https://wwwcie.ups.com`)
+
+| Env var | Description |
+|---------|-------------|
+| `UPS_CLIENT_ID` | OAuth2 client id from UPS Developer portal |
+| `UPS_CLIENT_SECRET` | OAuth2 client secret |
+| `UPS_ACCOUNT_NUMBER` | UPS shipper account number for label creation |
+
+**Rotation procedure:**
+1. Log into the UPS Developer portal and regenerate client credentials for the
+   sandbox application.
+2. Update the CI secret store with the new `UPS_CLIENT_ID` / `UPS_CLIENT_SECRET`.
+3. Verify by running the `carrier-integration` CI job — it runs
+   `ups_sandbox_test` which skips when the vars are absent.
+
+### FedEx (Developer sandbox — `https://apis-sandbox.fedex.com`)
+
+| Env var | Description |
+|---------|-------------|
+| `FEDEX_CLIENT_ID` | OAuth2 client id from FedEx Developer portal |
+| `FEDEX_CLIENT_SECRET` | OAuth2 client secret |
+| `FEDEX_ACCOUNT_NUMBER` | FedEx account number for label creation |
+
+**Rotation procedure:**
+1. Log into the FedEx Developer portal and regenerate the sandbox app credentials.
+2. Update the CI secret store.
+3. Verify via the `fedex_sandbox_test` CI job.
+
+### USPS (OAuth REST API — `https://api.usps.com`)
+
+| Env var | Description |
+|---------|-------------|
+| `USPS_CLIENT_ID` | OAuth2 client id from USPS Developer portal |
+| `USPS_CLIENT_SECRET` | OAuth2 client secret |
+
+These credentials are used by `usps_sandbox_test` which calls the new USPS
+OAuth REST API (`/prices/v3/base-rates/search`, `/tracking/v3/tracking`).
+They are separate from the legacy Web Tools `USPS_USER_ID`.
+
+**Rotation procedure:**
+1. Log into the USPS Developer portal and regenerate the app credentials.
+2. Update the CI secret store.
+3. Verify via the `usps_sandbox_test` CI job.
+
+### Notes
+
+- Never use production carrier credentials (`onlinetools.ups.com`,
+  `apis.fedex.com`, live USPS account) in CI. Always target the sandbox
+  base URLs listed above.
+- The integration tests skip cleanly when credentials are absent — they do NOT
+  fail. A failed carrier test means a real API contract break, not a missing var.
+- Keep sandbox credentials in the same secret manager as production credentials
+  but under distinct secret names (e.g. `ups-sandbox-client-id` vs
+  `ups-prod-client-id`).
+
+## 5. Database Password Rotation
 
 Each module has its own database secret, usually behind `DATABASE_URL` or a
 module-specific `*_DATABASE_URL`.

@@ -4,6 +4,9 @@
 > **Standard:** See `docs/VERSIONING.md` for the rules governing this file.
 
 
+## 3.7.2
+- test(bd-a2rrm): real-sandbox integration tests for UPS, FedEx, and USPS — skip when credentials absent, assert UPS Ground / FedEx Ground / Priority Mail in rate responses, assert tracking starts with "1Z" / is 12 digits, assert unknown tracking numbers are rejected. USPS tests call the new OAuth REST API (api.usps.com) directly.
+
 ## 3.7.1
 - fix(bd-1n4am.2): test compilation errors — make `create_label` a pub mod so integration tests can import `record_label_cost_tx` (was E0603); annotate two `let event_id: Uuid` bindings in shipping_cost_event_emission_test.rs (was E0282).
 
