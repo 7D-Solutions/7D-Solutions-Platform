@@ -4,6 +4,9 @@
 > **Standard:** See `docs/VERSIONING.md` for the rules governing this file.
 
 
+## 2.46.0
+- feat(bd-96iab): QBO TaxRate read proxy — `GET /api/integrations/qbo/taxrate?realm_id=...`. Handler validates realm_id against stored oauth_connection (403 on mismatch) and returns 412 when no connection exists. `QboClient::list_taxrates(active_only)` added; uses `query_all("SELECT * FROM TaxRate")`. No rate-limit middleware applied (none exists in platform yet). Registered in openapi_dump under tag "QBO TaxRate". Integration tests: realm_mismatch→403, not_connected→412, requires_permission→403, sandbox happy-path skips when QBO_SANDBOX absent.
+
 ## 2.45.1
 - fix(tests): add acquire_timeout(90s) to orphan_reconcile_test pool (bd-vbedx.1 fix)
 - chore(openapi): rename tag SyncPush -> Sync Push so generator renders module as sync_push (snake_case) matching every other client module; SyncpushClient becomes SyncPushClient ([bd-ba1fi])

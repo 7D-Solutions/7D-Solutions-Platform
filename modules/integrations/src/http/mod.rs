@@ -6,6 +6,7 @@ pub mod internal;
 pub mod oauth;
 pub mod qbo_invoice;
 pub mod qbo_settings;
+pub mod qbo_taxrate;
 pub mod sync;
 pub mod sync_pull;
 pub mod webhooks;
@@ -122,6 +123,11 @@ pub fn router(state: Arc<AppState>) -> Router {
         .route(
             "/api/integrations/oauth/status/{provider}",
             get(oauth::status),
+        )
+        // QBO TaxRate — read proxy
+        .route(
+            "/api/integrations/qbo/taxrate",
+            get(qbo_taxrate::list_taxrates),
         )
         // QBO webhook token — status read
         .route(

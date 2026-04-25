@@ -262,6 +262,23 @@ impl QboPaymentPayload {
     }
 }
 
+// ============================================================================
+// TaxRate types
+// ============================================================================
+
+/// A single QBO TaxRate record.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TaxRate {
+    /// QBO TaxRate.Id — used as `tax_rate_ref` in TxnTaxDetail lines.
+    pub id: String,
+    pub name: String,
+    pub active: bool,
+    /// Rate as a percentage value (0–100), e.g. 8.5 for 8.5%.
+    pub rate_value: Option<f64>,
+    /// Human-readable tax agency name from AgencyRef.name.
+    pub agency_ref: Option<String>,
+}
+
 /// Minor version appended to all QBO API requests.
 pub const MINOR_VERSION: u32 = 75;
 /// Max results per query page.
@@ -827,6 +844,30 @@ impl QboClient {
             QboApiAction::Backoff => Err(QboError::RateLimited { retry_after }),
             _ => Err(parse_api_error(&resp_body)),
         }
+    }
+
+    /// List all TaxRates for this realm via QBO query.
+    ///
+    /// When `active_only` is true, adds `WHERE Active = true` to the query.
+    /// Results are de-paginated automatically.
+    pub async fn list_taxrates(&self, active_only: bool) -> Result<Vec<TaxRate>, QboError> {
+        let stmt = if active_only {
+            "SELECT * FROM TaxRate WHERE Active = true".to_string()
+        } else {
+            "SELECT * FROM TaxRate".to_string()
+        };
+        let rows = self.query_all(&stmt, "TaxRate").await?;
+        let rates = rows
+            .iter()
+            .map(|v| TaxRate {
+                id: v["Id"].as_str().unwrap_or("").to_string(),
+                name: v["Name"].as_str().unwrap_or("").to_string(),
+                active: v["Active"].as_bool().unwrap_or(true),
+                rate_value: v["RateValue"].as_f64(),
+                agency_ref: v["AgencyRef"]["name"].as_str().map(|s| s.to_string()),
+            })
+            .collect();
+        Ok(rates)
     }
 
     /// Call the CDC endpoint.

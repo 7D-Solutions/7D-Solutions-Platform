@@ -14,6 +14,7 @@ use integrations_rs::domain::external_refs::{
 };
 use integrations_rs::domain::oauth::{ConnectionStatus, OAuthConnectionInfo};
 use integrations_rs::http::qbo_invoice::{UpdateInvoiceRequest, UpdateInvoiceResponse};
+use integrations_rs::http::qbo_taxrate::{TaxRateItem, TaxrateListResponse};
 use integrations_rs::http::sync::PushEntityRequest;
 use platform_http_contracts::{ApiError, FieldError, PaginatedResponse, PaginationMeta};
 
@@ -53,6 +54,8 @@ use platform_http_contracts::{ApiError, FieldError, PaginatedResponse, Paginatio
         integrations_rs::http::webhooks::inbound_webhook,
         // QBO Invoice
         integrations_rs::http::qbo_invoice::update_invoice,
+        // QBO TaxRate
+        integrations_rs::http::qbo_taxrate::list_taxrates,
         // SyncPush
         integrations_rs::http::sync::push_entity,
     ),
@@ -66,6 +69,8 @@ use platform_http_contracts::{ApiError, FieldError, PaginatedResponse, Paginatio
         OAuthConnectionInfo, ConnectionStatus,
         // QBO Invoice
         UpdateInvoiceRequest, UpdateInvoiceResponse,
+        // QBO TaxRate
+        TaxrateListResponse, TaxRateItem,
         // SyncPush
         PushEntityRequest,
         // Shared envelopes
