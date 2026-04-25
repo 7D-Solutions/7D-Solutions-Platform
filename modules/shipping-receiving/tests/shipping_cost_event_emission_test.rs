@@ -74,7 +74,7 @@ async fn test_create_label_emits_shipping_cost_event() {
     };
 
     let mut tx = pool.begin().await.expect("begin tx");
-    let event_id = record_label_cost_tx(&mut tx, shipment_id, tenant_id, &req, "corr-001")
+    let event_id: Uuid = record_label_cost_tx(&mut tx, shipment_id, tenant_id, &req, "corr-001")
         .await
         .expect("record_label_cost_tx failed");
     tx.commit().await.expect("commit");
@@ -124,7 +124,7 @@ async fn test_create_label_without_customer_charge() {
     };
 
     let mut tx = pool.begin().await.expect("begin tx");
-    let event_id = record_label_cost_tx(&mut tx, shipment_id, tenant_id, &req, "corr-002")
+    let event_id: Uuid = record_label_cost_tx(&mut tx, shipment_id, tenant_id, &req, "corr-002")
         .await
         .expect("record_label_cost_tx failed");
     tx.commit().await.expect("commit");

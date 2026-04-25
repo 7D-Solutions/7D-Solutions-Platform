@@ -4,6 +4,9 @@
 > **Standard:** See `docs/VERSIONING.md` for the rules governing this file.
 
 
+## 3.7.1
+- fix(bd-1n4am.2): test compilation errors — make `create_label` a pub mod so integration tests can import `record_label_cost_tx` (was E0603); annotate two `let event_id: Uuid` bindings in shipping_cost_event_emission_test.rs (was E0282).
+
 ## 3.7.0
 - feat(bd-1n4am): wire cost-event emission end-to-end — event contract file moved to src/events/contracts/shipping_cost.rs (submodule); routes.rs registers POST /api/shipping-receiving/shipments/{id}/label; integration test shipping_cost_event_emission_test.rs covers outbox emission path. Cross-module with AP 3.8.0 + AR 6.9.0 consumers.
 
