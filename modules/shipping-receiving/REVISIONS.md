@@ -4,6 +4,12 @@
 > **Standard:** See `docs/VERSIONING.md` for the rules governing this file.
 
 
+## 3.6.0
+- feat(bd-1n4am): add `shipping_receiving.shipping_cost.incurred` event contract + `POST /api/shipping-receiving/shipments/{id}/label` endpoint. Emits one canonical cost event per label into the outbox; AP and AR consume downstream.
+
+## 3.5.0
+- feat: R&L Carriers LTL provider — `RlCarrierProvider` registered as "rl". API-key auth, rate quote, BOL creation, tracking. `NotFound` variant added to `CarrierProviderError` for 404 tracking responses.
+
 ## 3.4.4
 - chore: rustfmt reflow + regenerate typed clients (no behavior change)
 
@@ -11,6 +17,7 @@
 
 | Version | Date | Bead | What Changed | Why | Breaking? |
 |---------|------|------|-------------|-----|-----------|
+| 3.5.0 | 2026-04-25 | bd-gaqqv | R&L Carriers LTL `CarrierProvider` impl (`rl.rs`). API-key auth (`X-API-Key`), rate quote (`POST /api/RateQuote`), BOL creation (`POST /api/BillOfLading`), tracking (`GET /api/Shipments/{pro}`). `NotFound` variant added to `CarrierProviderError` for 404 tracking responses. Integration test skips when `RL_SANDBOX_API_KEY` absent. | LTL carrier support for R&L per 2026-04-24 shipping direction. | No |
 | 3.4.3 | 2026-04-15 | bd-p3duh | Move envelope.payload by value in on_po_approved consumer — replace serde_json::from_value(envelope.payload.clone()) with from_value(envelope.payload). | Payload was heap-copied on every dispatch even though it is consumed once. Same perf fix applied by bd-g7zzj to notifications and maintenance. | No |
 | 3.4.2 | 2026-04-14 | bd-6jhh8 | Add `docs/guides/carrier-adapters.md` with FedEx/UPS/USPS opt-in guidance, surface the guide from the module README, and warn at startup when `StubCarrierProvider` is used outside development. | Verticals were shipping with the stub carrier path by accident and there was no documented handoff for enabling the real carrier adapters. | No |
 | 3.4.1 | 2026-04-13 | bd-1my6.2 | Skip inventory call for shipment lines with no warehouse_id. Previously `unwrap_or(Uuid::nil())` caused 404 from inventory service for non-inventory-tracked lines (manufactured goods shipped directly). Now skips with `continue`. | Lines without warehouse are not inventory-tracked and should not trigger inventory issues. | No |

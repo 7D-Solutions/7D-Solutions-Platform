@@ -14,6 +14,7 @@ use thiserror::Error;
 pub mod credentials;
 pub mod dispatch;
 pub mod fedex;
+pub mod rl;
 pub mod stub;
 pub mod ups;
 pub mod usps;
@@ -65,6 +66,8 @@ pub enum CarrierProviderError {
     InvalidRequest(String),
     #[error("credentials error: {0}")]
     CredentialsError(String),
+    #[error("shipment not found: {0}")]
+    NotFound(String),
 }
 
 /// Resolve the deployment environment name used for carrier warnings.
@@ -136,6 +139,7 @@ pub trait CarrierProvider: Send + Sync {
 pub fn get_provider(carrier_code: &str) -> Option<Box<dyn CarrierProvider>> {
     match carrier_code {
         "fedex" => Some(Box::new(fedex::FedexCarrierProvider)),
+        "rl" => Some(Box::new(rl::RlCarrierProvider)),
         "stub" => Some(Box::new(stub::StubCarrierProvider)),
         "ups" => Some(Box::new(ups::UpsCarrierProvider::new())),
         "usps" => Some(Box::new(usps::UspsCarrierProvider)),
