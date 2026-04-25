@@ -31,7 +31,8 @@ use reqwest::Client;
 use serde_json::Value;
 
 use super::{
-    CarrierProvider, CarrierProviderError, LabelResult, RateQuote, TrackingEvent, TrackingResult,
+    CarrierProvider, CarrierProviderError, ChildLabel, LabelResult, MultiPackageLabelRequest,
+    MultiPackageLabelResponse, RateQuote, TrackingEvent, TrackingResult,
 };
 
 const FEDEX_PRODUCTION_URL: &str = "https://apis.fedex.com";
@@ -454,6 +455,135 @@ fn build_ship_request(account_number: &str, req: &Value) -> Value {
     })
 }
 
+// ── Multi-package ship request builder ────────────────────────
+
+fn build_multi_ship_request(account_number: &str, req: &MultiPackageLabelRequest) -> Value {
+    let from_name = req.origin["name"].as_str().unwrap_or("Sender");
+    let from_address = req.origin["address"].as_str().unwrap_or("123 Main St");
+    let from_city = req.origin["city"].as_str().unwrap_or("New York");
+    let from_state = req.origin["state"].as_str().unwrap_or("NY");
+    let from_zip = req.origin["zip"].as_str().unwrap_or("10001");
+    let to_name = req.destination["name"].as_str().unwrap_or("Recipient");
+    let to_address = req.destination["address"].as_str().unwrap_or("456 Sunset Blvd");
+    let to_city = req.destination["city"].as_str().unwrap_or("Los Angeles");
+    let to_state = req.destination["state"].as_str().unwrap_or("CA");
+    let to_zip = req.destination["zip"].as_str().unwrap_or("90210");
+    let service_type = req
+        .service_level
+        .as_deref()
+        .unwrap_or("FEDEX_GROUND");
+
+    let pkg_count = req.packages.len() as u64;
+    let total_weight: f64 = req.packages.iter().map(|p| p.weight_lbs).sum();
+
+    let package_line_items: Vec<Value> = req
+        .packages
+        .iter()
+        .enumerate()
+        .map(|(i, pkg)| {
+            serde_json::json!({
+                "sequenceNumber": i + 1,
+                "weight": { "units": "LB", "value": pkg.weight_lbs },
+                "dimensions": {
+                    "length": pkg.length_in,
+                    "width":  pkg.width_in,
+                    "height": pkg.height_in,
+                    "units":  "IN"
+                }
+            })
+        })
+        .collect();
+
+    serde_json::json!({
+        "labelResponseOptions": "LABEL",
+        "requestedShipment": {
+            "shipper": {
+                "contact": { "personName": from_name },
+                "address": {
+                    "streetLines": [from_address], "city": from_city,
+                    "stateOrProvinceCode": from_state, "postalCode": from_zip, "countryCode": "US"
+                }
+            },
+            "recipients": [{
+                "contact": { "personName": to_name },
+                "address": {
+                    "streetLines": [to_address], "city": to_city,
+                    "stateOrProvinceCode": to_state, "postalCode": to_zip, "countryCode": "US"
+                }
+            }],
+            "serviceType": service_type,
+            "packagingType": "YOUR_PACKAGING",
+            "pickupType": "USE_SCHEDULED_PICKUP",
+            "totalWeight": total_weight,
+            "packageCount": pkg_count,
+            "shippingChargesPayment": {
+                "paymentType": "SENDER",
+                "payor": { "responsibleParty": { "accountNumber": { "value": account_number } } }
+            },
+            "labelSpecification": {
+                "labelFormatType": "COMMON2D", "imageType": "PDF",
+                "labelStockType": "PAPER_85X11_TOP_HALF_LABEL"
+            },
+            "requestedPackageLineItems": package_line_items
+        },
+        "accountNumber": { "value": account_number }
+    })
+}
+
+fn parse_multi_ship_response(body: &Value) -> Result<MultiPackageLabelResponse, CarrierProviderError> {
+    let shipments = body["output"]["transactionShipments"]
+        .as_array()
+        .ok_or_else(|| {
+            CarrierProviderError::ApiError(
+                "FedEx multi-ship response missing output.transactionShipments".to_string(),
+            )
+        })?;
+
+    let shipment = shipments.first().ok_or_else(|| {
+        CarrierProviderError::ApiError(
+            "FedEx multi-ship response has empty transactionShipments".to_string(),
+        )
+    })?;
+
+    let master_tn = shipment["masterTrackingNumber"]
+        .as_str()
+        .filter(|s| !s.is_empty())
+        .ok_or_else(|| {
+            CarrierProviderError::ApiError(
+                "FedEx multi-ship response missing masterTrackingNumber".to_string(),
+            )
+        })?;
+
+    let piece_responses = shipment["pieceResponses"].as_array().cloned().unwrap_or_default();
+
+    let children: Vec<ChildLabel> = piece_responses
+        .iter()
+        .enumerate()
+        .map(|(i, piece)| {
+            let tn = piece["trackingNumber"].as_str().unwrap_or("").to_string();
+            let label = piece["packageDocuments"]
+                .as_array()
+                .and_then(|docs| {
+                    docs.iter()
+                        .find(|d| d["contentType"].as_str() == Some("LABEL"))
+                        .and_then(|d| d["encodedLabel"].as_str())
+                })
+                .unwrap_or("")
+                .to_string();
+            ChildLabel {
+                tracking_number: tn,
+                label_url: label,
+                package_index: i,
+            }
+        })
+        .collect();
+
+    Ok(MultiPackageLabelResponse {
+        master_tracking_number: master_tn.to_string(),
+        children,
+    })
+}
+
 // ── Ship response parser ──────────────────────────────────────
 
 fn parse_ship_response(body: &Value) -> Result<LabelResult, CarrierProviderError> {
@@ -682,6 +812,45 @@ impl CarrierProvider for FedexCarrierProvider {
 
         let token = acquire_token(base_url, client_id, client_secret).await?;
         let body = build_ship_request(account_number, req);
+        let response = fedex_post(base_url, "/ship/v1/shipments", &token, body).await?;
+        parse_ship_response(&response)
+    }
+
+    async fn create_multi_package_label(
+        &self,
+        req: &MultiPackageLabelRequest,
+        config: &Value,
+    ) -> Result<MultiPackageLabelResponse, CarrierProviderError> {
+        if req.packages.is_empty() {
+            return Err(CarrierProviderError::InvalidRequest(
+                "packages must not be empty".to_string(),
+            ));
+        }
+        let client_id = get_client_id(config)?;
+        let client_secret = get_client_secret(config)?;
+        let account_number = get_account_number(config)?;
+        let base_url = get_base_url(config);
+
+        let token = acquire_token(base_url, client_id, client_secret).await?;
+        let body = build_multi_ship_request(account_number, req);
+        let response = fedex_post(base_url, "/ship/v1/shipments", &token, body).await?;
+        parse_multi_ship_response(&response)
+    }
+
+    async fn create_return_label(
+        &self,
+        req: &Value,
+        config: &Value,
+    ) -> Result<LabelResult, CarrierProviderError> {
+        let client_id = get_client_id(config)?;
+        let client_secret = get_client_secret(config)?;
+        let account_number = get_account_number(config)?;
+        let base_url = get_base_url(config);
+
+        let token = acquire_token(base_url, client_id, client_secret).await?;
+        let mut body = build_ship_request(account_number, req);
+        // FedEx return shipments: set shipmentType=RETURN in requestedShipment.
+        body["requestedShipment"]["shipmentType"] = serde_json::json!("RETURN");
         let response = fedex_post(base_url, "/ship/v1/shipments", &token, body).await?;
         parse_ship_response(&response)
     }

@@ -30,7 +30,8 @@ use serde_json::Value;
 use tokio::sync::RwLock;
 
 use super::{
-    CarrierProvider, CarrierProviderError, LabelResult, RateQuote, TrackingEvent, TrackingResult,
+    CarrierProvider, CarrierProviderError, ChildLabel, LabelResult, MultiPackageLabelRequest,
+    MultiPackageLabelResponse, RateQuote, TrackingEvent, TrackingResult,
 };
 
 const UPS_SANDBOX_URL: &str = "https://wwwcie.ups.com";
@@ -552,6 +553,125 @@ pub(crate) fn parse_ship_response(json: &Value) -> Result<LabelResult, CarrierPr
     })
 }
 
+// ── Multi-package ship request builder ────────────────────────
+
+pub(crate) fn build_multi_ship_request(account_number: &str, req: &MultiPackageLabelRequest) -> Value {
+    let from_name = req.origin["name"].as_str().unwrap_or("Sender");
+    let from_addr = req.origin["address"].as_str().unwrap_or("123 Main St");
+    let from_city = req.origin["city"].as_str().unwrap_or("New York");
+    let from_state = req.origin["state"].as_str().unwrap_or("NY");
+    let from_zip = req.origin["zip"].as_str().unwrap_or("10001");
+    let to_name = req.destination["name"].as_str().unwrap_or("Recipient");
+    let to_addr = req.destination["address"].as_str().unwrap_or("456 Sunset Blvd");
+    let to_city = req.destination["city"].as_str().unwrap_or("Los Angeles");
+    let to_state = req.destination["state"].as_str().unwrap_or("CA");
+    let to_zip = req.destination["zip"].as_str().unwrap_or("90210");
+    let service_code = req.service_level.as_deref().unwrap_or("03");
+
+    let packages: Vec<Value> = req
+        .packages
+        .iter()
+        .map(|pkg| {
+            serde_json::json!({
+                "Description": "Package",
+                "PackagingType": { "Code": "02" },
+                "Dimensions": {
+                    "UnitOfMeasurement": { "Code": "IN" },
+                    "Length": format!("{:.1}", pkg.length_in),
+                    "Width":  format!("{:.1}", pkg.width_in),
+                    "Height": format!("{:.1}", pkg.height_in)
+                },
+                "PackageWeight": {
+                    "UnitOfMeasurement": { "Code": "LBS" },
+                    "Weight": format!("{:.1}", pkg.weight_lbs)
+                }
+            })
+        })
+        .collect();
+
+    serde_json::json!({
+        "ShipmentRequest": {
+            "Request": { "RequestOption": "nonvalidate" },
+            "Shipment": {
+                "Description": "Multi-package shipment",
+                "Shipper": {
+                    "Name": from_name, "ShipperNumber": account_number,
+                    "Phone": { "Number": "0000000000" },
+                    "Address": {
+                        "AddressLine": [from_addr], "City": from_city,
+                        "StateProvinceCode": from_state, "PostalCode": from_zip, "CountryCode": "US"
+                    }
+                },
+                "ShipTo": {
+                    "Name": to_name, "Phone": { "Number": "0000000000" },
+                    "Address": {
+                        "AddressLine": [to_addr], "City": to_city,
+                        "StateProvinceCode": to_state, "PostalCode": to_zip, "CountryCode": "US"
+                    }
+                },
+                "ShipFrom": {
+                    "Name": from_name, "Phone": { "Number": "0000000000" },
+                    "Address": {
+                        "AddressLine": [from_addr], "City": from_city,
+                        "StateProvinceCode": from_state, "PostalCode": from_zip, "CountryCode": "US"
+                    }
+                },
+                "PaymentInformation": {
+                    "ShipmentCharge": { "Type": "01", "BillShipper": { "AccountNumber": account_number } }
+                },
+                "Service": { "Code": service_code },
+                "Package": packages
+            },
+            "LabelSpecification": { "LabelImageFormat": { "Code": "GIF" } }
+        }
+    })
+}
+
+pub(crate) fn parse_multi_ship_response(
+    json: &Value,
+) -> Result<MultiPackageLabelResponse, CarrierProviderError> {
+    let results = &json["ShipmentResponse"]["ShipmentResults"];
+
+    let master_tn = results["ShipmentIdentificationNumber"]
+        .as_str()
+        .filter(|s| !s.is_empty())
+        .ok_or_else(|| {
+            CarrierProviderError::ApiError(
+                "UPS multi-ship response missing ShipmentIdentificationNumber".to_string(),
+            )
+        })?;
+
+    let pkg_array = if let Some(arr) = results["PackageResults"].as_array() {
+        arr.clone()
+    } else if results["PackageResults"].is_object() {
+        vec![results["PackageResults"].clone()]
+    } else {
+        vec![]
+    };
+
+    let children: Vec<ChildLabel> = pkg_array
+        .iter()
+        .enumerate()
+        .map(|(i, pkg)| {
+            let tn = pkg["TrackingNumber"].as_str().unwrap_or("").to_string();
+            let label = pkg["ShippingLabel"]["GraphicImage"]
+                .as_str()
+                .unwrap_or("")
+                .to_string();
+            ChildLabel {
+                tracking_number: tn,
+                label_url: label,
+                package_index: i,
+            }
+        })
+        .collect();
+
+    Ok(MultiPackageLabelResponse {
+        master_tracking_number: master_tn.to_string(),
+        children,
+    })
+}
+
 // ── Track response parser ──────────────────────────────────────
 
 pub(crate) fn parse_track_response(
@@ -685,6 +805,44 @@ impl CarrierProvider for UpsCarrierProvider {
         let body = build_ship_request(&account_number, req);
         let json = ups_post(&client, &token, &url, &body).await?;
         parse_ship_response(&json)
+    }
+
+    async fn create_return_label(
+        &self,
+        req: &Value,
+        config: &Value,
+    ) -> Result<LabelResult, CarrierProviderError> {
+        let account_number = get_account_number(config)?.to_string();
+        let base_url = get_base_url(config).to_string();
+        let client = Client::new();
+        let token = self.get_token(&client, config).await?;
+        let url = format!("{base_url}/api/shipments/v2201/ship");
+        let mut body = build_ship_request(&account_number, req);
+        // UPS Electronic Return Label: ReturnService code 8 in the Package element.
+        body["ShipmentRequest"]["Shipment"]["Package"]["ReturnService"] =
+            serde_json::json!({ "Code": "8" });
+        let json = ups_post(&client, &token, &url, &body).await?;
+        parse_ship_response(&json)
+    }
+
+    async fn create_multi_package_label(
+        &self,
+        req: &MultiPackageLabelRequest,
+        config: &Value,
+    ) -> Result<MultiPackageLabelResponse, CarrierProviderError> {
+        if req.packages.is_empty() {
+            return Err(CarrierProviderError::InvalidRequest(
+                "packages must not be empty".to_string(),
+            ));
+        }
+        let account_number = get_account_number(config)?.to_string();
+        let base_url = get_base_url(config).to_string();
+        let client = Client::new();
+        let token = self.get_token(&client, config).await?;
+        let url = format!("{base_url}/api/shipments/v2201/ship");
+        let body = build_multi_ship_request(&account_number, req);
+        let json = ups_post(&client, &token, &url, &body).await?;
+        parse_multi_ship_response(&json)
     }
 
     async fn track(

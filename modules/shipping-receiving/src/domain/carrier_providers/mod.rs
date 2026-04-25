@@ -24,6 +24,49 @@ pub mod xpo;
 
 // ── Response types ────────────────────────────────────────────
 
+/// One physical box in a multi-package shipment request.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PackageInfo {
+    pub weight_lbs: f64,
+    pub length_in: f64,
+    pub width_in: f64,
+    pub height_in: f64,
+    pub declared_value_cents: Option<i64>,
+}
+
+/// Per-package label data returned by a multi-package label call.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ChildLabel {
+    pub tracking_number: String,
+    /// Base64-encoded label bytes or presigned URL — same semantics as LabelResult.label_data.
+    pub label_url: String,
+    pub package_index: usize,
+}
+
+/// Request for a multi-package shipping label (one BOL / shipment, many physical boxes).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct MultiPackageLabelRequest {
+    pub packages: Vec<PackageInfo>,
+    /// Origin address as a JSON blob: name, address, city, state, zip fields.
+    pub origin: serde_json::Value,
+    /// Destination address as a JSON blob: same fields as origin.
+    pub destination: serde_json::Value,
+    /// Service level override (e.g. "FEDEX_GROUND", "03" for UPS Ground).
+    pub service_level: Option<String>,
+    /// Per-shipment billing reference for carrier account attribution.
+    pub billing_ref: Option<String>,
+}
+
+/// Response from a multi-package label creation.
+///
+/// master_tracking_number: the carrier's single identifier for the whole shipment.
+/// children: per-box label data; empty for LTL where the BOL is the only document.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct MultiPackageLabelResponse {
+    pub master_tracking_number: String,
+    pub children: Vec<ChildLabel>,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RateQuote {
     pub service_level: String,
@@ -121,6 +164,41 @@ pub trait CarrierProvider: Send + Sync {
 
     /// Create a shipping label.
     async fn create_label(
+        &self,
+        req: &serde_json::Value,
+        config: &serde_json::Value,
+    ) -> Result<LabelResult, CarrierProviderError>;
+
+    /// Create labels for a multi-package shipment.
+    ///
+    /// Parcel carriers (UPS, FedEx) return a master tracking number plus one
+    /// child label per physical box. LTL carriers (R&L, XPO, ODFL, Saia) issue
+    /// a single BOL pro number; the default impl returns empty children.
+    ///
+    /// Providers that do not support multi-package label creation return
+    /// `CarrierProviderError::InvalidRequest`.
+    async fn create_multi_package_label(
+        &self,
+        _req: &MultiPackageLabelRequest,
+        _config: &serde_json::Value,
+    ) -> Result<MultiPackageLabelResponse, CarrierProviderError> {
+        Err(CarrierProviderError::InvalidRequest(format!(
+            "{} does not support multi-package label creation",
+            self.carrier_code()
+        )))
+    }
+
+    /// Create a pre-paid return label.
+    ///
+    /// `req` carries the same address fields as `create_label` but with
+    /// origin/destination already reversed by the caller (the customer's
+    /// address is `from_*`, the warehouse is `to_*`).
+    ///
+    /// Carrier-specific return service codes (UPS ERL code 8, FedEx
+    /// shipmentType=RETURN, etc.) are applied internally by each impl.
+    /// LTL carriers that lack a dedicated return endpoint use the same BOL
+    /// path as `create_label` — the swapped addresses are sufficient.
+    async fn create_return_label(
         &self,
         req: &serde_json::Value,
         config: &serde_json::Value,

@@ -23,7 +23,8 @@ use reqwest::Client;
 use serde_json::Value;
 
 use super::{
-    CarrierProvider, CarrierProviderError, LabelResult, RateQuote, TrackingEvent, TrackingResult,
+    CarrierProvider, CarrierProviderError, LabelResult, MultiPackageLabelRequest,
+    MultiPackageLabelResponse, RateQuote, TrackingEvent, TrackingResult,
 };
 
 const RL_DEFAULT_URL: &str = "https://api.rlcarriers.com";
@@ -347,6 +348,61 @@ impl CarrierProvider for RlCarrierProvider {
         let body = build_bol_request(req);
         let json = rl_post(&client, &api_key, &url, &body).await?;
         parse_bol_response(&json)
+    }
+
+    async fn create_multi_package_label(
+        &self,
+        req: &MultiPackageLabelRequest,
+        config: &Value,
+    ) -> Result<MultiPackageLabelResponse, CarrierProviderError> {
+        if req.packages.is_empty() {
+            return Err(CarrierProviderError::InvalidRequest(
+                "packages must not be empty".to_string(),
+            ));
+        }
+        // LTL: all handling units share one BOL (one pro_number). children is always empty.
+        let api_key = get_api_key(config)?.to_string();
+        let base_url = get_base_url(config).to_string();
+        let client = Client::new();
+        let url = format!("{base_url}/api/BillOfLading");
+        let total_weight: f64 = req.packages.iter().map(|p| p.weight_lbs).sum();
+        let bol_req = serde_json::json!({
+            "shipper": {
+                "name": req.origin["name"].as_str().unwrap_or("Shipper"),
+                "address": req.origin["address"].as_str().unwrap_or(""),
+                "city": req.origin["city"].as_str().unwrap_or(""),
+                "state": req.origin["state"].as_str().unwrap_or(""),
+                "zip": req.origin["zip"].as_str().unwrap_or("")
+            },
+            "consignee": {
+                "name": req.destination["name"].as_str().unwrap_or("Consignee"),
+                "address": req.destination["address"].as_str().unwrap_or(""),
+                "city": req.destination["city"].as_str().unwrap_or(""),
+                "state": req.destination["state"].as_str().unwrap_or(""),
+                "zip": req.destination["zip"].as_str().unwrap_or("")
+            },
+            "freight_items": [{
+                "weight_lbs": total_weight,
+                "freight_class": "70",
+                "pieces": req.packages.len(),
+                "description": "Multi-piece LTL freight"
+            }]
+        });
+        let json = rl_post(&client, &api_key, &url, &bol_req).await?;
+        let bol = parse_bol_response(&json)?;
+        Ok(MultiPackageLabelResponse {
+            master_tracking_number: bol.tracking_number,
+            children: vec![],
+        })
+    }
+
+    async fn create_return_label(
+        &self,
+        req: &Value,
+        config: &Value,
+    ) -> Result<LabelResult, CarrierProviderError> {
+        // R&L uses the same BOL endpoint for returns — caller provides swapped addresses.
+        self.create_label(req, config).await
     }
 
     async fn track(

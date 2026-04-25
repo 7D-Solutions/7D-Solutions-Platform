@@ -500,6 +500,21 @@ impl CarrierProvider for UspsCarrierProvider {
         parse_evs_response(&response)
     }
 
+    async fn create_return_label(
+        &self,
+        req: &Value,
+        config: &Value,
+    ) -> Result<LabelResult, CarrierProviderError> {
+        // USPS return labels use the eVS Returns endpoint with the same XML
+        // structure as eVS but via the "eVSReturnsLabel" API. Addresses are
+        // already swapped by the caller (customer=from, warehouse=to).
+        let uid = get_user_id(config)?;
+        let url = get_base_url(config);
+        let xml = evs_xml(uid, req);
+        let response = usps_get(url, "eVSReturnsLabel", &xml).await?;
+        parse_evs_response(&response)
+    }
+
     async fn track(
         &self,
         tracking_number: &str,

@@ -51,6 +51,9 @@ pub struct Shipment {
     pub created_by: Option<Uuid>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
+    pub parent_shipment_id: Option<Uuid>,
+    pub master_tracking_number: Option<String>,
+    pub package_count: i32,
 }
 
 // ── Request types ─────────────────────────────────────────────
