@@ -14,6 +14,7 @@ use thiserror::Error;
 pub mod credentials;
 pub mod dispatch;
 pub mod fedex;
+pub mod odfl;
 pub mod rl;
 pub mod stub;
 pub mod ups;
@@ -139,6 +140,7 @@ pub trait CarrierProvider: Send + Sync {
 pub fn get_provider(carrier_code: &str) -> Option<Box<dyn CarrierProvider>> {
     match carrier_code {
         "fedex" => Some(Box::new(fedex::FedexCarrierProvider)),
+        "odfl" => Some(Box::new(odfl::OdflCarrierProvider)),
         "rl" => Some(Box::new(rl::RlCarrierProvider)),
         "stub" => Some(Box::new(stub::StubCarrierProvider)),
         "ups" => Some(Box::new(ups::UpsCarrierProvider::new())),

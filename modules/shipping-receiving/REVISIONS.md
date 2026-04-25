@@ -4,6 +4,9 @@
 > **Standard:** See `docs/VERSIONING.md` for the rules governing this file.
 
 
+## 3.8.0
+- feat(bd-3kp9s): Old Dominion (ODFL) LTL `CarrierProvider` impl (`odfl.rs`). API-key + account-number auth (`Authorization: Bearer` + `X-OD-Account-Number`), rate quote (`POST /rating/1.0/quote`), BOL creation (`POST /bol/1.0`), tracking (`GET /tracking/1.0/{pro}`). Account number included in BOL request body as `shipperAccountNumber` (required by ODFL in addition to auth header). Integration test skips when `ODFL_SANDBOX_API_KEY`/`ODFL_SANDBOX_ACCOUNT` absent.
+
 ## 3.7.2
 - test(bd-a2rrm): real-sandbox integration tests for UPS, FedEx, and USPS — skip when credentials absent, assert UPS Ground / FedEx Ground / Priority Mail in rate responses, assert tracking starts with "1Z" / is 12 digits, assert unknown tracking numbers are rejected. USPS tests call the new OAuth REST API (api.usps.com) directly.
 
@@ -26,6 +29,7 @@
 
 | Version | Date | Bead | What Changed | Why | Breaking? |
 |---------|------|------|-------------|-----|-----------|
+| 3.8.0 | 2026-04-25 | bd-3kp9s | Old Dominion (ODFL) LTL `CarrierProvider` impl (`odfl.rs`). API-key + account-number auth, rate quote (`POST /rating/1.0/quote`), BOL creation (`POST /bol/1.0`), tracking (`GET /tracking/1.0/{pro}`). Account number in both auth header and BOL body (`shipperAccountNumber`) per ODFL requirement. Integration test skips when credentials absent. | LTL carrier support for ODFL per 2026-04-24 shipping direction. | No |
 | 3.5.0 | 2026-04-25 | bd-gaqqv | R&L Carriers LTL `CarrierProvider` impl (`rl.rs`). API-key auth (`X-API-Key`), rate quote (`POST /api/RateQuote`), BOL creation (`POST /api/BillOfLading`), tracking (`GET /api/Shipments/{pro}`). `NotFound` variant added to `CarrierProviderError` for 404 tracking responses. Integration test skips when `RL_SANDBOX_API_KEY` absent. | LTL carrier support for R&L per 2026-04-24 shipping direction. | No |
 | 3.4.3 | 2026-04-15 | bd-p3duh | Move envelope.payload by value in on_po_approved consumer — replace serde_json::from_value(envelope.payload.clone()) with from_value(envelope.payload). | Payload was heap-copied on every dispatch even though it is consumed once. Same perf fix applied by bd-g7zzj to notifications and maintenance. | No |
 | 3.4.2 | 2026-04-14 | bd-6jhh8 | Add `docs/guides/carrier-adapters.md` with FedEx/UPS/USPS opt-in guidance, surface the guide from the module README, and warn at startup when `StubCarrierProvider` is used outside development. | Verticals were shipping with the stub carrier path by accident and there was no documented handoff for enabling the real carrier adapters. | No |
