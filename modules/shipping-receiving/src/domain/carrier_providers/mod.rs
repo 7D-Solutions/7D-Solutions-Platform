@@ -16,6 +16,7 @@ pub mod dispatch;
 pub mod fedex;
 pub mod odfl;
 pub mod rl;
+pub mod saia;
 pub mod stub;
 pub mod ups;
 pub mod usps;
@@ -143,6 +144,7 @@ pub fn get_provider(carrier_code: &str) -> Option<Box<dyn CarrierProvider>> {
         "fedex" => Some(Box::new(fedex::FedexCarrierProvider)),
         "odfl" => Some(Box::new(odfl::OdflCarrierProvider)),
         "rl" => Some(Box::new(rl::RlCarrierProvider)),
+        "saia" => Some(Box::new(saia::SaiaCarrierProvider)),
         "stub" => Some(Box::new(stub::StubCarrierProvider)),
         "ups" => Some(Box::new(ups::UpsCarrierProvider::new())),
         "usps" => Some(Box::new(usps::UspsCarrierProvider)),

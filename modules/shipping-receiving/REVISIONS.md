@@ -4,6 +4,9 @@
 > **Standard:** See `docs/VERSIONING.md` for the rules governing this file.
 
 
+## 3.10.0
+- feat(bd-05yge): Saia LTL `CarrierProvider` impl (`saia.rs`). Basic auth (API key as username, empty password) + `X-Saia-Account-Number` header. Rate quote (`POST /rating/v2/quote`), BOL creation (`POST /shipments/v2/bol`), tracking (`GET /tracking/v2/{pro}`). Handles both `services` array and flat single-rate response shapes. Registered as "saia" in provider registry. Integration test skips when `SAIA_SANDBOX_API_KEY`/`SAIA_SANDBOX_ACCOUNT` absent.
+
 ## 3.9.0
 - feat(bd-owtje): XPO Logistics LTL `CarrierProvider` impl (`xpo.rs`). API-key Bearer auth, rate quote (`POST /rating/1.0/rates`), BOL creation (`POST /shipping/1.0/bol`), tracking (`GET /tracking/1.0/shipments/{pro}`). Registered as "xpo" in provider registry. Integration test skips when `XPO_SANDBOX_API_KEY` absent.
 
@@ -32,6 +35,7 @@
 
 | Version | Date | Bead | What Changed | Why | Breaking? |
 |---------|------|------|-------------|-----|-----------|
+| 3.10.0 | 2026-04-25 | bd-05yge | Saia LTL `CarrierProvider` impl (`saia.rs`). Basic auth (API key as username, empty password) + `X-Saia-Account-Number` header, rate quote (`POST /rating/v2/quote`), BOL creation (`POST /shipments/v2/bol`), tracking (`GET /tracking/v2/{pro}`). Handles `services` array and flat single-rate response shapes. Integration test skips when credentials absent. | LTL carrier support for Saia per 2026-04-24 shipping direction. | No |
 | 3.8.0 | 2026-04-25 | bd-3kp9s | Old Dominion (ODFL) LTL `CarrierProvider` impl (`odfl.rs`). API-key + account-number auth, rate quote (`POST /rating/1.0/quote`), BOL creation (`POST /bol/1.0`), tracking (`GET /tracking/1.0/{pro}`). Account number in both auth header and BOL body (`shipperAccountNumber`) per ODFL requirement. Integration test skips when credentials absent. | LTL carrier support for ODFL per 2026-04-24 shipping direction. | No |
 | 3.5.0 | 2026-04-25 | bd-gaqqv | R&L Carriers LTL `CarrierProvider` impl (`rl.rs`). API-key auth (`X-API-Key`), rate quote (`POST /api/RateQuote`), BOL creation (`POST /api/BillOfLading`), tracking (`GET /api/Shipments/{pro}`). `NotFound` variant added to `CarrierProviderError` for 404 tracking responses. Integration test skips when `RL_SANDBOX_API_KEY` absent. | LTL carrier support for R&L per 2026-04-24 shipping direction. | No |
 | 3.4.3 | 2026-04-15 | bd-p3duh | Move envelope.payload by value in on_po_approved consumer — replace serde_json::from_value(envelope.payload.clone()) with from_value(envelope.payload). | Payload was heap-copied on every dispatch even though it is consumed once. Same perf fix applied by bd-g7zzj to notifications and maintenance. | No |
