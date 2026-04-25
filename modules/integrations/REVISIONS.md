@@ -4,6 +4,9 @@
 > **Standard:** See `docs/VERSIONING.md` for the rules governing this file.
 
 
+## 2.48.0
+- feat(bd-oi9v8): capture intuit_tid response header from QBO API responses and emit it on every QBO client tracing event (debug on success, warn on error). Helps Intuit support trace specific failures via TID. New helper `extract_intuit_tid` in `qbo/client.rs`. Test added: `qbo_intuit_tid_logged.rs`.
+
 ## 2.47.0
 - refactor(bd-2u1na): pgp_sym_encrypt/decrypt OAuth tokens now pass `cipher-algo=aes256` for cipher consistency with rest of platform. Schema unchanged; new tokens use AES-256, existing Blowfish-encrypted tokens continue to decrypt (pgp_sym_decrypt auto-detects). All four call sites in `domain/oauth/repo.rs` updated.
 

@@ -3390,7 +3390,7 @@ dependencies = [
 
 [[package]]
 name = "integrations-rs"
-version = "2.46.0"
+version = "2.47.0"
 dependencies = [
  "aes-gcm",
  "async-nats",
@@ -4409,7 +4409,7 @@ dependencies = [
 
 [[package]]
 name = "pdf-editor"
-version = "2.5.0"
+version = "2.6.0"
 dependencies = [
  "anyhow",
  "async-nats",

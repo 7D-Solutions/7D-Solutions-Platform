@@ -682,13 +682,16 @@ impl QboClient {
 
         let status = resp.status().as_u16();
         let retry_after = extract_retry_after(resp.headers());
+        let intuit_tid = extract_intuit_tid(resp.headers());
         let resp_body = resp.text().await?;
 
         if status == 200 {
+            tracing::debug!(intuit_tid = %intuit_tid, status, "QBO create customer ok");
             let val = parse_json(&resp_body)?;
             return Ok(val["Customer"].clone());
         }
 
+        tracing::warn!(intuit_tid = %intuit_tid, status, "QBO create customer error");
         match classify_error(status, &resp_body) {
             QboApiAction::RefreshToken => {
                 let new_token = self.tokens.refresh_token().await?;
@@ -896,12 +899,15 @@ impl QboClient {
 
         let status = resp.status().as_u16();
         let retry_after = extract_retry_after(resp.headers());
+        let intuit_tid = extract_intuit_tid(resp.headers());
         let body = resp.text().await?;
 
         if status == 200 {
+            tracing::debug!(intuit_tid = %intuit_tid, status, "QBO GET ok");
             return parse_json(&body);
         }
 
+        tracing::warn!(intuit_tid = %intuit_tid, status, "QBO GET error");
         match classify_error(status, &body) {
             QboApiAction::RefreshToken => {
                 let new_token = self.tokens.refresh_token().await?;
@@ -913,10 +919,13 @@ impl QboClient {
                     .send()
                     .await?;
                 let status = resp.status().as_u16();
+                let intuit_tid = extract_intuit_tid(resp.headers());
                 let body = resp.text().await?;
                 if status == 200 {
+                    tracing::debug!(intuit_tid = %intuit_tid, status, "QBO GET ok (after token refresh)");
                     parse_json(&body)
                 } else {
+                    tracing::warn!(intuit_tid = %intuit_tid, status, "QBO GET error (after token refresh)");
                     Err(parse_api_error(&body))
                 }
             }
@@ -972,6 +981,18 @@ fn extract_retry_after(headers: &reqwest::header::HeaderMap) -> Option<Duration>
         .and_then(|v| v.to_str().ok())
         .and_then(|s| s.parse::<u64>().ok())
         .map(Duration::from_secs)
+}
+
+/// Extract the Intuit transaction ID for support correlation.
+///
+/// Intuit includes this on every response. Capture it before consuming the
+/// response body so it can be included in structured log fields.
+fn extract_intuit_tid(headers: &reqwest::header::HeaderMap) -> String {
+    headers
+        .get("intuit_tid")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("")
+        .to_string()
 }
 
 fn addr_to_json(addr: &QboAddress) -> Value {
