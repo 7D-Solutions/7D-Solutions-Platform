@@ -48,6 +48,42 @@ pub fn build_router() -> Router<Arc<AppState>> {
         ]))
 }
 
+/// Carrier webhook routes — unauthenticated (carrier provides payload auth).
+///
+/// Each handler performs its own signature verification before processing.
+/// ODFL and USPS return 501 as they do not support webhook push.
+pub fn build_carrier_webhook_router() -> Router<Arc<AppState>> {
+    Router::new()
+        .route(
+            "/api/integrations/carriers/ups/webhook",
+            post(http::carrier_webhooks::ups_webhook),
+        )
+        .route(
+            "/api/integrations/carriers/fedex/webhook",
+            post(http::carrier_webhooks::fedex_webhook),
+        )
+        .route(
+            "/api/integrations/carriers/usps/webhook",
+            post(http::carrier_webhooks::usps_webhook),
+        )
+        .route(
+            "/api/integrations/carriers/rl/webhook",
+            post(http::carrier_webhooks::rl_webhook),
+        )
+        .route(
+            "/api/integrations/carriers/xpo/webhook",
+            post(http::carrier_webhooks::xpo_webhook),
+        )
+        .route(
+            "/api/integrations/carriers/odfl/webhook",
+            post(http::carrier_webhooks::odfl_webhook),
+        )
+        .route(
+            "/api/integrations/carriers/saia/webhook",
+            post(http::carrier_webhooks::saia_webhook),
+        )
+}
+
 /// Mutation routes — caller must apply RequirePermissionsLayer externally.
 pub fn build_mutation_router() -> Router<Arc<AppState>> {
     Router::new()

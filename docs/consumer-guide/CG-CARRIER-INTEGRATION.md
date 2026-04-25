@@ -23,6 +23,7 @@
 | Rev | Date | Changed By | Summary |
 |-----|------|-----------|---------|
 | 1.0 | 2026-04-25 | Platform Orchestrator | Initial — seven-carrier integration guide: OAuth (UPS/FedEx) and API-key (USPS/R&L/XPO/ODFL/Saia) auth paths, webhook endpoints, token lifecycle, troubleshooting. |
+| 1.1 | 2026-04-25 | BrightSparrow (bd-4dbh3) | Section 7 expanded: per-carrier webhook URLs, auth details, idempotency guarantee, multi-package master recomputation rule, ODFL 15-min poll fallback. |
 
 ---
 
@@ -217,6 +218,22 @@ All three LTL carriers authenticate per-tenant using the stored API key on each 
 
 ## 7. Webhook Endpoints
 
+All carrier webhooks are unauthenticated at the platform ingress — the carrier controls the call. Each handler performs its own payload-level auth (HMAC or shared token) before processing. A signature mismatch returns **401**; no event is recorded.
+
+The canonical tracking status vocabulary is: `pending`, `picked_up`, `in_transit`, `out_for_delivery`, `delivered`, `exception`, `returned`, `lost`.
+
+Every new tracking event emits a `shipping_receiving.tracking.event_received` event on the NATS bus. Consumers (notification dispatch, visibility UI) subscribe to that subject.
+
+| Carrier | Endpoint | Auth | Push available |
+|---------|----------|------|----------------|
+| UPS | `POST /api/integrations/carriers/ups/webhook` | HMAC-SHA256 (`X-Ups-Webhook-Signature: v1=<hex>`) | Yes |
+| FedEx | `POST /api/integrations/carriers/fedex/webhook` | HMAC-SHA256 (`X-FedEx-Signature`) + initial challenge | Yes |
+| USPS | `POST /api/integrations/carriers/usps/webhook` | N/A | **No** — returns 501 |
+| R&L | `POST /api/integrations/carriers/rl/webhook` | Shared token (`X-RL-Webhook-Token`) | Yes |
+| XPO | `POST /api/integrations/carriers/xpo/webhook` | HMAC-SHA256 (`X-Xpo-Signature`) | Yes (premium tier) |
+| ODFL | `POST /api/integrations/carriers/odfl/webhook` | N/A | **No** — returns 501 |
+| Saia | `POST /api/integrations/carriers/saia/webhook` | HMAC-SHA256 (`X-Saia-Signature`) | Yes |
+
 ### UPS
 
 Register this URL in the UPS developer portal under **Tracking Event Subscriptions**:
@@ -225,7 +242,7 @@ Register this URL in the UPS developer portal under **Tracking Event Subscriptio
 POST /api/integrations/carriers/ups/webhook
 ```
 
-UPS sends push events for tracking status changes. The platform verifies the UPS-supplied HMAC signature on each delivery before processing.
+The platform verifies the HMAC-SHA256 signature in `X-Ups-Webhook-Signature: v1=<hex>`. The webhook secret is the `UPS_WEBHOOK_SECRET` env var on the platform host. Set this to the secret UPS shows in the portal after registration.
 
 ### FedEx
 
@@ -235,21 +252,47 @@ Register this URL via the FedEx webhook subscription API (not the developer port
 POST /api/integrations/carriers/fedex/webhook
 ```
 
-FedEx sends push events per-shipment subscription. The platform handles signature verification and routes events to the tenant's shipment record.
+FedEx performs a **challenge-response** on initial registration: it sends `{ "event": { "eventType": "webhookSetup" }, "challengeToken": "..." }` and expects `{ "challengeToken": "..." }` in response. The platform handles this automatically. Subsequent event deliveries are HMAC-verified using `FEDEX_WEBHOOK_SECRET`.
 
 ### USPS
 
-USPS's legacy Web Tools API does not offer webhook push. The platform polls the USPS tracking endpoint daily for in-transit shipments. Poll interval: **24 hours**. For time-sensitive USPS tracking, plan around the polling cadence rather than real-time push.
+USPS's legacy Web Tools API does not support webhook push. The endpoint returns **501 Not Implemented** so carrier portal setup fails fast. USPS tracking is not currently polled — use a carrier with push support for real-time parcel visibility.
 
-### LTL Carriers (R&L, XPO, ODFL, Saia)
+### R&L Carriers
 
-> **Important:** Most LTL carriers do not support webhook push for tracking events. The platform polls each LTL carrier's tracking API daily for all in-transit shipments.
+```
+POST /api/integrations/carriers/rl/webhook
+```
 
-Poll interval: **24 hours** per carrier.
+R&L sends the shared token in `X-RL-Webhook-Token`. Set `RL_WEBHOOK_SECRET` on the platform host to the value configured in the R&L portal.
 
-When a polling run detects a status change (e.g., delivered, in-transit, exception), the platform emits a `ShipmentStatusChanged` event on the NATS bus. Consumers subscribe to that event for real-time (within 24h polling window) tracking updates.
+### XPO Logistics
 
-LTL carriers use a **PRO number** as the shipment tracking identifier. PRO numbers are returned at label creation time and stored on the shipment record.
+```
+POST /api/integrations/carriers/xpo/webhook
+```
+
+XPO webhook push requires the premium API tier. The platform verifies `X-Xpo-Signature` using `XPO_WEBHOOK_SECRET`.
+
+### ODFL
+
+ODFL does not offer webhook push. The endpoint returns **501 Not Implemented**. The platform runs a background poll task every **15 minutes** for all in-transit ODFL shipments. When polling detects a status change, the same `tracking.event_received` event is emitted.
+
+### Saia
+
+```
+POST /api/integrations/carriers/saia/webhook
+```
+
+Saia verifies `X-Saia-Signature` (HMAC-SHA256). Set `SAIA_WEBHOOK_SECRET` on the platform host.
+
+### Idempotency
+
+Carrier webhook deliveries are guaranteed idempotent. The platform computes `SHA-256(raw_body)` as `raw_payload_hash` and rejects duplicate inserts via a unique constraint. Webhook retries and replay storms produce exactly one `tracking_events` row.
+
+### Multi-package shipments
+
+For carriers that issue a master tracking number plus per-package child tracking numbers (e.g., UPS multi-package), create child `shipments` rows with `parent_shipment_id` pointing to the master. When any child receives a webhook update, the platform recomputes the master's `carrier_status` as the **least advanced** status across all children — the master shows `in_transit` until every child is delivered, and surfaces `exception` immediately if any child is damaged or lost.
 
 ---
 

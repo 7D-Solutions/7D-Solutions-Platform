@@ -15,6 +15,7 @@ use shipping_receiving_rs::{
         },
         inspection_routing::RouteLineRequest,
         shipments::{Direction, Shipment},
+        tracking::odfl_poller::start_odfl_poll_task,
     },
     http::shipments::types::{
         AddLineRequest, CreateShipmentRequest, ReceiveLineRequest, ShipLineQtyRequest,
@@ -136,6 +137,9 @@ async fn main() {
                 start_carrier_dispatch_consumer(bus, ctx.pool().clone());
             }
 
+            // Start ODFL polling task (ODFL lacks webhook push)
+            start_odfl_poll_task(Arc::new(ctx.pool().clone()));
+
             let app_state = Arc::new(AppState {
                 pool: ctx.pool().clone(),
                 metrics: sr_metrics,
@@ -146,6 +150,7 @@ async fn main() {
             Router::new()
                 .route("/api/openapi.json", get(openapi_json))
                 .merge(routes::build_router())
+                .merge(routes::build_carrier_webhook_router().with_state(app_state.clone()))
                 .merge(
                     routes::build_mutation_router().route_layer(RequirePermissionsLayer::new(&[
                         permissions::SHIPPING_RECEIVING_MUTATE,

@@ -1,6 +1,6 @@
 [package]
 name = "shipping-receiving-rs"
-version = "3.10.0"
+version = "3.11.0"
 edition = "2021"
 description = "Inbound and outbound shipment tracking with inventory integration"
 
@@ -50,6 +50,9 @@ utoipa = { version = "5", features = ["chrono", "uuid"] }
 utoipa-axum = "0.2"
 config-validator = { path = "../../platform/config-validator" }
 quick-xml = "0.37"
+hmac = "0.12"
+sha2 = "0.10"
+hex = "0.4"
 
 [dev-dependencies]
 migration-safety-test = { path = "../../tools/migration-safety-test" }

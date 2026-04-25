@@ -4,6 +4,9 @@
 > **Standard:** See `docs/VERSIONING.md` for the rules governing this file.
 
 
+## 3.11.0
+- feat(bd-4dbh3): carrier tracking webhook normalizer. Migration `20260425000008_tracking_events.sql` adds `tracking_events` table (idempotent via `UNIQUE(tracking_number, carrier_code, raw_payload_hash)`), `carrier_status`/`carrier_status_updated_at` on shipments, and `parent_shipment_id` for multi-package recomputation. Per-carrier inbound handlers in `http/carrier_webhooks.rs`: UPS (HMAC-SHA256 `X-Ups-Webhook-Signature`), FedEx (challenge-response + HMAC), R&L (shared token), XPO (HMAC `X-Xpo-Signature`), Saia (HMAC `X-Saia-Signature`); USPS and ODFL return 501 (no webhook support). Canonical status vocabulary: pending/picked_up/in_transit/out_for_delivery/delivered/exception/returned/lost. ODFL polling fallback in `domain/tracking/odfl_poller.rs` (15-min interval). `tracking.event_received` outbox event emitted per new event. Integration tests in `carrier_webhooks_test.rs`: HMAC round-trip, idempotent replay, multi-package master recomputation, exception dominance.
+
 ## 3.10.0
 - feat(bd-05yge): Saia LTL `CarrierProvider` impl (`saia.rs`). Basic auth (API key as username, empty password) + `X-Saia-Account-Number` header. Rate quote (`POST /rating/v2/quote`), BOL creation (`POST /shipments/v2/bol`), tracking (`GET /tracking/v2/{pro}`). Handles both `services` array and flat single-rate response shapes. Registered as "saia" in provider registry. Integration test skips when `SAIA_SANDBOX_API_KEY`/`SAIA_SANDBOX_ACCOUNT` absent.
 

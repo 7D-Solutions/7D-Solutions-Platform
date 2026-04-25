@@ -6407,7 +6407,7 @@ dependencies = [
 
 [[package]]
 name = "shipping-receiving-rs"
-version = "3.10.0"
+version = "3.11.0"
 dependencies = [
  "async-nats",
  "async-trait",
@@ -6418,6 +6418,8 @@ dependencies = [
  "event-bus",
  "futures",
  "health",
+ "hex",
+ "hmac",
  "migration-safety-test",
  "platform-client-inventory",
  "platform-client-quality-inspection",
@@ -6431,6 +6433,7 @@ dependencies = [
  "serde",
  "serde_json",
  "serial_test",
+ "sha2",
  "sqlx",
  "thiserror 2.0.18",
  "tokio",

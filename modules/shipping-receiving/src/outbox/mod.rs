@@ -50,6 +50,24 @@ pub async fn enqueue_event_tx<T: Serialize>(
     Ok(())
 }
 
+/// Enqueue an event into the outbox using a pool (internally wraps in a transaction).
+///
+/// Use this when the caller does not already hold a transaction — e.g., webhook
+/// handlers that emit a single event outside a larger business mutation.
+pub async fn enqueue_event_tx_pool<T: Serialize>(
+    pool: &sqlx::PgPool,
+    event_id: Uuid,
+    event_type: &str,
+    aggregate_type: &str,
+    aggregate_id: &str,
+    tenant_id: &str,
+    payload: &T,
+) -> Result<(), sqlx::Error> {
+    let mut tx = pool.begin().await?;
+    enqueue_event_tx(&mut tx, event_id, event_type, aggregate_type, aggregate_id, tenant_id, payload).await?;
+    tx.commit().await
+}
+
 pub async fn fetch_unpublished(
     db: &sqlx::PgPool,
     limit: i64,

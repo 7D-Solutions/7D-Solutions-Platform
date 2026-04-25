@@ -49,6 +49,10 @@ pub const EVENT_TYPE_RECEIPT_ROUTED_TO_INSPECTION: &str = "sr.receipt_routed_to_
 /// A receipt line was routed direct to stock
 pub const EVENT_TYPE_RECEIPT_ROUTED_TO_STOCK: &str = "sr.receipt_routed_to_stock.v1";
 
+/// A carrier tracking event was received (webhook or poll) and persisted.
+/// Downstream consumers use this for UI visibility updates and notifications.
+pub const EVENT_TYPE_TRACKING_EVENT_RECEIVED: &str = "shipping_receiving.tracking.event_received";
+
 // ============================================================================
 // Payload: shipping_receiving.shipment_created
 // ============================================================================

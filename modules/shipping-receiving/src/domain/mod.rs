@@ -6,3 +6,4 @@ pub mod outbound_ship;
 pub mod rma;
 pub mod shipments;
 pub mod shipping_docs;
+pub mod tracking;
