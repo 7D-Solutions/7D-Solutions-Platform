@@ -1,4 +1,4 @@
-use super::renderers::leader_geometry;
+use super::renderers::{arrow_geometry, leader_geometry};
 use super::types::{Annotation, BubbleShape, CURRENT_ANNOTATION_SCHEMA_VERSION};
 
 #[test]
@@ -133,4 +133,69 @@ fn leader_geometry_target_coincides_with_origin() {
     let (ox, oy, tx, ty) = leader_geometry(100.0, 200.0, 112.0, 212.0, 24.0, 792.0);
     assert_eq!(ox, tx);
     assert_eq!(oy, ty);
+}
+
+// ── arrow_geometry golden tests ───────────────────────────────────────────────
+//
+// All values are in screen space (y=0 top, y increases downward).
+// Locked conventions:
+//   - Spread factor = 0.4  (half-angle ≈ 21.8°, total opening ≈ 43.6°)
+//   - barb_x = tip_x - head_size * (ux ± 0.4*uy)
+//   - barb_y = tip_y - head_size * (uy ∓ 0.4*ux)
+//
+// Rightward arrow (0,0)→(100,0), head_size=10:
+//   ux=1 uy=0 → barb1=(90, 4), barb2=(90, -4)
+//
+// Downward arrow in screen space (0,0)→(0,100), head_size=10:
+//   ux=0 uy=1 → barb1=(-4, 90), barb2=(4, 90)
+
+#[test]
+fn arrow_geometry_rightward_shaft() {
+    // Horizontal arrow pointing right; barbs symmetric about shaft
+    let (bx1, by1, bx2, by2) = arrow_geometry(0.0, 0.0, 100.0, 0.0, 10.0);
+    assert_eq!(bx1, 90.0);
+    assert_eq!(by1, 4.0);
+    assert_eq!(bx2, 90.0);
+    assert_eq!(by2, -4.0);
+}
+
+#[test]
+fn arrow_geometry_downward_shaft_screen_space() {
+    // Arrow pointing down in screen space; barbs symmetric about shaft
+    let (bx1, by1, bx2, by2) = arrow_geometry(0.0, 0.0, 0.0, 100.0, 10.0);
+    assert_eq!(bx1, -4.0);
+    assert_eq!(by1, 90.0);
+    assert_eq!(bx2, 4.0);
+    assert_eq!(by2, 90.0);
+}
+
+#[test]
+fn arrow_geometry_barbs_symmetric_about_shaft() {
+    // Barbs must be mirror images across the shaft axis
+    // Using a rightward arrow: barb_y values are equal magnitude, opposite sign
+    let (bx1, by1, bx2, by2) = arrow_geometry(50.0, 200.0, 150.0, 200.0, 12.0);
+    assert_eq!(bx1, bx2, "barb x coords must be equal for horizontal shaft");
+    assert!((by1 + by2 - 400.0).abs() < 1e-4, "barbs symmetric about shaft y={}", 200.0);
+    assert!((by1 - by2).abs() > 0.0, "barbs must be offset from shaft");
+}
+
+#[test]
+fn arrow_geometry_head_size_scales_proportionally() {
+    // Doubling head_size doubles the barb distance from the tip
+    let (bx1_s, by1_s, bx2_s, by2_s) = arrow_geometry(0.0, 0.0, 100.0, 0.0, 10.0);
+    let (bx1_d, by1_d, bx2_d, by2_d) = arrow_geometry(0.0, 0.0, 100.0, 0.0, 20.0);
+    assert!((bx1_d - 100.0 - 2.0 * (bx1_s - 100.0)).abs() < 1e-4);
+    assert!((by1_d - 2.0 * by1_s).abs() < 1e-4);
+    assert!((bx2_d - 100.0 - 2.0 * (bx2_s - 100.0)).abs() < 1e-4);
+    assert!((by2_d - 2.0 * by2_s).abs() < 1e-4);
+}
+
+#[test]
+fn arrow_geometry_zero_length_shaft_no_panic() {
+    // Degenerate case: tail == tip. Must not panic; barbs collapse to tip.
+    let (bx1, by1, bx2, by2) = arrow_geometry(50.0, 50.0, 50.0, 50.0, 10.0);
+    assert!(bx1.is_finite());
+    assert!(by1.is_finite());
+    assert!(bx2.is_finite());
+    assert!(by2.is_finite());
 }

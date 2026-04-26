@@ -4,6 +4,9 @@
 > **Standard:** See `docs/VERSIONING.md` for the rules governing this file.
 
 
+## 2.9.0
+- feat(bd-4az6r): ARROW geometry locked — head/tail sizing as fixed multiples of stroke width, angle convention is screen-space CCW-from-east in degrees. Renderer no longer free-floats arrowhead size with annotation length. New `docs/annotations-geometry.md` documents the full convention so frontend renderers match.
+
 ## 2.8.0
 - feat(bd-kager): `leader_geometry()` helper in `renderers.rs` computes leader-line endpoints deterministically — origin is always the geometric center of the bubble regardless of shape (oval/circle/square), target is the screen-space anchor flipped to PDF coords. Replaces ad-hoc origin math previously inlined per shape branch.
 

@@ -52,6 +52,35 @@ pub(crate) fn render_text(
     Ok(())
 }
 
+/// Computes arrowhead barb endpoints in screen-space coordinates (y=0 top, y increases downward).
+///
+/// Returns `(barb1_x, barb1_y, barb2_x, barb2_y)`.
+///
+/// Locked conventions:
+/// - Open V arrowhead at the tip; no tail decoration.
+/// - Each barb extends `head_size` points from the tip back toward the tail.
+/// - Spread factor = 0.4 → half-angle ≈ arctan(0.4) ≈ 21.8° from shaft axis (total ≈ 43.6°).
+/// - Zero-length shaft (tail == tip) degenerates gracefully — barbs collapse to the tip point.
+/// - Inputs and outputs are screen-space; caller applies the PDF-space y-flip.
+pub(crate) fn arrow_geometry(
+    tail_x: f32,
+    tail_y: f32,
+    tip_x: f32,
+    tip_y: f32,
+    head_size: f32,
+) -> (f32, f32, f32, f32) {
+    let dx = tip_x - tail_x;
+    let dy = tip_y - tail_y;
+    let len = (dx * dx + dy * dy).sqrt().max(0.001);
+    let (ux, uy) = (dx / len, dy / len);
+    const SPREAD: f32 = 0.4;
+    let bx1 = tip_x - head_size * (ux + SPREAD * uy);
+    let by1 = tip_y - head_size * (uy - SPREAD * ux);
+    let bx2 = tip_x - head_size * (ux - SPREAD * uy);
+    let by2 = tip_y - head_size * (uy + SPREAD * ux);
+    (bx1, by1, bx2, by2)
+}
+
 pub(crate) fn render_arrow(
     page: &mut PdfPage,
     ann: &Annotation,
@@ -74,15 +103,7 @@ pub(crate) fn render_arrow(
     )?;
 
     let head_size = ann.arrowhead_size.unwrap_or(10.0);
-    let dx = x2 - ann.x;
-    let dy = y2 - ann.y;
-    let len = (dx * dx + dy * dy).sqrt().max(0.001);
-    let (ux, uy) = (dx / len, dy / len);
-
-    let ax1 = x2 - head_size * (ux + 0.4 * uy);
-    let ay1 = y2 - head_size * (uy - 0.4 * ux);
-    let ax2 = x2 - head_size * (ux - 0.4 * uy);
-    let ay2 = y2 - head_size * (uy + 0.4 * ux);
+    let (ax1, ay1, ax2, ay2) = arrow_geometry(ann.x, ann.y, x2, y2, head_size);
 
     page.objects_mut().create_path_object_line(
         PdfPoints::new(x2),
