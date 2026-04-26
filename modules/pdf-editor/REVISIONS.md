@@ -11,7 +11,7 @@
 - feat(bd-2ydgm): CALLOUT annotation now renders as a true box + leader (previously fell through to plain text rendering). New `render_callout()` in `renderers.rs` plus `callout_edge_point()` helper that intersects the box boundary along the center→target ray; degenerate case returns bottom-center. Dispatch in `render.rs` Callout branch is split out from Text.
 
 ## 2.9.0
-- feat(bd-4az6r): ARROW geometry locked — head/tail sizing as fixed multiples of stroke width, angle convention is screen-space CCW-from-east in degrees. Renderer no longer free-floats arrowhead size with annotation length. New `docs/annotations-geometry.md` documents the full convention so frontend renderers match.
+- refactor(bd-4az6r): extract `arrow_geometry()` helper in `renderers.rs` from inlined math in `render_arrow` — pure refactor, no behaviour change (same `SPREAD = 0.4`, same `arrowhead_size` default of 10.0, no coupling to stroke width). New `docs/annotations-geometry.md` documents the existing convention so frontend renderers can mirror it. (Earlier draft of this entry inaccurately claimed sizing-by-stroke-width and degree-based angles — neither is in the code; the helper extraction is the only change.)
 
 ## 2.8.0
 - feat(bd-kager): `leader_geometry()` helper in `renderers.rs` computes leader-line endpoints deterministically — origin is always the geometric center of the bubble regardless of shape (oval/circle/square), target is the screen-space anchor flipped to PDF coords. Replaces ad-hoc origin math previously inlined per shape branch.
