@@ -4,6 +4,9 @@
 > **Standard:** See `docs/VERSIONING.md` for the rules governing this file.
 
 
+## 2.8.0
+- feat(bd-kager): `leader_geometry()` helper in `renderers.rs` computes leader-line endpoints deterministically — origin is always the geometric center of the bubble regardless of shape (oval/circle/square), target is the screen-space anchor flipped to PDF coords. Replaces ad-hoc origin math previously inlined per shape branch.
+
 ## 2.7.0
 - feat(bd-w0pbp): BUBBLE annotation now supports configurable shape — `oval` (default, prior behaviour), `circle`, `square`. Wire field `bubbleShape` on the annotation payload. Renderer dispatches on shape; consumer contract fixture and JSON Schema updated. Frontend types now include the discriminator.
 

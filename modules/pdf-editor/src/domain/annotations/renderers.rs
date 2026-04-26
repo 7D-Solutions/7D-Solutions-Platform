@@ -281,6 +281,29 @@ pub(crate) fn render_freehand(
     Ok(())
 }
 
+/// Computes leader-line endpoints in PDF coordinate space (origin bottom-left, y up).
+///
+/// All inputs use screen space (y=0 at top, increases downward).
+/// Returns `(origin_x, origin_pdf_y, target_x, target_pdf_y)`.
+///
+/// The origin is always the geometric center of the bubble regardless of shape.
+/// `bubble_size` is the diameter.
+pub(crate) fn leader_geometry(
+    anchor_x: f32,
+    anchor_y: f32,
+    leader_x: f32,
+    leader_y: f32,
+    bubble_size: f32,
+    page_height: f32,
+) -> (f32, f32, f32, f32) {
+    let radius = bubble_size / 2.0;
+    let origin_x = anchor_x + radius;
+    let origin_y = page_height - anchor_y - radius;
+    let target_x = leader_x;
+    let target_y = page_height - leader_y;
+    (origin_x, origin_y, target_x, target_y)
+}
+
 pub(crate) fn render_bubble(
     page: &mut PdfPage,
     fonts: &FontTokens,
@@ -352,11 +375,14 @@ pub(crate) fn render_bubble(
         if let (Some(lx), Some(ly)) = (ann.leader_x, ann.leader_y) {
             let lc = resolve_color(ann.leader_color.as_deref(), border)?;
             let lw = ann.leader_stroke_width.unwrap_or(1.5);
+            let page_height = pdf_y + ann.y;
+            let (ox, oy, tx, ty) =
+                leader_geometry(ann.x, ann.y, lx, ly, ann.bubble_size.unwrap_or(24.0), page_height);
             page.objects_mut().create_path_object_line(
-                PdfPoints::new(cx),
-                PdfPoints::new(cy),
-                PdfPoints::new(lx),
-                PdfPoints::new(pdf_y + radius - ly + ann.y),
+                PdfPoints::new(ox),
+                PdfPoints::new(oy),
+                PdfPoints::new(tx),
+                PdfPoints::new(ty),
                 lc,
                 PdfPoints::new(lw),
             )?;

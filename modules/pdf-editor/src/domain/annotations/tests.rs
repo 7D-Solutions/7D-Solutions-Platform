@@ -1,3 +1,4 @@
+use super::renderers::leader_geometry;
 use super::types::{Annotation, BubbleShape, CURRENT_ANNOTATION_SCHEMA_VERSION};
 
 #[test]
@@ -59,4 +60,77 @@ fn bubble_shape_absent_deserializes_to_none() {
     let json = r#"{"id":"b2","x":5.0,"y":5.0,"pageNumber":1,"type":"BUBBLE"}"#;
     let ann: Annotation = serde_json::from_str(json).expect("valid bubble annotation JSON");
     assert!(ann.bubble_shape.is_none());
+}
+
+// ── leader_geometry golden tests ──────────────────────────────────────────────
+//
+// All inputs are in screen space (y=0 top, increases downward).
+// Expected outputs are in PDF space (y=0 bottom, increases upward).
+//
+// Formula:
+//   origin_x = anchor_x + radius
+//   origin_y = page_height - anchor_y - radius
+//   target_x = leader_x
+//   target_y = page_height - leader_y
+
+#[test]
+fn leader_geometry_standard_bubble_below_anchor() {
+    // anchor at (100, 200), leader target at (50, 300), bubble_size=24, page_height=792
+    // radius=12, origin=(112, 580), target=(50, 492)
+    let (ox, oy, tx, ty) = leader_geometry(100.0, 200.0, 50.0, 300.0, 24.0, 792.0);
+    assert_eq!(ox, 112.0);
+    assert_eq!(oy, 580.0);
+    assert_eq!(tx, 50.0);
+    assert_eq!(ty, 492.0);
+}
+
+#[test]
+fn leader_geometry_target_above_anchor() {
+    // leader target is above the bubble in screen space (lower leader_y)
+    // anchor=(300, 400), leader=(150, 200), bubble_size=32, page_height=841.89
+    // radius=16, origin=(316, 425.89), target=(150, 641.89)
+    let (ox, oy, tx, ty) = leader_geometry(300.0, 400.0, 150.0, 200.0, 32.0, 841.89);
+    assert!((ox - 316.0).abs() < 1e-3);
+    assert!((oy - 425.89).abs() < 1e-3);
+    assert!((tx - 150.0).abs() < 1e-3);
+    assert!((ty - 641.89).abs() < 1e-3);
+}
+
+#[test]
+fn leader_geometry_origin_center_varies_with_bubble_size() {
+    // Changing bubble_size shifts origin but not target
+    let (ox_small, oy_small, tx_small, ty_small) =
+        leader_geometry(100.0, 100.0, 200.0, 200.0, 20.0, 792.0);
+    let (ox_large, oy_large, tx_large, ty_large) =
+        leader_geometry(100.0, 100.0, 200.0, 200.0, 40.0, 792.0);
+
+    // target is independent of bubble size
+    assert_eq!(tx_small, tx_large);
+    assert_eq!(ty_small, ty_large);
+
+    // origin shifts by half the size difference (10 points)
+    assert!((ox_large - ox_small - 10.0).abs() < 1e-4);
+    assert!((oy_small - oy_large - 10.0).abs() < 1e-4);
+}
+
+#[test]
+fn leader_geometry_anchor_at_page_origin() {
+    // anchor at (0, 0) — top-left corner of page in screen space
+    // bubble_size=24, page_height=792
+    // radius=12, origin=(12, 780), target=(0, 792)
+    let (ox, oy, tx, ty) = leader_geometry(0.0, 0.0, 0.0, 0.0, 24.0, 792.0);
+    assert_eq!(ox, 12.0);
+    assert_eq!(oy, 780.0);
+    assert_eq!(tx, 0.0);
+    assert_eq!(ty, 792.0);
+}
+
+#[test]
+fn leader_geometry_target_coincides_with_origin() {
+    // leader target at exact center of bubble — degenerate zero-length line is valid
+    // anchor=(100, 200), bubble_size=24, page_height=792
+    // center in screen space: (112, 212); in PDF space: (112, 580)
+    let (ox, oy, tx, ty) = leader_geometry(100.0, 200.0, 112.0, 212.0, 24.0, 792.0);
+    assert_eq!(ox, tx);
+    assert_eq!(oy, ty);
 }
