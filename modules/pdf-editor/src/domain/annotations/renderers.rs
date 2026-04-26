@@ -28,6 +28,11 @@ fn resolve_color(c: Option<&str>, default: PdfColor) -> Result<PdfColor, RenderE
         .map(|c| c.unwrap_or(default))
 }
 
+pub(crate) fn with_opacity(color: PdfColor, opacity: f32) -> PdfColor {
+    let a = (color.alpha() as f32 * opacity.clamp(0.0, 1.0)) as u8;
+    PdfColor::new(color.red(), color.green(), color.blue(), a)
+}
+
 pub(crate) fn render_text(
     page: &mut PdfPage,
     fonts: &FontTokens,
@@ -39,7 +44,8 @@ pub(crate) fn render_text(
         return Ok(());
     }
     let font_size = ann.font_size.unwrap_or(14.0);
-    let color = resolve_color(ann.color.as_deref(), PdfColor::new(0, 0, 0, 255))?;
+    let opacity = ann.opacity.unwrap_or(1.0);
+    let color = with_opacity(resolve_color(ann.color.as_deref(), PdfColor::new(0, 0, 0, 255))?, opacity);
 
     let mut obj = page.objects_mut().create_text_object(
         PdfPoints::new(ann.x),
@@ -89,7 +95,8 @@ pub(crate) fn render_arrow(
     let x2 = ann.x2.unwrap_or(ann.x + 50.0);
     let y2 = ann.y2.unwrap_or(ann.y);
     let stroke_w = ann.stroke_width.unwrap_or(2.0);
-    let color = resolve_color(ann.color.as_deref(), PdfColor::new(255, 0, 0, 255))?;
+    let opacity = ann.opacity.unwrap_or(1.0);
+    let color = with_opacity(resolve_color(ann.color.as_deref(), PdfColor::new(255, 0, 0, 255))?, opacity);
     let pdf_y1 = page_height - ann.y;
     let pdf_y2 = page_height - y2;
 
@@ -194,8 +201,9 @@ pub(crate) fn render_stamp(
     let font_size = ann.font_size.unwrap_or(12.0);
     let w = ann.width.unwrap_or(140.0);
     let h = ann.height.unwrap_or(40.0);
-    let bg = resolve_color(ann.bg_color.as_deref(), PdfColor::new(255, 255, 255, 200))?;
-    let border = resolve_color(ann.border_color.as_deref(), PdfColor::new(0, 128, 0, 255))?;
+    let opacity = ann.opacity.unwrap_or(1.0);
+    let bg = with_opacity(resolve_color(ann.bg_color.as_deref(), PdfColor::new(255, 255, 255, 200))?, opacity);
+    let border = with_opacity(resolve_color(ann.border_color.as_deref(), PdfColor::new(0, 128, 0, 255))?, opacity);
 
     page.objects_mut().create_path_object_rect(
         rect(ann.x, pdf_y - h, ann.x + w, pdf_y),
@@ -204,7 +212,7 @@ pub(crate) fn render_stamp(
         Some(border),
     )?;
 
-    let text_color = resolve_color(ann.color.as_deref(), PdfColor::new(0, 128, 0, 255))?;
+    let text_color = with_opacity(resolve_color(ann.color.as_deref(), PdfColor::new(0, 128, 0, 255))?, opacity);
     let line_spacing = ann.font_size.unwrap_or(14.0) * 1.2;
 
     for (i, line) in lines.iter().enumerate() {
@@ -228,14 +236,22 @@ pub(crate) fn render_shape(
 ) -> Result<(), RenderError> {
     let shape = ann.shape_type.as_ref().unwrap_or(&ShapeType::Rectangle);
     let stroke_w = ann.stroke_width.unwrap_or(2.0);
-    let stroke_color = ann
-        .border_color
+    let opacity = ann.opacity.unwrap_or(1.0);
+    let stroke_color = with_opacity(
+        ann.border_color
+            .as_deref()
+            .or(ann.color.as_deref())
+            .map(to_pdf_color)
+            .transpose()?
+            .unwrap_or(PdfColor::new(0, 0, 0, 255)),
+        opacity,
+    );
+    let fill = ann
+        .bg_color
         .as_deref()
-        .or(ann.color.as_deref())
         .map(to_pdf_color)
         .transpose()?
-        .unwrap_or(PdfColor::new(0, 0, 0, 255));
-    let fill = ann.bg_color.as_deref().map(to_pdf_color).transpose()?;
+        .map(|c| with_opacity(c, opacity));
     let w = ann.width.unwrap_or(100.0);
     let h = ann.height.unwrap_or(60.0);
     let top = page_height - ann.y;
@@ -287,7 +303,8 @@ pub(crate) fn render_freehand(
         _ => return Ok(()),
     };
     let stroke_w = ann.stroke_width.unwrap_or(2.0);
-    let color = resolve_color(ann.color.as_deref(), PdfColor::new(0, 0, 0, 255))?;
+    let opacity = ann.opacity.unwrap_or(1.0);
+    let color = with_opacity(resolve_color(ann.color.as_deref(), PdfColor::new(0, 0, 0, 255))?, opacity);
 
     for pair in points.windows(2) {
         page.objects_mut().create_path_object_line(
@@ -332,11 +349,10 @@ pub(crate) fn render_bubble(
     pdf_y: f32,
 ) -> Result<(), RenderError> {
     let size = ann.bubble_size.unwrap_or(24.0);
-    let fill = resolve_color(ann.bubble_color.as_deref(), PdfColor::new(255, 0, 0, 255))?;
-    let border = resolve_color(
-        ann.bubble_border_color.as_deref(),
-        PdfColor::new(0, 0, 0, 255),
-    )?;
+    let opacity = ann.opacity.unwrap_or(1.0);
+    let raw_bubble_border = resolve_color(ann.bubble_border_color.as_deref(), PdfColor::new(0, 0, 0, 255))?;
+    let fill = with_opacity(resolve_color(ann.bubble_color.as_deref(), PdfColor::new(255, 0, 0, 255))?, opacity);
+    let border = with_opacity(raw_bubble_border, opacity);
 
     let radius = size / 2.0;
     let cx = ann.x + radius;
@@ -379,7 +395,7 @@ pub(crate) fn render_bubble(
     if let Some(num) = ann.bubble_number {
         let fs = ann.bubble_font_size.unwrap_or(12.0);
         let text_color =
-            resolve_color(ann.text_color.as_deref(), PdfColor::new(255, 255, 255, 255))?;
+            with_opacity(resolve_color(ann.text_color.as_deref(), PdfColor::new(255, 255, 255, 255))?, opacity);
         let num_str = num.to_string();
         let char_w = fs * 0.35 * num_str.len() as f32;
         let mut obj = page.objects_mut().create_text_object(
@@ -394,7 +410,7 @@ pub(crate) fn render_bubble(
 
     if ann.has_leader_line.unwrap_or(false) {
         if let (Some(lx), Some(ly)) = (ann.leader_x, ann.leader_y) {
-            let lc = resolve_color(ann.leader_color.as_deref(), border)?;
+            let lc = with_opacity(resolve_color(ann.leader_color.as_deref(), raw_bubble_border)?, opacity);
             let lw = ann.leader_stroke_width.unwrap_or(1.5);
             let page_height = pdf_y + ann.y;
             let (ox, oy, tx, ty) =
@@ -451,9 +467,11 @@ pub(crate) fn render_callout(
     let font_size = ann.font_size.unwrap_or(12.0);
     let stroke_w = ann.stroke_width.unwrap_or(1.5);
 
-    let bg = resolve_color(ann.bg_color.as_deref(), PdfColor::new(255, 255, 255, 255))?;
-    let border = resolve_color(ann.border_color.as_deref(), PdfColor::new(0, 0, 0, 255))?;
-    let text_color = resolve_color(ann.color.as_deref(), PdfColor::new(0, 0, 0, 255))?;
+    let opacity = ann.opacity.unwrap_or(1.0);
+    let raw_callout_border = resolve_color(ann.border_color.as_deref(), PdfColor::new(0, 0, 0, 255))?;
+    let bg = with_opacity(resolve_color(ann.bg_color.as_deref(), PdfColor::new(255, 255, 255, 255))?, opacity);
+    let border = with_opacity(raw_callout_border, opacity);
+    let text_color = with_opacity(resolve_color(ann.color.as_deref(), PdfColor::new(0, 0, 0, 255))?, opacity);
 
     page.objects_mut().create_path_object_rect(
         rect(ann.x, pdf_y - h, ann.x + w, pdf_y),
@@ -476,7 +494,7 @@ pub(crate) fn render_callout(
 
     if ann.has_leader_line.unwrap_or(false) {
         if let (Some(lx), Some(ly)) = (ann.leader_x, ann.leader_y) {
-            let lc = resolve_color(ann.leader_color.as_deref(), border)?;
+            let lc = with_opacity(resolve_color(ann.leader_color.as_deref(), raw_callout_border)?, opacity);
             let lw = ann.leader_stroke_width.unwrap_or(1.5);
             let page_height = pdf_y + ann.y;
 
@@ -508,9 +526,10 @@ pub(crate) fn render_whiteout(
     let h = ann.height.unwrap_or(30.0);
     let top = page_height - ann.y;
 
+    let opacity = ann.opacity.unwrap_or(1.0);
     page.objects_mut().create_path_object_rect(
         rect(ann.x, top - h, ann.x + w, top),
-        Some(PdfColor::new(255, 255, 255, 255)),
+        Some(with_opacity(PdfColor::new(255, 255, 255, 255), opacity)),
         None,
         None,
     )?;
@@ -545,7 +564,8 @@ fn render_signature_draw(
         Some(p) => p,
         None => return Ok(()),
     };
-    let color = resolve_color(ann.color.as_deref(), PdfColor::new(0, 0, 0, 255))?;
+    let opacity = ann.opacity.unwrap_or(1.0);
+    let color = with_opacity(resolve_color(ann.color.as_deref(), PdfColor::new(0, 0, 0, 255))?, opacity);
     let stroke_w = ann.stroke_width.unwrap_or(2.0);
     // signature_path coords are 0..1 normalized relative to the annotation
     // bounding box — multiply out before adding to the anchor position.
@@ -581,7 +601,8 @@ fn render_signature_text(
         .or(ann.text.as_deref())
         .unwrap_or("Signature");
     let font_size = ann.font_size.unwrap_or(18.0);
-    let color = resolve_color(ann.color.as_deref(), PdfColor::new(0, 0, 128, 255))?;
+    let opacity = ann.opacity.unwrap_or(1.0);
+    let color = with_opacity(resolve_color(ann.color.as_deref(), PdfColor::new(0, 0, 128, 255))?, opacity);
 
     let mut obj = page.objects_mut().create_text_object(
         PdfPoints::new(ann.x),

@@ -1,4 +1,6 @@
-use super::renderers::{arrow_geometry, callout_edge_point, leader_geometry};
+use pdfium_render::prelude::PdfColor;
+
+use super::renderers::{arrow_geometry, callout_edge_point, leader_geometry, with_opacity};
 use super::types::{Annotation, BubbleShape, CURRENT_ANNOTATION_SCHEMA_VERSION};
 
 #[test]
@@ -242,4 +244,56 @@ fn callout_render_edge_point_degenerate_target_at_center() {
     let (ex, ey) = callout_edge_point(70.0, 40.0, 60.0, 20.0, 70.0, 40.0);
     assert_eq!(ex, 70.0);
     assert_eq!(ey, 60.0);
+}
+
+// ── annotation_opacity tests ──────────────────────────────────────────────────
+
+#[test]
+fn annotation_opacity_with_opacity_scales_alpha() {
+    let full = PdfColor::new(255, 0, 0, 255);
+    let half = with_opacity(full, 0.5);
+    assert_eq!(half.red(), 255);
+    assert_eq!(half.green(), 0);
+    assert_eq!(half.blue(), 0);
+    assert_eq!(half.alpha(), 127); // (255.0 * 0.5) as u8
+}
+
+#[test]
+fn annotation_opacity_zero_makes_fully_transparent() {
+    let color = PdfColor::new(0, 128, 255, 255);
+    let transparent = with_opacity(color, 0.0);
+    assert_eq!(transparent.alpha(), 0);
+    assert_eq!(transparent.red(), color.red());
+    assert_eq!(transparent.blue(), color.blue());
+}
+
+#[test]
+fn annotation_opacity_one_preserves_existing_alpha() {
+    let color = PdfColor::new(100, 150, 200, 180);
+    let same = with_opacity(color, 1.0);
+    assert_eq!(same.alpha(), 180);
+    assert_eq!(same.red(), color.red());
+    assert_eq!(same.green(), color.green());
+    assert_eq!(same.blue(), color.blue());
+}
+
+#[test]
+fn annotation_opacity_clamps_above_one() {
+    let color = PdfColor::new(255, 255, 255, 200);
+    let clamped = with_opacity(color, 2.0);
+    assert_eq!(clamped.alpha(), 200); // clamp(2.0, 0, 1) = 1.0 → 200*1=200
+}
+
+#[test]
+fn annotation_opacity_default_absent_is_full() {
+    let json = r#"{"id":"op1","x":10.0,"y":20.0,"pageNumber":1,"type":"TEXT","text":"hi"}"#;
+    let ann: Annotation = serde_json::from_str(json).expect("valid annotation JSON");
+    assert_eq!(ann.opacity.unwrap_or(1.0), 1.0);
+}
+
+#[test]
+fn annotation_opacity_explicit_value_round_trips() {
+    let json = r#"{"id":"op2","x":10.0,"y":20.0,"pageNumber":1,"type":"TEXT","opacity":0.5}"#;
+    let ann: Annotation = serde_json::from_str(json).expect("valid annotation JSON");
+    assert_eq!(ann.opacity, Some(0.5));
 }

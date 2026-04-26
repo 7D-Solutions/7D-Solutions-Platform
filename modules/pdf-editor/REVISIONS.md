@@ -4,6 +4,9 @@
 > **Standard:** See `docs/VERSIONING.md` for the rules governing this file.
 
 
+## 2.11.0
+- feat(bd-a1592): annotations now apply `annotation.opacity` (clamped 0.0–1.0; default 1.0) to the resolved fill colour. New `with_opacity()` helper in `renderers.rs` scales the alpha channel of the resolved color before rendering. Previously the field was deserialized but ignored — annotations always rendered at full alpha.
+
 ## 2.10.1
 - chore(bd-h1o0p.1): update build scripts (`scripts/dev-cross.sh`, `scripts/dev-native.sh`, `scripts/proof_pdf_editor.sh`) and the `[[bin]] name` from `pdf-editor-rs` to `pdf-editor` to match the package rename in 2.3.5. The binary artifact path under `target/.../release/` is now `pdf-editor` (was `pdf-editor-rs`); deploy/cross-watcher pipelines need to pick up the new name.
 
