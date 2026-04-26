@@ -4,6 +4,9 @@
 > **Standard:** See `docs/VERSIONING.md` for the rules governing this file.
 
 
+## 2.10.1
+- chore(bd-h1o0p.1): update build scripts (`scripts/dev-cross.sh`, `scripts/dev-native.sh`, `scripts/proof_pdf_editor.sh`) and the `[[bin]] name` from `pdf-editor-rs` to `pdf-editor` to match the package rename in 2.3.5. The binary artifact path under `target/.../release/` is now `pdf-editor` (was `pdf-editor-rs`); deploy/cross-watcher pipelines need to pick up the new name.
+
 ## 2.10.0
 - feat(bd-2ydgm): CALLOUT annotation now renders as a true box + leader (previously fell through to plain text rendering). New `render_callout()` in `renderers.rs` plus `callout_edge_point()` helper that intersects the box boundary along the center→target ray; degenerate case returns bottom-center. Dispatch in `render.rs` Callout branch is split out from Text.
 

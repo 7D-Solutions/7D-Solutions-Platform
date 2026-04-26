@@ -1,11 +1,11 @@
 [package]
 name = "pdf-editor"
-version = "2.10.0"
+version = "2.10.1"
 edition = "2021"
 description = "PDF template management, form submissions, annotations, and document generation"
 
 [[bin]]
-name = "pdf-editor-rs"
+name = "pdf-editor"
 path = "src/main.rs"
 
 [[bin]]

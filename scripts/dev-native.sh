@@ -40,7 +40,7 @@ SERVICES=(
   "party|party-rs|7d-party|8098|5448|party_user|party_pass|party_db|party"
   "integrations|integrations-rs|7d-integrations|8099|5449|integrations_user|integrations_pass|integrations_db|integrations"
   "ttp|ttp-rs|7d-ttp|8100|5451|ttp_user|ttp_pass|ttp_db|ttp"
-  "pdf-editor|pdf-editor-rs|7d-pdf-editor|8102|5453|pdf_editor_user|pdf_editor_pass|pdf_editor_db|pdf-editor-rs"
+  "pdf-editor|pdf-editor|7d-pdf-editor|8102|5453|pdf_editor_user|pdf_editor_pass|pdf_editor_db|pdf-editor"
   "maintenance|maintenance-rs|7d-maintenance|8101|5452|maintenance_user|maintenance_pass|maintenance_db|maintenance-rs"
   "shipping-receiving|shipping-receiving-rs|7d-shipping-receiving|8103|5454|shipping_receiving_user|shipping_receiving_pass|shipping_receiving_db|shipping-receiving-rs"
   "quality-inspection|quality-inspection-rs|7d-quality-inspection|8106|5459|quality_inspection_user|quality_inspection_pass|quality_inspection_db|quality-inspection-rs"
