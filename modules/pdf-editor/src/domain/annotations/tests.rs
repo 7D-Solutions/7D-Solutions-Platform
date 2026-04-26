@@ -1,4 +1,4 @@
-use super::renderers::{arrow_geometry, leader_geometry};
+use super::renderers::{arrow_geometry, callout_edge_point, leader_geometry};
 use super::types::{Annotation, BubbleShape, CURRENT_ANNOTATION_SCHEMA_VERSION};
 
 #[test]
@@ -198,4 +198,48 @@ fn arrow_geometry_zero_length_shaft_no_panic() {
     assert!(by1.is_finite());
     assert!(bx2.is_finite());
     assert!(by2.is_finite());
+}
+
+// ── callout_edge_point golden tests ───────────────────────────────────────────
+//
+// All inputs are screen space (y=0 top, increases downward).
+// Expected outputs are also screen space — the caller converts to PDF space.
+//
+// Box: x=10, y=20, w=120, h=40 → center=(70, 40), half_w=60, half_h=20
+
+#[test]
+fn callout_render_edge_point_below_box() {
+    // Leader target directly below center → exits through bottom-center edge
+    // center=(70,40), target=(70,100): dx=0, dy=60 → t=20/60, edge=(70,60)
+    let (ex, ey) = callout_edge_point(70.0, 40.0, 60.0, 20.0, 70.0, 100.0);
+    assert!((ex - 70.0).abs() < 1e-4);
+    assert!((ey - 60.0).abs() < 1e-4);
+}
+
+#[test]
+fn callout_render_edge_point_right_of_box() {
+    // Leader target directly right of center → exits through right-center edge
+    // center=(70,40), target=(200,40): dx=130, dy=0 → t=60/130, edge=(130,40)
+    let (ex, ey) = callout_edge_point(70.0, 40.0, 60.0, 20.0, 200.0, 40.0);
+    assert!((ex - 130.0).abs() < 1e-4);
+    assert!((ey - 40.0).abs() < 1e-4);
+}
+
+#[test]
+fn callout_render_edge_point_diagonal_corner() {
+    // Leader target at diagonal where both axes clip simultaneously → corner
+    // center=(50,30), half_w=50, half_h=30, target=(150,120)
+    // dx=100, dy=90 → t_x=50/100=0.5, t_y=30/90≈0.333 → t≈0.333
+    // edge=(50+33.3, 30+30) = (83.3, 60)
+    let (ex, ey) = callout_edge_point(50.0, 30.0, 50.0, 30.0, 150.0, 120.0);
+    assert!((ey - 60.0).abs() < 1e-3);
+    assert!(ex > 50.0 && ex < 100.0);
+}
+
+#[test]
+fn callout_render_edge_point_degenerate_target_at_center() {
+    // Degenerate: target == center → returns bottom-center
+    let (ex, ey) = callout_edge_point(70.0, 40.0, 60.0, 20.0, 70.0, 40.0);
+    assert_eq!(ex, 70.0);
+    assert_eq!(ey, 60.0);
 }

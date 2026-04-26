@@ -188,8 +188,11 @@ pub fn render_annotations(
         for ann in page_annotations {
             let pdf_y = page_height - ann.y;
             match ann.annotation_type {
-                AnnotationType::Text | AnnotationType::Callout => {
+                AnnotationType::Text => {
                     renderers::render_text(&mut page, &fonts, ann, pdf_y)?;
+                }
+                AnnotationType::Callout => {
+                    renderers::render_callout(&mut page, &fonts, ann, pdf_y)?;
                 }
                 AnnotationType::Arrow => {
                     renderers::render_arrow(&mut page, ann, page_height)?;

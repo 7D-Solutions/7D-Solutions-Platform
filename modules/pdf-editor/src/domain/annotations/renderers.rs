@@ -412,6 +412,93 @@ pub(crate) fn render_bubble(
     Ok(())
 }
 
+/// Computes the point on a rectangle boundary in the direction from center toward (tx, ty).
+///
+/// All coordinates are in screen space (y=0 top, increases downward).
+/// Returns `(edge_x, edge_y)`.
+///
+/// Locked conventions:
+/// - Origin is always the box center.
+/// - Intersects the nearest box edge along the center→target ray.
+/// - Degenerate case (target == center): returns bottom-center of box.
+pub(crate) fn callout_edge_point(
+    cx: f32,
+    cy: f32,
+    half_w: f32,
+    half_h: f32,
+    tx: f32,
+    ty: f32,
+) -> (f32, f32) {
+    let dx = tx - cx;
+    let dy = ty - cy;
+    if dx == 0.0 && dy == 0.0 {
+        return (cx, cy + half_h);
+    }
+    let t_x = if dx != 0.0 { half_w / dx.abs() } else { f32::MAX };
+    let t_y = if dy != 0.0 { half_h / dy.abs() } else { f32::MAX };
+    let t = t_x.min(t_y);
+    (cx + t * dx, cy + t * dy)
+}
+
+pub(crate) fn render_callout(
+    page: &mut PdfPage,
+    fonts: &FontTokens,
+    ann: &Annotation,
+    pdf_y: f32,
+) -> Result<(), RenderError> {
+    let w = ann.width.unwrap_or(120.0);
+    let h = ann.height.unwrap_or(40.0);
+    let font_size = ann.font_size.unwrap_or(12.0);
+    let stroke_w = ann.stroke_width.unwrap_or(1.5);
+
+    let bg = resolve_color(ann.bg_color.as_deref(), PdfColor::new(255, 255, 255, 255))?;
+    let border = resolve_color(ann.border_color.as_deref(), PdfColor::new(0, 0, 0, 255))?;
+    let text_color = resolve_color(ann.color.as_deref(), PdfColor::new(0, 0, 0, 255))?;
+
+    page.objects_mut().create_path_object_rect(
+        rect(ann.x, pdf_y - h, ann.x + w, pdf_y),
+        Some(bg),
+        Some(PdfPoints::new(stroke_w)),
+        Some(border),
+    )?;
+
+    let text = ann.text.as_deref().unwrap_or("");
+    if !text.is_empty() {
+        let mut obj = page.objects_mut().create_text_object(
+            PdfPoints::new(ann.x + 4.0),
+            PdfPoints::new(pdf_y - font_size - 4.0),
+            text,
+            fonts.helvetica,
+            PdfPoints::new(font_size),
+        )?;
+        obj.set_fill_color(text_color)?;
+    }
+
+    if ann.has_leader_line.unwrap_or(false) {
+        if let (Some(lx), Some(ly)) = (ann.leader_x, ann.leader_y) {
+            let lc = resolve_color(ann.leader_color.as_deref(), border)?;
+            let lw = ann.leader_stroke_width.unwrap_or(1.5);
+            let page_height = pdf_y + ann.y;
+
+            // Box center and edge point in screen space
+            let cx = ann.x + w / 2.0;
+            let cy = ann.y + h / 2.0;
+            let (ex, ey) = callout_edge_point(cx, cy, w / 2.0, h / 2.0, lx, ly);
+
+            page.objects_mut().create_path_object_line(
+                PdfPoints::new(ex),
+                PdfPoints::new(page_height - ey),
+                PdfPoints::new(lx),
+                PdfPoints::new(page_height - ly),
+                lc,
+                PdfPoints::new(lw),
+            )?;
+        }
+    }
+
+    Ok(())
+}
+
 pub(crate) fn render_whiteout(
     page: &mut PdfPage,
     ann: &Annotation,

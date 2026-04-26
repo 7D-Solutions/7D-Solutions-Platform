@@ -4,6 +4,9 @@
 > **Standard:** See `docs/VERSIONING.md` for the rules governing this file.
 
 
+## 2.10.0
+- feat(bd-2ydgm): CALLOUT annotation now renders as a true box + leader (previously fell through to plain text rendering). New `render_callout()` in `renderers.rs` plus `callout_edge_point()` helper that intersects the box boundary along the center→target ray; degenerate case returns bottom-center. Dispatch in `render.rs` Callout branch is split out from Text.
+
 ## 2.9.0
 - feat(bd-4az6r): ARROW geometry locked — head/tail sizing as fixed multiples of stroke width, angle convention is screen-space CCW-from-east in degrees. Renderer no longer free-floats arrowhead size with annotation length. New `docs/annotations-geometry.md` documents the full convention so frontend renderers match.
 
