@@ -28,6 +28,10 @@
 # Performance smoke test artifacts
 /perf-smoke-gate-*.json
 
+# Visual drift test failure artifacts — transient, never commit
+tools/contract-tests/goldens/*.actual.png
+tools/contract-tests/goldens/*.diff.png
+
 # Cargo per-slot home dirs (registry cache created by cargo-slot.sh)
 /.cargo-slot-1/
 /.cargo-slot-2/

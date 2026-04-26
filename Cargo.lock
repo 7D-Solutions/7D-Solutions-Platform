@@ -1534,8 +1534,10 @@ name = "contract-tests"
 version = "1.1.0"
 dependencies = [
  "glob",
+ "image",
  "jsonschema",
  "pdf-editor",
+ "pdfium-render",
  "serde",
  "serde_json",
  "serde_yaml",
@@ -6166,7 +6168,7 @@ dependencies = [
 
 [[package]]
 name = "security"
-version = "1.14.0"
+version = "1.15.0"
 dependencies = [
  "axum",
  "base64 0.22.1",

@@ -1,0 +1,3 @@
+# Transient artifacts written on test failure — do not commit
+*.actual.png
+*.diff.png

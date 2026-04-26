@@ -7,7 +7,7 @@
   "timestamp": "2024-01-15T10:00:00.000Z",
   "bubbleNumber": 1,
   "bubbleSize": 24.48,
-  "bubbleShape": "circle",
+  "bubbleShape": "CIRCLE",
   "bubbleColor": "#4299e1",
   "bubbleBorderColor": "#2b6cb0",
   "textColor": "#ffffff",
