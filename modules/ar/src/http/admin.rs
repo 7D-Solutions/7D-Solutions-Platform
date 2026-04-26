@@ -83,7 +83,7 @@ mod tests {
     async fn setup_db() -> PgPool {
         dotenvy::dotenv().ok();
         let url = env::var("DATABASE_URL_AR").unwrap_or_else(|_| {
-            "postgres://ar_user:ar_pass@localhost:5434/ar_db".to_string()
+            "postgres://ar_user:ar_pass@localhost:5434/ar_db?sslmode=disable".to_string()
         });
 
         let pool = PgPoolOptions::new()

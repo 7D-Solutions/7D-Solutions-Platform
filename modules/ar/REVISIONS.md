@@ -4,6 +4,9 @@
 > **Standard:** See `docs/VERSIONING.md` for the rules governing this file.
 
 
+## 6.10.2
+- fix(bd-mvsft): admin tests' localhost DATABASE_URL_AR fallback now ends with `?sslmode=disable` so the libpq driver does not negotiate TLS against the unencrypted local Postgres. (The original bd-mvsft scope — `shipping_cost_event_emission_test` visibility/type fix — was already landed in bd-1n4am.2.)
+
 ## 6.10.1
 - fix(bd-44q25): admin tests use `DATABASE_URL_AR` env var (matches the rest of AR per bd-1n4am.4) and drop the `?sslmode=require` query param from the localhost fallback. Tests no longer pick up the wrong DB or fail TLS handshake against an unencrypted local Postgres.
 
